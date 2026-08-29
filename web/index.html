@@ -9,26 +9,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --parchment: #f3ead4;
-    --parchment-2: #ece0bf;
-    --card: #faf4e3;
-    --ink: #2b2016;
-    --ink-soft: #5c4d3a;
-    --ink-faint: #8a7a63;
-    --border: #d8c7a0;
-    --oxblood: #7a2e2e;
-    --oxblood-2: #93413c;
-    --oxblood-soft: #ecdcd4;
-    --gold: #a9791f;
-    --gold-bright: #d9a63e;
-    --gold-soft: #f1e4bf;
-    --good: #4b6b3f;
-    --good-soft: #e3ead4;
-    --user-bubble: #7a2e2e;
-    --user-ink: #f6ecdf;
-    --shadow: 0 1px 2px rgba(43, 32, 22, 0.08), 0 6px 20px -6px rgba(43, 32, 22, 0.18);
-    --shadow-lg: 0 2px 6px rgba(43, 32, 22, 0.10), 0 20px 40px -14px rgba(43, 32, 22, 0.28);
-    --ring: 0 0 0 3px rgba(122, 46, 46, 0.18);
+    --parchment: #fbf5e6;
+    --parchment-2: #f6ecd2;
+    --card: #fffdf6;
+    --ink: #372a1c;
+    --ink-soft: #6b5b44;
+    --ink-faint: #96835f;
+    --border: #ecdfb8;
+    --oxblood: #a1452b;
+    --oxblood-2: #b85a3a;
+    --oxblood-soft: #fbe9de;
+    --gold: #b8860b;
+    --gold-bright: #e8b94a;
+    --gold-soft: #fbeecb;
+    --good: #4b7a3f;
+    --good-soft: #ecf4de;
+    --user-bubble: #a1452b;
+    --user-ink: #fff8ec;
+    --shadow: 0 1px 2px rgba(120, 90, 40, 0.06), 0 6px 20px -6px rgba(120, 90, 40, 0.14);
+    --shadow-lg: 0 2px 6px rgba(120, 90, 40, 0.08), 0 20px 40px -14px rgba(120, 90, 40, 0.20);
+    --ring: 0 0 0 3px rgba(161, 69, 43, 0.18);
     --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
     --font-body: "EB Garamond", ui-serif, Georgia, "Iowan Old Style", serif;
   }
@@ -59,14 +59,15 @@
      frequency stays consistent regardless of screen size or aspect ratio. */
   .grain {
     position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    opacity: 0.07; mix-blend-mode: multiply;
+    opacity: 0.045; mix-blend-mode: multiply;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0 0 0 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
     background-size: 200px 200px;
   }
   @media (prefers-color-scheme: dark) { .grain { mix-blend-mode: overlay; opacity: 0.12; } }
+  /* A soft wash of morning light from above, not a darkening vignette. */
   .vignette {
     position: fixed; inset: 0; z-index: 0; pointer-events: none;
-    background: radial-gradient(140% 100% at 50% 0%, transparent 40%, rgba(43,32,22,0.10) 100%);
+    background: radial-gradient(120% 90% at 50% -10%, rgba(255, 246, 222, 0.65) 0%, transparent 60%);
   }
   @media (prefers-color-scheme: dark) {
     .vignette { background: radial-gradient(140% 100% at 50% 0%, transparent 40%, rgba(0,0,0,0.35) 100%); }
