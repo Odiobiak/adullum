@@ -158,6 +158,11 @@
     content: "Ask something — e.g. \"What does Romans 8:28 mean?\"";
     color: var(--ink-faint); font-style: italic;
   }
+  .answer .heading {
+    display: block; font-weight: 700; font-size: 1.05rem;
+    font-family: ui-serif, Georgia, "Iowan Old Style", serif;
+    margin-top: 0.3rem;
+  }
 
   .citations { display: flex; flex-wrap: wrap; gap: 0.45rem; }
   .citation {
@@ -195,7 +200,7 @@
       </div>
     </div>
     <div class="config">
-      <label><span class="lbl">API</span><input id="apiBase" value="http://localhost:8000" /></label>
+      <label><span class="lbl">API</span><input id="apiBase" value="" /></label>
       <div class="divider"></div>
       <label><span class="lbl">Translation</span><input id="translation" value="BSB" size="6" /></label>
     </div>
@@ -214,9 +219,14 @@
       </form>
       <div class="examples" id="examples">
         <span class="example-chip" data-q="What does Romans 8:28 mean?">Romans 8:28</span>
-        <span class="example-chip" data-q="What does the Bible say about anxiety?">Anxiety</span>
         <span class="example-chip" data-q="What is the meaning of the parable of the prodigal son?">Prodigal son</span>
         <span class="example-chip" data-q="How should Christians think about forgiveness?">Forgiveness</span>
+        <span class="example-chip" data-q="Give me a starting point for studying the Book of James.">Starting point: James</span>
+        <span class="example-chip" data-q="Create a study plan for the Book of Revelation.">Study plan: Revelation</span>
+        <span class="example-chip" data-q="What does the Bible say about spiritualism and consulting mediums?">Spiritualism</span>
+        <span class="example-chip" data-q="What does the Bible say about being religious versus having genuine faith?">Being religious</span>
+        <span class="example-chip" data-q="What does the Bible say about judging others?">Judging others</span>
+        <span class="example-chip" data-q="What does the Bible teach about how to pray?">Praying</span>
       </div>
     </div>
 
@@ -251,6 +261,26 @@ const stepsEl = document.getElementById("steps");
 const answerEl = document.getElementById("answer");
 const citationsEl = document.getElementById("citations");
 const errorEl = document.getElementById("error");
+
+// Same-origin deploy (FastAPI serving this file itself) -> default to that
+// origin so it works with zero setup. Opened as a bare file:// page (local
+// dev, no origin to reuse) -> fall back to the default local uvicorn port.
+document.getElementById("apiBase").value =
+  location.protocol === "file:" ? "http://localhost:8000" : location.origin;
+
+function renderAnswer(text) {
+  // The model's answer is Markdown-ish (bold, occasional headers) — escape
+  // HTML first so nothing in the text can inject markup, then convert just
+  // the handful of markers we actually see rather than pulling in a full
+  // Markdown library for this.
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const withHeadings = withBold.replace(/^#{1,6}\s+(.+)$/gm, '<span class="heading">$1</span>');
+  answerEl.innerHTML = withHeadings;
+}
 
 function addStep(name) {
   stepsEl.querySelectorAll(".step-pill.active").forEach((p) => p.classList.remove("active"));
@@ -287,21 +317,27 @@ async function ask(query, translation, apiBase) {
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    // The server sends CRLF line endings; normalize to LF before framing on
+    // blank lines, or "\n\n" never matches and the whole stream gets stuck
+    // in the buffer.
+    buffer += decoder.decode(value, { stream: true }).replace(/\r\n/g, "\n");
 
     // SSE frames are separated by a blank line; each frame has "event:" and "data:" lines.
     const frames = buffer.split("\n\n");
     buffer = frames.pop(); // last chunk may be incomplete — keep it for next read
 
     for (const frame of frames) {
-      const eventLine = frame.split("\n").find((l) => l.startsWith("event:"));
-      const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
-      if (!eventLine || !dataLine) continue;
+      const lines = frame.split("\n");
+      const eventLine = lines.find((l) => l.startsWith("event:"));
+      const dataLines = lines.filter((l) => l.startsWith("data:"));
+      if (!eventLine || dataLines.length === 0) continue;
       const event = eventLine.slice(6).trim();
-      const data = dataLine.slice(5).trim();
+      // SSE spec: each "data:" line is one line of the message, joined by "\n"
+      // to reconstitute multi-line payloads (e.g. a multi-paragraph answer).
+      const data = dataLines.map((l) => l.slice(5).replace(/^ /, "")).join("\n");
 
       if (event === "step") addStep(data);
-      else if (event === "answer") answerEl.textContent = data;
+      else if (event === "answer") renderAnswer(data);
       else if (event === "citations") renderCitations(JSON.parse(data));
     }
   }

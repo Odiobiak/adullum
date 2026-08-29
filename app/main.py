@@ -11,9 +11,11 @@ contract.
 
 import json
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.graph import agent
@@ -92,3 +94,9 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
                     yield {"event": "step", "data": node_name}
 
     return EventSourceResponse(event_generator())
+
+
+# Serves web/index.html at "/" and any future static assets alongside it.
+# Mounted last so it never shadows the API routes above — FastAPI matches
+# explicit paths first and falls through to the mount only for anything else.
+app.mount("/", StaticFiles(directory=Path(__file__).resolve().parent.parent / "web", html=True), name="web")
