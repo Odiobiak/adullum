@@ -11,7 +11,7 @@ from typing import Literal, TypedDict
 
 from app.schemas import Verse
 
-Intent = Literal["reference_lookup", "thematic", "devotional", "cross_reference"]
+Intent = Literal["reference_lookup", "thematic", "devotional", "cross_reference", "meta"]
 
 
 class AgentState(TypedDict, total=False):

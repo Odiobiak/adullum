@@ -13,6 +13,7 @@ from langgraph.graph import END, StateGraph
 
 from app.agent.nodes import (
     MAX_RETRIES,
+    answer_meta,
     classify_intent,
     format_citations,
     ground_check,
@@ -20,6 +21,15 @@ from app.agent.nodes import (
     synthesize,
 )
 from app.agent.state import AgentState
+
+
+def _after_classify(state: AgentState) -> str:
+    """Conditional edge out of classify_intent: "meta" questions (about the
+    assistant itself, small talk) skip retrieval/synthesis entirely and go
+    straight to answer_meta -> END; everything else takes the normal
+    grounded-retrieval path.
+    """
+    return "answer_meta" if state.get("intent") == "meta" else "retrieve"
 
 
 def _after_ground_check(state: AgentState) -> str:
@@ -39,13 +49,19 @@ def build_graph():
     """
     graph = StateGraph(AgentState)
     graph.add_node("classify_intent", classify_intent)
+    graph.add_node("answer_meta", answer_meta)
     graph.add_node("retrieve", retrieve)
     graph.add_node("synthesize", synthesize)
     graph.add_node("ground_check", ground_check)
     graph.add_node("format_citations", format_citations)
 
     graph.set_entry_point("classify_intent")
-    graph.add_edge("classify_intent", "retrieve")
+    graph.add_conditional_edges(
+        "classify_intent",
+        _after_classify,
+        {"retrieve": "retrieve", "answer_meta": "answer_meta"},
+    )
+    graph.add_edge("answer_meta", END)
     graph.add_edge("retrieve", "synthesize")
     graph.add_edge("synthesize", "ground_check")
     graph.add_conditional_edges(

@@ -33,7 +33,9 @@ class IntentClassification(BaseModel):
             "reference_lookup: asks about a specific verse/passage. "
             "thematic: asks what the Bible says about a topic or concept. "
             "devotional: asks for life application / encouragement. "
-            "cross_reference: asks how passages relate to each other."
+            "cross_reference: asks how passages relate to each other. "
+            "meta: asks about the assistant itself (its name, identity, what it is/can "
+            "do) or is small talk/a greeting — not a Bible content question at all."
         )
     )
 
@@ -61,6 +63,32 @@ def classify_intent(state: AgentState, config: RunnableConfig) -> AgentState:
         [SystemMessage(CLASSIFY_SYSTEM_PROMPT), HumanMessage(state["query"])], config=config
     )
     return {"intent": result.intent}
+
+
+# ---------------------------------------------------------------------------
+# answer_meta — questions about the assistant itself, not Bible content.
+# Routed here straight from classify_intent, bypassing retrieve()/synthesize()
+# entirely: those are hard-instructed to answer ONLY from retrieved verses,
+# which made "what's your name?" retrieve unrelated verses about names (Jacob,
+# Jesus asking "who do you say I am") and then dodge the question rather than
+# just answering as herself.
+# ---------------------------------------------------------------------------
+META_SYSTEM_PROMPT = """You are Aquila, a warm and steadfast Bible study companion \
+— named for the believer in Acts 18:26 who, alongside Priscilla, took Apollos aside and \
+"explained the way of God more accurately" to him. Your job is to help the person you're \
+talking with go deeper in their relationship with God and in Scripture.
+
+The user just asked about you directly (your name, what you are, or similar small talk) \
+rather than a Bible question. Answer warmly and briefly, in your own voice — this doesn't \
+need a verse citation, since it isn't a Scripture question."""
+
+
+def answer_meta(state: AgentState, config: RunnableConfig) -> AgentState:
+    """Handles small talk / questions about the assistant itself. No verses are
+    retrieved and no citations are produced — `format_citations` is skipped
+    entirely for this path (see graph.py)."""
+    response = _llm.invoke([SystemMessage(META_SYSTEM_PROMPT), HumanMessage(state["query"])], config=config)
+    return {"answer": response.content, "citations": []}
 
 
 # ---------------------------------------------------------------------------

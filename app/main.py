@@ -85,6 +85,11 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
             for node_name, node_output in step.items():
                 if node_name == "synthesize":
                     yield {"event": "answer", "data": node_output["answer"]}
+                elif node_name == "answer_meta":
+                    # Small-talk/identity questions skip synthesize/format_citations
+                    # entirely (see graph.py) — this node carries both keys at once.
+                    yield {"event": "answer", "data": node_output["answer"]}
+                    yield {"event": "citations", "data": json.dumps([])}
                 elif node_name == "format_citations":
                     citations = [
                         {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
