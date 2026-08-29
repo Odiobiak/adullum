@@ -4,7 +4,17 @@ Every other module imports `settings` from here rather than reading `os.environ`
 directly, so there is exactly one place that knows how config is sourced.
 """
 
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# pydantic-settings reads .env into `settings` below WITHOUT touching
+# os.environ — fine for every value this app reads through `settings`, but
+# the Langfuse SDK reads its credentials (LANGFUSE_PUBLIC_KEY/SECRET_KEY/HOST)
+# directly from os.environ itself (see app/observability.py), so those three
+# must actually be loaded into the process environment. This must run before
+# anything imports langfuse — app/config.py is imported first everywhere else,
+# so doing it here guarantees the ordering.
+load_dotenv()
 
 
 class Settings(BaseSettings):

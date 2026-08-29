@@ -11,6 +11,7 @@ from mcp.server.mcpserver import MCPServer
 
 from app.agent.graph import agent
 from app.config import settings
+from app.observability import get_langfuse_handler, trace_attributes
 
 mcp = MCPServer(
     name="aquila",
@@ -23,7 +24,7 @@ mcp = MCPServer(
 
 
 @mcp.tool()
-async def ask_aquila(query: str, translation: str | None = None) -> dict:
+async def ask_aquila(query: str, translation: str | None = None, session_id: str | None = None) -> dict:
     """Ask Aquila a Bible study question and get back a grounded answer plus
     the verse citations it's based on.
 
@@ -32,10 +33,15 @@ async def ask_aquila(query: str, translation: str | None = None) -> dict:
             Romans 8:28 mean?" or "What does the Bible say about anxiety?").
         translation: Bible translation to answer from (e.g. "BSB"). Falls
             back to the app's configured default translation if omitted.
+        session_id: Optional caller-supplied id (e.g. a Cognigy conversation
+            id) to group this call with others from the same conversation in
+            Langfuse. Omit if the caller has no natural session concept.
     """
-    result = await agent.ainvoke(
-        {"query": query, "translation": translation or settings.default_translation}
-    )
+    handler = get_langfuse_handler()
+    config = {"callbacks": [handler] if handler else []}
+    resolved_translation = translation or settings.default_translation
+    with trace_attributes(session_id=session_id, tags=["mcp"], trace_name="mcp-ask-aquila"):
+        result = await agent.ainvoke({"query": query, "translation": resolved_translation}, config=config)
     citations = [
         {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
         for v in result.get("citations", [])

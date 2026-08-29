@@ -16,7 +16,7 @@ dependencies = [
     "pydantic>=2.8.0",
     "pydantic-settings>=2.4.0",
     "python-dotenv>=1.0.0",
-    "langfuse>=2.50.0",
+    "langfuse>=4.0.0",
     "mcp>=2.0.0",
 ]
 

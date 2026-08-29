@@ -20,17 +20,18 @@ from sse_starlette.sse import EventSourceResponse
 
 from app.agent.graph import agent
 from app.mcp_server import mcp
-from app.observability import get_langfuse_handler
+from app.observability import get_langfuse_handler, trace_attributes
 from app.schemas import ChatRequest, ChatResponse, Citation
 
 
-def _run_config(request: ChatRequest) -> dict:
-    """Shared config builder for both endpoints: attaches a Langfuse handler
-    tagged "chat" (production traffic) when one is configured, tagged with the
-    caller's session_id if given. Filters out the None case rather than passing
-    it — LangChain rejects a bare None in the callbacks list.
+def _run_config() -> dict:
+    """Shared config builder for both endpoints: attaches the Langfuse callback
+    handler when one is configured. Filters out the None case rather than
+    passing it — LangChain rejects a bare None in the callbacks list. Trace-level
+    attributes (session_id, tags, trace_name) are applied separately via
+    trace_attributes() wrapping the actual invocation — see app/observability.py.
     """
-    handler = get_langfuse_handler(session_id=request.session_id, tags=["chat"])
+    handler = get_langfuse_handler()
     return {"callbacks": [handler] if handler else []}
 
 app = FastAPI(title="Adullum")
@@ -58,9 +59,10 @@ async def chat(request: ChatRequest) -> ChatResponse:
     Good enough for a first web/CLI client; /chat/stream below is what a voice or
     mobile front-end will actually want.
     """
-    result = await agent.ainvoke(
-        {"query": request.query, "translation": request.translation}, config=_run_config(request)
-    )
+    with trace_attributes(session_id=request.session_id, tags=["chat"], trace_name="chat"):
+        result = await agent.ainvoke(
+            {"query": request.query, "translation": request.translation}, config=_run_config()
+        )
     citations = [
         Citation(book=v.book, chapter=v.chapter, verse=v.verse, translation=v.translation)
         for v in result.get("citations", [])
@@ -77,27 +79,28 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
     """
 
     async def event_generator() -> AsyncIterator[dict]:
-        async for step in agent.astream(
-            {"query": request.query, "translation": request.translation},
-            config=_run_config(request),
-            stream_mode="updates",
-        ):
-            for node_name, node_output in step.items():
-                if node_name == "synthesize":
-                    yield {"event": "answer", "data": node_output["answer"]}
-                elif node_name == "answer_meta":
-                    # Small-talk/identity questions skip synthesize/format_citations
-                    # entirely (see graph.py) — this node carries both keys at once.
-                    yield {"event": "answer", "data": node_output["answer"]}
-                    yield {"event": "citations", "data": json.dumps([])}
-                elif node_name == "format_citations":
-                    citations = [
-                        {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
-                        for v in node_output["citations"]
-                    ]
-                    yield {"event": "citations", "data": json.dumps(citations)}
-                else:
-                    yield {"event": "step", "data": node_name}
+        with trace_attributes(session_id=request.session_id, tags=["chat-stream"], trace_name="chat-stream"):
+            async for step in agent.astream(
+                {"query": request.query, "translation": request.translation},
+                config=_run_config(),
+                stream_mode="updates",
+            ):
+                for node_name, node_output in step.items():
+                    if node_name == "synthesize":
+                        yield {"event": "answer", "data": node_output["answer"]}
+                    elif node_name == "answer_meta":
+                        # Small-talk/identity questions skip synthesize/format_citations
+                        # entirely (see graph.py) — this node carries both keys at once.
+                        yield {"event": "answer", "data": node_output["answer"]}
+                        yield {"event": "citations", "data": json.dumps([])}
+                    elif node_name == "format_citations":
+                        citations = [
+                            {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
+                            for v in node_output["citations"]
+                        ]
+                        yield {"event": "citations", "data": json.dumps(citations)}
+                    else:
+                        yield {"event": "step", "data": node_name}
 
     return EventSourceResponse(event_generator())
 
