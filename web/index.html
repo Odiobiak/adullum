@@ -9,26 +9,26 @@
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
   :root {
-    --parchment: #fbf5e6;
-    --parchment-2: #f6ecd2;
-    --card: #fffdf6;
-    --ink: #372a1c;
+    --parchment: #fffdf8;
+    --parchment-2: #fff3d6;
+    --card: #ffffff;
+    --ink: #2f2013;
     --ink-soft: #6b5b44;
-    --ink-faint: #96835f;
-    --border: #ecdfb8;
-    --oxblood: #a1452b;
-    --oxblood-2: #b85a3a;
-    --oxblood-soft: #fbe9de;
-    --gold: #b8860b;
-    --gold-bright: #e8b94a;
-    --gold-soft: #fbeecb;
+    --ink-faint: #a08b62;
+    --border: #f2e6c2;
+    --oxblood: #c1502f;
+    --oxblood-2: #d4623f;
+    --oxblood-soft: #fde8da;
+    --gold: #c9900a;
+    --gold-bright: #f0c04c;
+    --gold-soft: #fff3d1;
     --good: #4b7a3f;
-    --good-soft: #ecf4de;
-    --user-bubble: #a1452b;
-    --user-ink: #fff8ec;
-    --shadow: 0 1px 2px rgba(120, 90, 40, 0.06), 0 6px 20px -6px rgba(120, 90, 40, 0.14);
-    --shadow-lg: 0 2px 6px rgba(120, 90, 40, 0.08), 0 20px 40px -14px rgba(120, 90, 40, 0.20);
-    --ring: 0 0 0 3px rgba(161, 69, 43, 0.18);
+    --good-soft: #eef6df;
+    --user-bubble: #c1502f;
+    --user-ink: #fffaf0;
+    --shadow: 0 1px 2px rgba(190, 140, 50, 0.08), 0 6px 20px -6px rgba(190, 140, 50, 0.16);
+    --shadow-lg: 0 2px 6px rgba(190, 140, 50, 0.10), 0 20px 40px -14px rgba(190, 140, 50, 0.22);
+    --ring: 0 0 0 3px rgba(193, 80, 47, 0.18);
     --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
     --font-body: "EB Garamond", ui-serif, Georgia, "Iowan Old Style", serif;
   }
@@ -88,11 +88,14 @@
   header, main { position: relative; z-index: 1; }
 
   /* --- Header --- */
+  .topbar {
+    height: 4px; flex: none; position: relative; z-index: 1;
+    background: linear-gradient(90deg, var(--gold) 0%, var(--oxblood) 35%, var(--gold-bright) 65%, var(--gold) 100%);
+  }
   header {
     padding: 1.15rem 1.6rem 0.9rem;
     display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;
     max-width: 780px; margin: 0 auto; width: 100%; flex: none;
-    border-bottom: 1px solid var(--border);
   }
   .brand { display: flex; gap: 0.9rem; align-items: center; }
   .flame-mark { flex: none; }
@@ -147,6 +150,15 @@
     flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
     text-align: center; gap: 1.2rem; padding: 1rem;
   }
+  .flame-glow {
+    position: relative; display: flex; align-items: center; justify-content: center;
+  }
+  .flame-glow::before {
+    content: ""; position: absolute; width: 130px; height: 130px; border-radius: 50%;
+    background: radial-gradient(circle, var(--gold-soft) 0%, transparent 70%);
+    animation: glow-pulse 3.4s ease-in-out infinite;
+  }
+  @keyframes glow-pulse { 0%, 100% { opacity: 0.7; transform: scale(1); } 50% { opacity: 1; transform: scale(1.08); } }
   .empty-state h2 {
     font: 600 1.7rem/1.3 var(--font-display); margin: 0; max-width: 30rem; color: var(--ink);
   }
@@ -280,12 +292,44 @@
     padding: 0.6rem 0.85rem; margin-top: 0.6rem; display: none; font-family: var(--font-body);
   }
   .error:not(:empty) { display: block; }
+
+  /* --- Call widget --- */
+  .call-fab {
+    position: fixed; bottom: 1.7rem; right: 1.7rem; z-index: 5;
+    width: 3.6rem; height: 3.6rem; border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(155deg, var(--gold-bright) 0%, var(--oxblood) 100%);
+    box-shadow: 0 4px 16px -4px rgba(193, 80, 47, 0.55), 0 2px 6px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease;
+  }
+  .call-fab:hover { transform: scale(1.07); }
+  .call-fab:active { transform: scale(0.95); }
+  .call-fab svg { width: 1.5rem; height: 1.5rem; color: #fff; }
+  .call-fab::before {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%;
+    border: 2px solid var(--oxblood); opacity: 0.55; pointer-events: none;
+    animation: call-pulse 2.4s ease-out infinite;
+  }
+  @keyframes call-pulse {
+    0% { transform: scale(0.88); opacity: 0.6; }
+    100% { transform: scale(1.4); opacity: 0; }
+  }
+  .call-toast {
+    position: fixed; bottom: 5.7rem; right: 1.7rem; z-index: 5; max-width: 14.5rem;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.75rem 0.95rem; box-shadow: var(--shadow-lg); font-size: 0.86rem;
+    color: var(--ink-soft); font-family: var(--font-body);
+    transform: translateY(6px) scale(0.96); opacity: 0; pointer-events: none;
+    transition: transform 0.18s ease, opacity 0.18s ease;
+  }
+  .call-toast.show { transform: translateY(0) scale(1); opacity: 1; }
 </style>
 </head>
 <body>
   <div class="grain"></div>
   <div class="vignette"></div>
   <div class="embers" id="embers"></div>
+  <div class="topbar"></div>
 
   <svg width="0" height="0" style="position:absolute" aria-hidden="true">
     <defs>
@@ -322,11 +366,13 @@
   <main>
     <div class="thread" id="thread">
       <div class="empty-state" id="emptyState">
-        <svg width="76" height="92" viewBox="0 0 40 48" aria-hidden="true">
-          <g class="flicker-a"><path d="M20 6c-4 6-7 10-7 15.5 0 5 3.2 8.8 7 8.8s7-3.8 7-8.8C27 16 24 12 20 6z" fill="url(#flameGrad)"/></g>
-          <g class="flicker-b"><path d="M20 14c-2 3-3.5 5.4-3.5 8.2 0 2.6 1.6 4.6 3.5 4.6s3.5-2 3.5-4.6c0-2.8-1.5-5.2-3.5-8.2z" fill="#fff2cf" opacity="0.85"/></g>
-          <path d="M11 30c0 6.5 4 10.5 9 11.8 5-1.3 9-5.3 9-11.8" stroke="var(--oxblood)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
-        </svg>
+        <div class="flame-glow">
+          <svg width="76" height="92" viewBox="0 0 40 48" aria-hidden="true">
+            <g class="flicker-a"><path d="M20 6c-4 6-7 10-7 15.5 0 5 3.2 8.8 7 8.8s7-3.8 7-8.8C27 16 24 12 20 6z" fill="url(#flameGrad)"/></g>
+            <g class="flicker-b"><path d="M20 14c-2 3-3.5 5.4-3.5 8.2 0 2.6 1.6 4.6 3.5 4.6s3.5-2 3.5-4.6c0-2.8-1.5-5.2-3.5-8.2z" fill="#fff2cf" opacity="0.85"/></g>
+            <path d="M11 30c0 6.5 4 10.5 9 11.8 5-1.3 9-5.3 9-11.8" stroke="var(--oxblood)" stroke-width="1.4" fill="none" stroke-linecap="round"/>
+          </svg>
+        </div>
         <h2 id="greeting"><span id="greetingText"></span><span class="cursor"></span></h2>
         <p>Ask me anything about Scripture: a verse, a parable, a hard question you're sitting with. I'll always point you back to the text, cited plainly.</p>
         <div class="starters" id="starters">
@@ -383,6 +429,13 @@
       <div class="error" id="error"></div>
     </div>
   </main>
+
+  <button class="call-fab" id="callFab" type="button" aria-label="Talk to Aquila" title="Talk to Aquila">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M6.6 10.8a15.7 15.7 0 0 0 6.6 6.6l2.2-2.2a1.3 1.3 0 0 1 1.3-.3c1.4.5 2.9.8 4.4.8a1.3 1.3 0 0 1 1.3 1.3V21a1.3 1.3 0 0 1-1.3 1.3C10.6 22.3 1.7 13.4 1.7 2.9A1.3 1.3 0 0 1 3 1.6h3.7A1.3 1.3 0 0 1 8 2.9c0 1.5.3 3 .8 4.4a1.3 1.3 0 0 1-.3 1.3z"/>
+    </svg>
+  </button>
+  <div class="call-toast" id="callToast">Voice with Aquila is coming soon. For now, ask her anything below.</div>
 
 <script>
 // Minimal hand-rolled SSE reader: the browser's EventSource API can't send a
@@ -620,6 +673,16 @@ document.getElementById("examples").addEventListener("click", (e) => {
   const chip = e.target.closest(".example-chip");
   if (!chip) return;
   submitQuery(chip.dataset.q);
+});
+
+// Voice isn't wired up yet (that's the Cognigy integration), so the call
+// button surfaces a toast rather than doing nothing silently on click.
+const callToast = document.getElementById("callToast");
+let toastTimer;
+document.getElementById("callFab").addEventListener("click", () => {
+  callToast.classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => callToast.classList.remove("show"), 4000);
 });
 </script>
 </body>
