@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.graph import agent
+from app.mcp_server import mcp
 from app.observability import get_langfuse_handler
 from app.schemas import ChatRequest, ChatResponse, Citation
 
@@ -95,6 +96,10 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
 
     return EventSourceResponse(event_generator())
 
+
+# Exposes ask_aquila as an MCP tool at /mcp/sse — this is what Cognigy's MCP
+# Tool Node (or any other MCP client) connects to, instead of a bespoke webhook.
+app.mount("/mcp", mcp.sse_app())
 
 # Serves web/index.html at "/" and any future static assets alongside it.
 # Mounted last so it never shadows the API routes above — FastAPI matches
