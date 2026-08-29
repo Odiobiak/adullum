@@ -25,3 +25,5 @@ services:
         sync: false
       - key: LANGFUSE_HOST
         value: https://cloud.langfuse.com
+      - key: MCP_ALLOWED_HOSTS
+        value: 127.0.0.1:8000,localhost:8000,adullum.onrender.com
