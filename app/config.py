@@ -46,5 +46,12 @@ class Settings(BaseSettings):
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # Comma-separated Host-header values the /mcp endpoint accepts (see
+    # app/main.py) — the MCP SDK's SSE transport rejects any other Host as a
+    # DNS-rebinding defense, which also blocks it by default from anywhere
+    # other than 127.0.0.1. Add the deployed hostname (e.g. adullum.onrender.com)
+    # via this env var once deployed; local dev works out of the box.
+    mcp_allowed_hosts: str = "127.0.0.1:8000,localhost:8000"
+
 
 settings = Settings()

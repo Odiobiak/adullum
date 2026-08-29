@@ -16,9 +16,11 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
 from app.agent.graph import agent
+from app.config import settings
 from app.mcp_server import mcp
 from app.observability import get_langfuse_handler, trace_attributes
 from app.schemas import ChatRequest, ChatResponse, Citation
@@ -107,7 +109,15 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
 
 # Exposes ask_aquila as an MCP tool at /mcp/sse — this is what Cognigy's MCP
 # Tool Node (or any other MCP client) connects to, instead of a bespoke webhook.
-app.mount("/mcp", mcp.sse_app())
+# The SSE transport's DNS-rebinding defense rejects any Host header not in
+# this allowlist (defaults to 127.0.0.1 only) — the deployed hostname has to
+# be added via MCP_ALLOWED_HOSTS or every request 400s with "Invalid Host header".
+_mcp_hosts = [h.strip() for h in settings.mcp_allowed_hosts.split(",") if h.strip()]
+_mcp_origins = [f"{'http' if h.split(':')[0] in ('127.0.0.1', 'localhost') else 'https'}://{h}" for h in _mcp_hosts]
+app.mount(
+    "/mcp",
+    mcp.sse_app(transport_security=TransportSecuritySettings(allowed_hosts=_mcp_hosts, allowed_origins=_mcp_origins)),
+)
 
 # Serves web/index.html at "/" and any future static assets alongside it.
 # Mounted last so it never shadows the API routes above — FastAPI matches
