@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Adullum — local test client</title>
+<style>
+  :root {
+    --bg: #f4f5f3;
+    --bg-alt: #ece8e0;
+    --panel: #ffffff;
+    --ink: #1b1e24;
+    --ink-soft: #5b5f68;
+    --ink-faint: #8a8e97;
+    --border: #dadbd6;
+    --accent: #2f4172;
+    --accent-2: #4a5f9e;
+    --accent-soft: #e7eaf3;
+    --warm: #a9752b;
+    --warm-soft: #f3e8d6;
+    --good: #2e7d4f;
+    --good-soft: #e1f0e6;
+    --code-bg: #1b1e24;
+    --code-ink: #e8e7e2;
+    --shadow: 0 1px 2px rgba(27, 30, 36, 0.04), 0 8px 24px -8px rgba(27, 30, 36, 0.10);
+    --shadow-lg: 0 2px 4px rgba(27, 30, 36, 0.05), 0 24px 48px -16px rgba(27, 30, 36, 0.16);
+    --ring: 0 0 0 3px rgba(47, 65, 114, 0.16);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --bg-alt: #191c22; --panel: #1c1f25; --ink: #e8e7e2; --ink-soft: #a7acb6;
+      --ink-faint: #6b7078;
+      --border: #2e3138; --accent: #8ca3da; --accent-2: #9fb3e0; --accent-soft: #232b42;
+      --warm: #d9ac5d; --warm-soft: #34291a; --good: #6fcb93; --good-soft: #16281d;
+      --code-bg: #0f1114; --code-ink: #e8e7e2;
+      --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 24px -8px rgba(0,0,0,0.4);
+      --shadow-lg: 0 2px 4px rgba(0,0,0,0.3), 0 24px 48px -16px rgba(0,0,0,0.6);
+      --ring: 0 0 0 3px rgba(140, 163, 218, 0.25);
+    }
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0; color: var(--ink);
+    font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background:
+      radial-gradient(1100px 480px at 12% -10%, var(--accent-soft) 0%, transparent 60%),
+      radial-gradient(900px 420px at 100% 0%, var(--warm-soft) 0%, transparent 55%),
+      var(--bg);
+    min-height: 100vh;
+  }
+
+  header {
+    padding: 2.6rem 1.5rem 1.6rem;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; flex-wrap: wrap;
+    max-width: 760px; margin: 0 auto;
+  }
+  .brand { display: flex; gap: 0.85rem; align-items: center; }
+  .mark {
+    width: 2.6rem; height: 2.6rem; border-radius: 10px; flex: none;
+    background: linear-gradient(155deg, var(--accent) 0%, var(--accent-2) 100%);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: var(--shadow);
+  }
+  .mark svg { width: 1.3rem; height: 1.3rem; }
+  h1 {
+    font: 600 1.55rem/1.15 ui-serif, Georgia, "Iowan Old Style", serif;
+    margin: 0; letter-spacing: 0.01em;
+  }
+  header p.tagline { margin: 0.3rem 0 0; color: var(--ink-soft); font-size: 0.92rem; }
+
+  .config {
+    display: flex; gap: 0.6rem; align-items: center; font-size: 0.8rem; color: var(--ink-faint);
+    background: var(--panel); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.5rem 0.7rem; box-shadow: var(--shadow);
+  }
+  .config label { display: flex; flex-direction: column; gap: 0.2rem; }
+  .config span.lbl { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.65rem; color: var(--ink-faint); }
+  .config input {
+    font: inherit; font-size: 0.85rem; background: transparent; color: var(--ink); border: none;
+    border-bottom: 1px solid var(--border); padding: 0.1rem 0.1rem; width: 9.5rem;
+  }
+  .config input:focus { outline: none; border-bottom-color: var(--accent); }
+  .config .divider { width: 1px; align-self: stretch; background: var(--border); }
+
+  main { max-width: 760px; margin: 0 auto; padding: 0.5rem 1.5rem 3rem; display: flex; flex-direction: column; gap: 1.2rem; }
+
+  .composer {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.1rem; box-shadow: var(--shadow-lg);
+  }
+  form { display: flex; gap: 0.6rem; align-items: flex-end; }
+  textarea {
+    flex: 1; font: inherit; font-size: 0.98rem; padding: 0.7rem 0.85rem; border-radius: 10px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--ink);
+    resize: none; height: 3rem; line-height: 1.5; transition: box-shadow 0.15s, border-color 0.15s;
+  }
+  textarea::placeholder { color: var(--ink-faint); }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: var(--ring); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  button#submit {
+    font: 600 0.9rem/1 inherit; color: #fff; border: none;
+    background: linear-gradient(160deg, var(--accent) 0%, var(--accent-2) 100%);
+    border-radius: 10px; height: 3rem; padding: 0 1.3rem; cursor: pointer;
+    display: flex; align-items: center; gap: 0.45rem;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.08), 0 6px 16px -6px rgba(47,65,114,0.55);
+    transition: transform 0.1s ease, box-shadow 0.15s ease, opacity 0.15s ease;
+  }
+  button#submit:hover:not(:disabled) { transform: translateY(-1px); }
+  button#submit:active:not(:disabled) { transform: translateY(0); }
+  button#submit:disabled { opacity: 0.55; cursor: default; box-shadow: none; }
+  button#submit svg { width: 1rem; height: 1rem; }
+  .spinner {
+    width: 0.95rem; height: 0.95rem; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.35); border-top-color: #fff;
+    animation: spin 0.7s linear infinite; display: none;
+  }
+  button#submit.loading .spinner { display: inline-block; }
+  button#submit.loading .send-icon { display: none; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .examples { display: flex; flex-wrap: wrap; gap: 0.45rem; margin-top: 0.8rem; }
+  .example-chip {
+    font-size: 0.78rem; color: var(--ink-soft); background: var(--bg-alt);
+    border: 1px solid var(--border); border-radius: 999px; padding: 0.32rem 0.75rem;
+    cursor: pointer; transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+  .example-chip:hover { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  .steps { display: flex; gap: 0.35rem; flex-wrap: wrap; min-height: 1.6rem; align-items: center; }
+  .step-pill {
+    font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 0.28rem 0.65rem; border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+    opacity: 0; transform: translateY(2px); animation: appear 0.25s ease forwards;
+    display: flex; align-items: center; gap: 0.35rem;
+  }
+  .step-pill::before {
+    content: ""; width: 0.4rem; height: 0.4rem; border-radius: 50%; background: currentColor; opacity: 0.55;
+  }
+  .step-pill.active { background: var(--warm-soft); color: var(--warm); }
+  .step-pill.active::before { animation: pulse 1s ease-in-out infinite; }
+  @keyframes appear { to { opacity: 1; transform: translateY(0); } }
+  @keyframes pulse { 0%, 100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+  .answer-card {
+    background: var(--panel); border: 1px solid var(--border); border-radius: 16px;
+    padding: 1.4rem 1.5rem; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .answer-card::before {
+    content: ""; position: absolute; inset: 0 auto 0 0; width: 4px;
+    background: linear-gradient(180deg, var(--accent) 0%, var(--warm) 100%);
+  }
+  .answer {
+    white-space: pre-wrap; min-height: 3.4rem; font-size: 1rem; line-height: 1.7; color: var(--ink);
+  }
+  .answer:empty::before {
+    content: "Ask something — e.g. \"What does Romans 8:28 mean?\"";
+    color: var(--ink-faint); font-style: italic;
+  }
+
+  .citations { display: flex; flex-wrap: wrap; gap: 0.45rem; }
+  .citation {
+    font-size: 0.78rem; font-weight: 600; background: var(--good-soft); color: var(--good);
+    border-radius: 999px; padding: 0.28rem 0.7rem; font-variant-numeric: tabular-nums;
+    display: inline-flex; align-items: center; gap: 0.3rem;
+  }
+  .citation::before { content: "✓"; font-size: 0.7rem; }
+
+  .error {
+    color: #b3432b; font-size: 0.85rem; background: color-mix(in srgb, #b3432b 8%, transparent);
+    border: 1px solid color-mix(in srgb, #b3432b 25%, transparent);
+    border-radius: 10px; padding: 0.6rem 0.85rem; display: none;
+  }
+  .error:not(:empty) { display: block; }
+
+  footer {
+    max-width: 760px; margin: 0 auto; padding: 0 1.5rem 2rem; color: var(--ink-faint); font-size: 0.78rem;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 3c-3 3-7 3.6-7 3.6V13c0 4.4 3 7 7 8 4-1 7-3.6 7-8V6.6S15 5.4 12 3z" stroke="#fff" stroke-width="1.4" stroke-linejoin="round"/>
+          <path d="M12 8v7M9 11.5h6" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1>Adullum</h1>
+        <p class="tagline">A grounded Scripture Q&amp;A agent — every answer cited to the text.</p>
+      </div>
+    </div>
+    <div class="config">
+      <label><span class="lbl">API</span><input id="apiBase" value="http://localhost:8000" /></label>
+      <div class="divider"></div>
+      <label><span class="lbl">Translation</span><input id="translation" value="BSB" size="6" /></label>
+    </div>
+  </header>
+  <main>
+    <div class="composer">
+      <form id="form">
+        <textarea id="query" placeholder="Ask a question about Scripture…"></textarea>
+        <button id="submit" type="submit">
+          <span class="spinner"></span>
+          <svg class="send-icon" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M4 12L20 4L13 20L11 13L4 12Z" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>
+          </svg>
+          <span>Ask</span>
+        </button>
+      </form>
+      <div class="examples" id="examples">
+        <span class="example-chip" data-q="What does Romans 8:28 mean?">Romans 8:28</span>
+        <span class="example-chip" data-q="What does the Bible say about anxiety?">Anxiety</span>
+        <span class="example-chip" data-q="What is the meaning of the parable of the prodigal son?">Prodigal son</span>
+        <span class="example-chip" data-q="How should Christians think about forgiveness?">Forgiveness</span>
+      </div>
+    </div>
+
+    <div class="steps" id="steps"></div>
+
+    <div class="answer-card">
+      <div class="answer" id="answer"></div>
+    </div>
+
+    <div class="citations" id="citations"></div>
+    <div class="error" id="error"></div>
+  </main>
+
+  <footer>Local test client for the <code>/chat/stream</code> endpoint — nothing here is sent anywhere but your own API.</footer>
+
+<script>
+// Minimal hand-rolled SSE reader: the browser's EventSource API can't send a
+// POST body, and /chat/stream needs one (the query), so we read the fetch
+// response stream ourselves and split on the "event:"/"data:" SSE framing.
+const NODE_LABELS = {
+  classify_intent: "classifying",
+  retrieve: "retrieving verses",
+  synthesize: "drafting answer",
+  ground_check: "checking grounding",
+  format_citations: "citing",
+};
+
+const form = document.getElementById("form");
+const queryEl = document.getElementById("query");
+const submitBtn = document.getElementById("submit");
+const stepsEl = document.getElementById("steps");
+const answerEl = document.getElementById("answer");
+const citationsEl = document.getElementById("citations");
+const errorEl = document.getElementById("error");
+
+function addStep(name) {
+  stepsEl.querySelectorAll(".step-pill.active").forEach((p) => p.classList.remove("active"));
+  const pill = document.createElement("span");
+  pill.className = "step-pill active";
+  pill.textContent = NODE_LABELS[name] || name;
+  stepsEl.appendChild(pill);
+}
+
+function renderCitations(citations) {
+  citationsEl.innerHTML = "";
+  for (const c of citations) {
+    const tag = document.createElement("span");
+    tag.className = "citation";
+    tag.textContent = `${c.book} ${c.chapter}:${c.verse} (${c.translation})`;
+    citationsEl.appendChild(tag);
+  }
+}
+
+async function ask(query, translation, apiBase) {
+  const response = await fetch(`${apiBase}/chat/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query, translation }),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error(`API returned ${response.status}`);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+
+    // SSE frames are separated by a blank line; each frame has "event:" and "data:" lines.
+    const frames = buffer.split("\n\n");
+    buffer = frames.pop(); // last chunk may be incomplete — keep it for next read
+
+    for (const frame of frames) {
+      const eventLine = frame.split("\n").find((l) => l.startsWith("event:"));
+      const dataLine = frame.split("\n").find((l) => l.startsWith("data:"));
+      if (!eventLine || !dataLine) continue;
+      const event = eventLine.slice(6).trim();
+      const data = dataLine.slice(5).trim();
+
+      if (event === "step") addStep(data);
+      else if (event === "answer") answerEl.textContent = data;
+      else if (event === "citations") renderCitations(JSON.parse(data));
+    }
+  }
+}
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const query = queryEl.value.trim();
+  if (!query) return;
+
+  submitBtn.disabled = true;
+  submitBtn.classList.add("loading");
+  stepsEl.innerHTML = "";
+  answerEl.textContent = "";
+  citationsEl.innerHTML = "";
+  errorEl.textContent = "";
+
+  try {
+    await ask(
+      query,
+      document.getElementById("translation").value.trim() || "BSB",
+      document.getElementById("apiBase").value.trim().replace(/\/$/, "")
+    );
+  } catch (err) {
+    errorEl.textContent = `${err.message} — is \`uvicorn app.main:app --reload\` running?`;
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.classList.remove("loading");
+  }
+});
+
+document.getElementById("examples").addEventListener("click", (e) => {
+  const chip = e.target.closest(".example-chip");
+  if (!chip) return;
+  queryEl.value = chip.dataset.q;
+  queryEl.focus();
+});
+</script>
+</body>
+</html>
