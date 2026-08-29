@@ -1,0 +1,112 @@
+name: Deploy watch
+
+# Watches the Render deploy for this repo and opens a GitHub issue only when
+# something is actually broken — a failed build/deploy or a failing /health
+# check. A healthy deploy produces no issue and no notification noise.
+#
+# Requires these repository secrets (Settings > Secrets and variables > Actions):
+#   RENDER_API_KEY     - Render account API key (render.com > Account Settings > API Keys)
+#   RENDER_SERVICE_ID  - the srv-xxxx id of the Render web service (from its dashboard URL)
+#   DEPLOY_URL         - the live base URL, e.g. https://adullum.onrender.com
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render deploy to reach a terminal state
+        id: deploy
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          set -euo pipefail
+          terminal_statuses="live deactivated build_failed update_failed canceled"
+          status="unknown"
+          deploy_id=""
+
+          for i in $(seq 1 40); do
+            resp=$(curl -sf \
+              -H "Authorization: Bearer ${RENDER_API_KEY}" \
+              "https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys?limit=1")
+            status=$(echo "$resp" | jq -r '.[0].deploy.status')
+            deploy_id=$(echo "$resp" | jq -r '.[0].deploy.id')
+
+            if echo "$terminal_statuses" | grep -qw "$status"; then
+              break
+            fi
+            sleep 15
+          done
+
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          echo "deploy_id=$deploy_id" >> "$GITHUB_OUTPUT"
+
+      - name: Check live health endpoint
+        id: health
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+        run: |
+          set -euo pipefail
+          code=$(curl -s -o /dev/null -w "%{http_code}" "${DEPLOY_URL}/health" || echo "000")
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Determine failure
+        id: verdict
+        run: |
+          deploy_status="${{ steps.deploy.outputs.status }}"
+          health_code="${{ steps.health.outputs.code }}"
+          failed="false"
+
+          if [ "$deploy_status" = "build_failed" ] || [ "$deploy_status" = "update_failed" ] || [ "$deploy_status" = "canceled" ]; then
+            failed="true"
+          fi
+          if [ "$health_code" != "200" ]; then
+            failed="true"
+          fi
+
+          echo "failed=$failed" >> "$GITHUB_OUTPUT"
+
+      - name: Open issue on failure
+        if: steps.verdict.outputs.failed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --repo "${{ github.repository }}" --label deploy-failure --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "${{ github.repository }}" \
+              --body "Still failing as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — deploy status: \`${{ steps.deploy.outputs.status }}\`, health check: \`${{ steps.health.outputs.code }}\`."
+          else
+            gh issue create --repo "${{ github.repository }}" \
+              --title "Deployment failure: $(date -u +%Y-%m-%d)" \
+              --label deploy-failure \
+              --body "$(cat <<EOF
+          Deploy status: \`${{ steps.deploy.outputs.status }}\`
+          Deploy id: \`${{ steps.deploy.outputs.deploy_id }}\`
+          Health check: \`${{ steps.health.outputs.code }}\`
+          Render dashboard: https://dashboard.render.com/web/${{ secrets.RENDER_SERVICE_ID }}
+          EOF
+          )"
+          fi
+
+      - name: Auto-close issue on recovery
+        if: steps.verdict.outputs.failed == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          existing=$(gh issue list --repo "${{ github.repository }}" --label deploy-failure --state open --json number --jq '.[0].number // empty')
+          if [ -n "$existing" ]; then
+            gh issue comment "$existing" --repo "${{ github.repository }}" --body "Deploy is healthy again as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — closing."
+            gh issue close "$existing" --repo "${{ github.repository }}"
+          fi
