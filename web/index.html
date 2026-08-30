@@ -45,7 +45,14 @@
      the real height is measured. overscroll-behavior stops an over-scroll
      at the top of the page from bubbling into the browser's own
      pull-to-refresh gesture. */
-  html, body { height: 100%; overscroll-behavior-y: none; }
+  /* The thread keeps overscroll-behavior: contain further down, so pulling
+     past the end of the message list never yanks the page. The document
+     itself is deliberately left alone so the browser's own pull-to-refresh
+     still works from the header area. For actually starting over, the
+     "New chat" button is the reliable path, since a refresh would also
+     throw away the session. */
+  html, body { height: 100%; }
+  [hidden] { display: none !important; }
   body {
     margin: 0; color: var(--ink); font: 16px/1.6 var(--font-body);
     background: var(--parchment);
@@ -133,6 +140,27 @@
   }
   .config input:focus { outline: none; border-bottom-color: var(--oxblood); }
   .config .divider { width: 1px; align-self: stretch; background: var(--border); }
+
+  .header-actions { display: flex; align-items: center; gap: 0.6rem; }
+  /* Only meaningful once there's a conversation to leave, so it stays hidden
+     on the empty state and appears with the first message. */
+  .reset-btn {
+    display: flex; align-items: center; gap: 0.4rem; cursor: pointer;
+    font: 600 0.82rem/1 var(--font-display); color: var(--oxblood);
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 999px; padding: 0.5rem 0.85rem 0.5rem 0.7rem;
+    box-shadow: var(--shadow);
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.1s ease;
+  }
+  .reset-btn svg { width: 0.95rem; height: 0.95rem; flex: none; }
+  .reset-btn:hover { border-color: var(--oxblood); background: var(--oxblood-soft); }
+  .reset-btn:active { transform: scale(0.96); }
+  /* Keeps its footprint while inactive instead of collapsing, overriding the
+     global [hidden] rule. Letting it collapse changed the header height the
+     moment the first answer arrived, which shoved the whole thread down. */
+  .reset-btn[hidden] {
+    display: flex !important; visibility: hidden; pointer-events: none;
+  }
 
   /* --- Thread --- */
   main {
@@ -385,7 +413,13 @@
      wrapped grid. Dropping it and tightening padding gives that space back. */
   @media (max-width: 640px) {
     .config { display: none; }
-    header { padding: 0.9rem 1.1rem 0.6rem; }
+    header { padding: 0.9rem 1.1rem 0.6rem; flex-wrap: nowrap; }
+    /* Icon only, so it fits alongside the title rather than wrapping onto a
+       second header row. */
+    .brand { min-width: 0; }
+    .reset-label { display: none; }
+    .reset-btn { padding: 0.55rem; border-radius: 50%; }
+    .reset-btn svg { width: 1.1rem; height: 1.1rem; }
     main { padding: 0 1.1rem; }
 
     /* Everything in the empty state gets tighter so the six cards fit as a
@@ -450,10 +484,18 @@
         <p class="tagline">a warm, steadfast companion for Scripture</p>
       </div>
     </div>
-    <div class="config">
-      <label><span class="lbl">API</span><input id="apiBase" value="" /></label>
-      <div class="divider"></div>
-      <label><span class="lbl">Translation</span><input id="translation" value="BSB" size="6" /></label>
+    <div class="header-actions">
+      <button class="reset-btn" id="resetBtn" type="button" hidden aria-label="Start a new conversation" title="Clear this conversation and start fresh">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>
+        </svg>
+        <span class="reset-label">New chat</span>
+      </button>
+      <div class="config">
+        <label><span class="lbl">API</span><input id="apiBase" value="" /></label>
+        <div class="divider"></div>
+        <label><span class="lbl">Translation</span><input id="translation" value="BSB" size="6" /></label>
+      </div>
     </div>
   </header>
 
@@ -579,6 +621,7 @@ const submitBtn = document.getElementById("submit");
 const thread = document.getElementById("thread");
 const emptyState = document.getElementById("emptyState");
 const errorEl = document.getElementById("error");
+const resetBtn = document.getElementById("resetBtn");
 
 // Same-origin deploy (FastAPI serving this file itself) -> default to that
 // origin so it works with zero setup. Opened as a bare file:// page (local
@@ -589,7 +632,12 @@ document.getElementById("apiBase").value =
 // One id per page load, sent with every request so a multi-turn conversation
 // groups together as one session (in Langfuse, and for any future backend
 // memory) rather than looking like unrelated one-off calls.
-const sessionId = (crypto.randomUUID && crypto.randomUUID()) || `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+// Not const: "New chat" issues a fresh id so the next conversation groups
+// separately in Langfuse rather than trailing the previous one.
+function newSessionId() {
+  return (crypto.randomUUID && crypto.randomUUID()) || `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+let sessionId = newSessionId();
 
 // Keep the app shell exactly as tall as the visible viewport. visualViewport
 // accounts for the mobile URL bar and the on-screen keyboard, both of which
@@ -637,13 +685,23 @@ for (let i = 0; i < 14; i++) {
 const GREETING = "Peace be with you. I'm Aquila.";
 const greetingText = document.getElementById("greetingText");
 let greetingIndex = 0;
-(function typeGreeting() {
+let greetingTimer;
+
+function typeGreeting() {
   if (greetingIndex <= GREETING.length) {
     greetingText.textContent = GREETING.slice(0, greetingIndex);
     greetingIndex++;
-    setTimeout(typeGreeting, 28);
+    greetingTimer = setTimeout(typeGreeting, 28);
   }
-})();
+}
+
+function replayGreeting() {
+  clearTimeout(greetingTimer);
+  greetingIndex = 0;
+  typeGreeting();
+}
+
+typeGreeting();
 
 function escapeHtml(text) {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -782,7 +840,10 @@ async function submitQuery(query) {
   if (!query) return;
 
   voiceTip.classList.remove("show");
-  emptyState.remove();
+  // Hidden, not removed, so "New chat" can bring the whole welcome screen
+  // back without rebuilding it.
+  emptyState.hidden = true;
+  resetBtn.hidden = false;
   submitBtn.disabled = true;
   submitBtn.classList.add("loading");
   errorEl.textContent = "";
@@ -808,6 +869,23 @@ async function submitQuery(query) {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   submitQuery(queryEl.value.trim());
+});
+
+// Back to the welcome screen without a page reload. A real refresh would
+// work too, but this keeps the voice call up if one is in progress and is
+// reachable on a phone, where pull-to-refresh is easy to miss.
+resetBtn.addEventListener("click", () => {
+  for (const msg of thread.querySelectorAll(".msg")) msg.remove();
+  emptyState.hidden = false;
+  resetBtn.hidden = true;
+  errorEl.textContent = "";
+  queryEl.value = "";
+  autoResize();
+  sessionId = newSessionId();
+  thread.scrollTop = 0;
+  replayGreeting();
+  // Deliberately no focus() here: on a phone that pops the keyboard straight
+  // over the welcome screen the user just asked to get back to.
 });
 
 document.getElementById("starters").addEventListener("click", (e) => {
