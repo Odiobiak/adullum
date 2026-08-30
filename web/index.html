@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Adullum — chat with Aquila</title>
+<title>Adullum, chat with Aquila</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
@@ -293,36 +293,54 @@
   }
   .error:not(:empty) { display: block; }
 
-  /* --- Call widget --- */
-  .call-fab {
-    position: fixed; bottom: 1.7rem; right: 1.7rem; z-index: 5;
-    width: 3.6rem; height: 3.6rem; border-radius: 50%; border: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    background: linear-gradient(155deg, var(--gold-bright) 0%, var(--oxblood) 100%);
-    box-shadow: 0 4px 16px -4px rgba(193, 80, 47, 0.55), 0 2px 6px rgba(0,0,0,0.15);
-    transition: transform 0.15s ease;
+  /* --- Channel strip: the same agent answers here, on Cognigy webchat,
+     and by voice, so the header surfaces all three front doors at once
+     instead of leaving voice/webchat as a hidden or fake affordance. */
+  .channels { display: flex; gap: 0.5rem; margin-top: 0.55rem; flex-wrap: wrap; }
+  .channel-pill {
+    display: flex; align-items: center; gap: 0.4rem; font-family: var(--font-body);
+    font-size: 0.76rem; border-radius: 999px; padding: 0.3rem 0.7rem 0.3rem 0.55rem;
+    border: 1px solid var(--border); background: var(--card); color: var(--ink-soft);
+    cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
   }
-  .call-fab:hover { transform: scale(1.07); }
-  .call-fab:active { transform: scale(0.95); }
-  .call-fab svg { width: 1.5rem; height: 1.5rem; color: #fff; }
-  .call-fab::before {
-    content: ""; position: absolute; inset: -6px; border-radius: 50%;
-    border: 2px solid var(--oxblood); opacity: 0.55; pointer-events: none;
-    animation: call-pulse 2.4s ease-out infinite;
+  .channel-pill svg { width: 0.95rem; height: 0.95rem; flex: none; }
+  .channel-pill:hover { border-color: var(--oxblood); color: var(--oxblood); transform: translateY(-1px); }
+  .channel-pill:active { transform: translateY(0); }
+  .channel-pill.current {
+    cursor: default; background: var(--gold-soft); border-color: var(--gold); color: var(--ink);
   }
-  @keyframes call-pulse {
-    0% { transform: scale(0.88); opacity: 0.6; }
-    100% { transform: scale(1.4); opacity: 0; }
+  .channel-pill.current:hover { transform: none; border-color: var(--gold); color: var(--ink); }
+  .channel-pill .dot {
+    width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--good); flex: none;
   }
-  .call-toast {
-    position: fixed; bottom: 5.7rem; right: 1.7rem; z-index: 5; max-width: 14.5rem;
-    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
-    padding: 0.75rem 0.95rem; box-shadow: var(--shadow-lg); font-size: 0.86rem;
-    color: var(--ink-soft); font-family: var(--font-body);
-    transform: translateY(6px) scale(0.96); opacity: 0; pointer-events: none;
-    transition: transform 0.18s ease, opacity 0.18s ease;
+
+  /* --- Voice disclaimer modal --- */
+  .disclaimer-overlay {
+    position: fixed; inset: 0; z-index: 20; background: rgba(30, 20, 10, 0.45);
+    display: flex; align-items: center; justify-content: center; padding: 1.2rem;
   }
-  .call-toast.show { transform: translateY(0) scale(1); opacity: 1; }
+  .disclaimer-overlay[hidden] { display: none; }
+  .disclaimer-modal {
+    background: var(--card); border: 1px solid var(--border); border-top: 3px double var(--gold);
+    border-radius: 8px; max-width: 26rem; width: 100%; padding: 1.5rem 1.6rem 1.4rem;
+    box-shadow: var(--shadow-lg);
+  }
+  .disclaimer-modal h3 {
+    font: 600 1.25rem/1.3 var(--font-display); color: var(--oxblood); margin: 0 0 0.7rem;
+  }
+  .disclaimer-modal p {
+    font-size: 0.9rem; line-height: 1.6; color: var(--ink-soft); margin: 0 0 0.9rem;
+  }
+  .disclaimer-modal p:last-of-type { margin-bottom: 1.2rem; }
+  .disclaimer-actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+  .btn-ghost, .btn-primary {
+    font: 600 0.85rem/1 var(--font-display); border-radius: 4px; padding: 0.55rem 1rem;
+    cursor: pointer; border: 1px solid var(--border);
+  }
+  .btn-ghost { background: transparent; color: var(--ink-soft); }
+  .btn-ghost:hover { border-color: var(--ink-faint); }
+  .btn-primary { background: var(--oxblood); color: var(--user-ink); border-color: var(--oxblood); }
+  .btn-primary:hover { background: var(--oxblood-2); }
 </style>
 </head>
 <body>
@@ -354,6 +372,19 @@
       <div>
         <h1>Adullum</h1>
         <p class="tagline">a warm, steadfast companion for Scripture</p>
+        <div class="channels">
+          <span class="channel-pill current" title="You're talking to Aquila right here">
+            <span class="dot"></span>Web chat
+          </span>
+          <button class="channel-pill" id="webchatPill" type="button" title="Open the same Aquila in Cognigy's webchat widget">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>
+            Cognigy webchat
+          </button>
+          <button class="channel-pill" id="voicePill" type="button" title="Talk to Aquila out loud over WebRTC">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 10.8a15.7 15.7 0 0 0 6.6 6.6l2.2-2.2a1.3 1.3 0 0 1 1.3-.3c1.4.5 2.9.8 4.4.8a1.3 1.3 0 0 1 1.3 1.3V21a1.3 1.3 0 0 1-1.3 1.3C10.6 22.3 1.7 13.4 1.7 2.9A1.3 1.3 0 0 1 3 1.6h3.7A1.3 1.3 0 0 1 8 2.9c0 1.5.3 3 .8 4.4a1.3 1.3 0 0 1-.3 1.3z"/></svg>
+            Voice (WebRTC)
+          </button>
+        </div>
       </div>
     </div>
     <div class="config">
@@ -430,13 +461,30 @@
     </div>
   </main>
 
-  <button class="call-fab" id="callFab" type="button" aria-label="Talk to Aquila" title="Talk to Aquila">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-      <path d="M6.6 10.8a15.7 15.7 0 0 0 6.6 6.6l2.2-2.2a1.3 1.3 0 0 1 1.3-.3c1.4.5 2.9.8 4.4.8a1.3 1.3 0 0 1 1.3 1.3V21a1.3 1.3 0 0 1-1.3 1.3C10.6 22.3 1.7 13.4 1.7 2.9A1.3 1.3 0 0 1 3 1.6h3.7A1.3 1.3 0 0 1 8 2.9c0 1.5.3 3 .8 4.4a1.3 1.3 0 0 1-.3 1.3z"/>
-    </svg>
-  </button>
-  <div class="call-toast" id="callToast">Voice with Aquila is coming soon. For now, ask her anything below.</div>
+  <div class="disclaimer-overlay" id="disclaimerOverlay" hidden>
+    <div class="disclaimer-modal">
+      <h3>Before you talk out loud</h3>
+      <p>
+        This voice is an AI, not a person and not ordained clergy. It can mishear you,
+        get something wrong, or miss signs of real distress. It is not a substitute
+        for a pastor, a counselor, or emergency care. If you are in crisis, please
+        reach out to a licensed professional, or in the US call or text 988.
+      </p>
+      <p>
+        What you say is sent to third-party speech and language providers so Aquila
+        can respond, and this conversation is not confidential the way a talk with
+        clergy would be. Continuing means you accept that and are choosing to speak
+        with an AI at your own discretion.
+      </p>
+      <div class="disclaimer-actions">
+        <button class="btn-ghost" id="disclaimerCancel" type="button">Not now</button>
+        <button class="btn-primary" id="disclaimerAccept" type="button">I understand, continue</button>
+      </div>
+    </div>
+  </div>
 
+  <script src="https://github.com/Cognigy/Webchat/releases/latest/download/webchat.js"></script>
+  <script src="https://github.com/Cognigy/click-to-call-widget/releases/latest/download/webRTCWidget.js"></script>
 <script>
 // Minimal hand-rolled SSE reader: the browser's EventSource API can't send a
 // POST body, and /chat/stream needs one (the query), so we read the fetch
@@ -490,11 +538,11 @@ for (let i = 0; i < 14; i++) {
 // cursor as a quiet ambient detail rather than a one-shot gimmick.
 const GREETING = "Peace be with you. I'm Aquila.";
 const greetingText = document.getElementById("greetingText");
-let gi = 0;
+let greetingIndex = 0;
 (function typeGreeting() {
-  if (gi <= GREETING.length) {
-    greetingText.textContent = GREETING.slice(0, gi);
-    gi++;
+  if (greetingIndex <= GREETING.length) {
+    greetingText.textContent = GREETING.slice(0, greetingIndex);
+    greetingIndex++;
     setTimeout(typeGreeting, 28);
   }
 })();
@@ -504,7 +552,7 @@ function escapeHtml(text) {
 }
 
 function renderAnswerHtml(text) {
-  // The model's answer is Markdown-ish (bold, occasional headers) — escape
+  // The model's answer is Markdown-ish (bold, occasional headers), so escape
   // HTML first so nothing in the text can inject markup, then convert just
   // the handful of markers we actually see rather than pulling in a full
   // Markdown library for this.
@@ -588,7 +636,7 @@ async function ask(query, translation, apiBase) {
 
     // SSE frames are separated by a blank line; each frame has "event:" and "data:" lines.
     const frames = buffer.split("\n\n");
-    buffer = frames.pop(); // last chunk may be incomplete — keep it for next read
+    buffer = frames.pop(); // last chunk may be incomplete, keep it for next read
 
     for (const frame of frames) {
       const lines = frame.split("\n");
@@ -651,7 +699,7 @@ async function submitQuery(query) {
       document.getElementById("apiBase").value.trim().replace(/\/$/, "")
     );
   } catch (err) {
-    errorEl.textContent = `${err.message} — is \`uvicorn app.main:app --reload\` running?`;
+    errorEl.textContent = `${err.message}, is \`uvicorn app.main:app --reload\` running?`;
   } finally {
     submitBtn.disabled = false;
     submitBtn.classList.remove("loading");
@@ -675,14 +723,49 @@ document.getElementById("examples").addEventListener("click", (e) => {
   submitQuery(chip.dataset.q);
 });
 
-// Voice isn't wired up yet (that's the Cognigy integration), so the call
-// button surfaces a toast rather than doing nothing silently on click.
-const callToast = document.getElementById("callToast");
-let toastTimer;
-document.getElementById("callFab").addEventListener("click", () => {
-  callToast.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => callToast.classList.remove("show"), 4000);
+// The other two front doors from the README: the same agent, reached
+// through Cognigy's own webchat widget and through a WebRTC voice call.
+const WEBCHAT_CONFIG_URL = "https://endpoint-trial-us.cognigy.ai/a9e1af742934df244ec2bfab7ab87d5423e9d46da7c8b7d113b62453b1f8699d";
+const VOICE_WS_URL = "wss://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81fe2a57510da6639ab95acd67cefe4103f667cfd59386c6b/voiceGateway";
+
+let webchatInstance = null;
+document.getElementById("webchatPill").addEventListener("click", async () => {
+  if (webchatInstance) {
+    webchatInstance.open();
+    return;
+  }
+  webchatInstance = await window.initWebchat(WEBCHAT_CONFIG_URL);
+  webchatInstance.open();
+});
+
+// The voice disclaimer is asked once per browser tab, not once ever, since
+// a fresh visitor deserves to see it even if a previous visitor on the same
+// machine already clicked through.
+const disclaimerOverlay = document.getElementById("disclaimerOverlay");
+let voiceWidgetStarted = false;
+
+function startVoiceWidget() {
+  if (voiceWidgetStarted) return;
+  voiceWidgetStarted = true;
+  window.initWebRTCWidget(VOICE_WS_URL);
+}
+
+document.getElementById("voicePill").addEventListener("click", () => {
+  if (voiceWidgetStarted || sessionStorage.getItem("aquilaVoiceDisclaimerAccepted") === "1") {
+    startVoiceWidget();
+    return;
+  }
+  disclaimerOverlay.hidden = false;
+});
+
+document.getElementById("disclaimerCancel").addEventListener("click", () => {
+  disclaimerOverlay.hidden = true;
+});
+
+document.getElementById("disclaimerAccept").addEventListener("click", () => {
+  sessionStorage.setItem("aquilaVoiceDisclaimerAccepted", "1");
+  disclaimerOverlay.hidden = true;
+  startVoiceWidget();
 });
 </script>
 </body>
