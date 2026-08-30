@@ -23,4 +23,10 @@ class AgentState(TypedDict, total=False):
     grounded: bool  # set by ground_check() — whether answer is judged fully supported by verses
     retries: int  # incremented by ground_check(); caps the retrieve<->synthesize retry loop
     citations: list[Verse]  # set by format_citations() — the subset of verses actually cited
+    # Set by the caller. Follow-ups are a reading affordance: you skim three of
+    # them and click one. Read aloud they turn into a menu the caller has to
+    # hold in their head, so the voice path (app/mcp_server.py) leaves this
+    # false and skips the node altogether, which also spares it an LLM call on
+    # the surface where latency hurts most.
+    want_followups: bool
     followups: list[str]  # set by suggest_followups(): questions to carry the study further

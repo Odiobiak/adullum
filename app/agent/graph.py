@@ -4,11 +4,12 @@
                                         ^_______________________|          |
                                         (loops back to retrieve if         v
                                          ungrounded, up to          suggest_followups -> END
-                                         MAX_RETRIES times)
+                                         MAX_RETRIES times)              (text only)
 
 suggest_followups runs last on purpose: the answer and its citations have
 already streamed to the client by then, so the extra call costs the user no
-perceived latency.
+perceived latency. It only runs when the caller sets `want_followups`, which
+the voice path deliberately does not.
 
 Compiled once at import time into module-level `agent`, which is what
 app/main.py invokes/streams.
@@ -36,6 +37,14 @@ def _after_classify(state: AgentState) -> str:
     grounded-retrieval path.
     """
     return "answer_meta" if state.get("intent") == "meta" else "retrieve"
+
+
+def _after_citations(state: AgentState) -> str:
+    """Conditional edge out of format_citations: only callers that asked for
+    follow-ups pay for them. Defaults to skipping, so a new caller has to opt in
+    rather than silently inheriting an extra LLM call.
+    """
+    return "suggest_followups" if state.get("want_followups") else END
 
 
 def _after_ground_check(state: AgentState) -> str:
@@ -76,7 +85,11 @@ def build_graph():
         _after_ground_check,
         {"retrieve": "retrieve", "format_citations": "format_citations"},
     )
-    graph.add_edge("format_citations", "suggest_followups")
+    graph.add_conditional_edges(
+        "format_citations",
+        _after_citations,
+        {"suggest_followups": "suggest_followups", END: END},
+    )
     graph.add_edge("suggest_followups", END)
 
     return graph.compile()

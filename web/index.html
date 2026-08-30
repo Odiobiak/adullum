@@ -27,12 +27,10 @@
     --good-soft: #eef6df;
     --user-bubble: #c1502f;
     --user-ink: #fffaf0;
-    /* Journal furniture: the faint horizontal rule of lined paper, and the
-       rose margin line running down the left of a notebook page. */
-    --rule: rgba(163, 141, 99, 0.16);
-    /* One pitch drives both the ruled lines and the answer's line-height, so
-       the text actually sits on the lines instead of floating across them. */
-    --rule-pitch: 1.9rem;
+    /* The rose margin line running down the left of the page. Ruled writing
+       lines used to run across it too, and they made the page look like a
+       form to fill in rather than a book to sit with, so structure now comes
+       from the typography and small gold ornaments instead. */
     --rose-rule: rgba(193, 80, 47, 0.22);
     --shadow: 0 1px 2px rgba(190, 140, 50, 0.08), 0 6px 20px -6px rgba(190, 140, 50, 0.16);
     --shadow-lg: 0 2px 6px rgba(190, 140, 50, 0.10), 0 20px 40px -14px rgba(190, 140, 50, 0.22);
@@ -104,9 +102,11 @@
   header, main { position: relative; z-index: 1; }
 
   /* --- Header --- */
+  /* Fades out at both ends rather than ruling straight across the window. */
   .topbar {
-    height: 4px; flex: none; position: relative; z-index: 1;
-    background: linear-gradient(90deg, var(--gold) 0%, var(--oxblood) 35%, var(--gold-bright) 65%, var(--gold) 100%);
+    height: 3px; flex: none; position: relative; z-index: 1;
+    background: linear-gradient(90deg, transparent 0%, var(--gold) 18%, var(--oxblood) 42%,
+                var(--gold-bright) 62%, var(--gold) 82%, transparent 100%);
   }
   header {
     padding: 1.15rem 1.6rem 0.9rem;
@@ -182,22 +182,12 @@
     background: linear-gradient(to bottom, transparent 0, var(--rose-rule) 6%, var(--rose-rule) 94%, transparent 100%);
     pointer-events: none;
   }
-  /* The ruled lines live on the scrolling surface, not on a fixed layer
-     behind it, so they travel with the text. background-attachment: local
-     is what ties them to the content rather than to the viewport; on a fixed
-     layer the text slid across the rules as you scrolled and they read as
-     decorative crosshatch instead of paper.
-     The top mask keeps a line from being sliced flat against the header. */
+  /* The mask softens the top edge so a line of text is never sliced flat
+     against the header as it scrolls under it. */
   .thread {
     flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain;
     padding: 1.1rem 0 1rem;
-    display: flex; flex-direction: column; gap: 1.3rem; scroll-behavior: smooth;
-    background-image: repeating-linear-gradient(
-      to bottom,
-      transparent 0, transparent calc(var(--rule-pitch) - 1px),
-      var(--rule) calc(var(--rule-pitch) - 1px), var(--rule) var(--rule-pitch)
-    );
-    background-attachment: local;
+    display: flex; flex-direction: column; gap: 1.6rem; scroll-behavior: smooth;
     -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
     mask-image: linear-gradient(to bottom, transparent 0, #000 14px);
   }
@@ -226,14 +216,8 @@
 
   /* Today's date, ruled off like the heading of a fresh journal entry. */
   .entry-date {
-    display: flex; align-items: center; gap: 0.85rem; width: 100%; max-width: 21rem;
-    font-family: var(--font-body); font-size: 0.64rem; letter-spacing: 0.24em;
-    text-transform: uppercase; color: var(--ink-faint); white-space: nowrap;
-  }
-  /* Rule trails the date only. A leading rule pushed the date's ink off the
-     margin, leaving the entry's first line as the one thing not aligned to it. */
-  .entry-date::after {
-    content: ""; height: 1px; flex: 1; background: var(--border);
+    margin: 0; font-family: var(--font-body); font-size: 0.64rem;
+    letter-spacing: 0.26em; text-transform: uppercase; color: var(--ink-faint);
   }
 
   /* What separates Aquila from asking any other chatbot. Set as marginalia
@@ -322,27 +306,31 @@
   }
   /* Line-height locked to the rule pitch so the answer sits on the lines. */
   .answer {
-    white-space: pre-wrap; font-size: 1.02rem; line-height: var(--rule-pitch);
-    color: var(--ink); min-height: var(--rule-pitch);
+    white-space: pre-wrap; font-size: 1.04rem; line-height: 1.78;
+    color: var(--ink); min-height: 1.5rem;
   }
   /* The movements of the study: the passage, its context, the reading, and
-     something to carry away. Set as small ruled headings so an answer scans
-     like a page of study notes rather than one undifferentiated block. */
+     something to carry away. Named in the display face with a small gold
+     mark, so the sections are told apart by voice and ornament rather than
+     by lines drawn across the page. */
   .answer .heading {
-    display: block; font-family: var(--font-body); font-size: 0.62rem;
-    font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
-    color: var(--ink-faint); margin: var(--rule-pitch) 0 0;
-    line-height: var(--rule-pitch);
+    display: block; font-family: var(--font-display); font-size: 1.12rem;
+    font-weight: 600; letter-spacing: 0.015em; color: var(--oxblood);
+    line-height: 1.35; margin: 1.75rem 0 0.4rem;
+  }
+  .answer .heading::before {
+    content: "\2726"; color: var(--gold); font-size: 0.62em;
+    margin-right: 0.55em; vertical-align: 0.15em;
   }
   .answer .heading:first-child { margin-top: 0; }
 
   /* Where the study can go next. Phrased in the reader's own voice, so these
      read as questions they might ask rather than options a machine offers. */
-  .followups { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 1.5rem; }
+  .followups { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 1.75rem; }
   .followups:not(:empty)::before {
     content: "Continue";
-    padding-top: 0.55rem; border-top: 1px solid var(--border); width: 100%;
-    font-family: var(--font-body); font-size: 0.6rem; letter-spacing: 0.2em;
+    width: 100%; margin-bottom: 0.15rem;
+    font-family: var(--font-body); font-size: 0.62rem; letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--ink-faint);
   }
   .followup {
@@ -370,11 +358,14 @@
      a run of plain references. The previous green rounded pills were the
      most generic-app element on the page, and citations are the one thing
      here that most deserves to look like scholarship. */
-  .citations { display: flex; flex-wrap: wrap; gap: 0.3rem 0.75rem; margin-top: 0.9rem; }
+  /* The gold star means "a new movement of the study" and nothing else, so it
+     stays on the section headings alone. These two labels are a different
+     rank and carry themselves on the letterspacing. */
+  .citations { display: flex; flex-wrap: wrap; gap: 0.3rem 0.75rem; margin-top: 1.75rem; }
   .citations:not(:empty)::before {
     content: "Cross references, " attr(data-translation);
-    flex-basis: 100%; padding-top: 0.55rem; border-top: 1px solid var(--border);
-    font-family: var(--font-body); font-size: 0.6rem; letter-spacing: 0.2em;
+    flex-basis: 100%; margin-bottom: 0.1rem;
+    font-family: var(--font-body); font-size: 0.62rem; letter-spacing: 0.22em;
     text-transform: uppercase; color: var(--ink-faint);
   }
   .citation {
@@ -560,6 +551,12 @@
        happens to be at the bottom of the thread (the epigraph on the welcome
        screen, the cross references after an answer). */
     .thread { padding-bottom: 6.2rem; }
+    /* Keeps the follow-ups clear of the call button's column. They are tap
+       targets now, so a question running under the button means a tap meant
+       for one lands on the other. The button is 4rem wide and its 1.1rem
+       offset cancels against main's own padding, so 4rem is the true
+       clearance; the rest is breathing room. */
+    .followup { max-width: calc(100% - 4.6rem); }
     .study-grid { grid-template-columns: 1fr; gap: 0.85rem; }
     /* The pulsing button is invitation enough on a phone. The bubble sat on
        top of a starter card for its whole 8 seconds. */

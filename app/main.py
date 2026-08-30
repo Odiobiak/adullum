@@ -63,7 +63,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
     """
     with trace_attributes(session_id=request.session_id, tags=["chat"], trace_name="chat"):
         result = await agent.ainvoke(
-            {"query": request.query, "translation": request.translation}, config=_run_config()
+            {"query": request.query, "translation": request.translation, "want_followups": True},
+            config=_run_config(),
         )
     citations = [
         Citation(book=v.book, chapter=v.chapter, verse=v.verse, translation=v.translation)
@@ -88,7 +89,7 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
     async def event_generator() -> AsyncIterator[dict]:
         with trace_attributes(session_id=request.session_id, tags=["chat-stream"], trace_name="chat-stream"):
             async for step in agent.astream(
-                {"query": request.query, "translation": request.translation},
+                {"query": request.query, "translation": request.translation, "want_followups": True},
                 config=_run_config(),
                 stream_mode="updates",
             ):

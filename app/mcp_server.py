@@ -41,12 +41,13 @@ mcp = MCPServer(
 
 @mcp.tool()
 async def ask_aquila(query: str, translation: str | None = None, session_id: str | None = None) -> dict:
-    """Ask Aquila a Bible study question and get back a grounded answer, the
-    verse citations it's based on, and a few questions worth asking next.
+    """Ask Aquila a Bible study question and get back a grounded answer plus
+    the verse citations it's based on.
 
     The answer comes back as plain speakable prose (no Markdown), so a voice
-    gateway can read it straight out. `followups` is there so the caller can
-    offer the person somewhere to go next rather than ending the exchange.
+    gateway can read it straight out. No follow-up questions are generated for
+    this path: they are something you skim and click, and read aloud they
+    become a menu the caller has to keep in their head.
 
     Args:
         query: The question to ask, in natural language (e.g. "What does
@@ -66,8 +67,4 @@ async def ask_aquila(query: str, translation: str | None = None, session_id: str
         {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
         for v in result.get("citations", [])
     ]
-    return {
-        "answer": _spoken(result["answer"]),
-        "citations": citations,
-        "followups": result.get("followups", []),
-    }
+    return {"answer": _spoken(result["answer"]), "citations": citations}
