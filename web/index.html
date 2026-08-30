@@ -325,10 +325,35 @@
     white-space: pre-wrap; font-size: 1.02rem; line-height: var(--rule-pitch);
     color: var(--ink); min-height: var(--rule-pitch);
   }
+  /* The movements of the study: the passage, its context, the reading, and
+     something to carry away. Set as small ruled headings so an answer scans
+     like a page of study notes rather than one undifferentiated block. */
   .answer .heading {
-    display: block; font-weight: 700; font-size: 1.12rem; font-family: var(--font-display);
-    margin-top: 0.3rem; color: var(--oxblood);
+    display: block; font-family: var(--font-body); font-size: 0.62rem;
+    font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
+    color: var(--ink-faint); margin: var(--rule-pitch) 0 0;
+    line-height: var(--rule-pitch);
   }
+  .answer .heading:first-child { margin-top: 0; }
+
+  /* Where the study can go next. Phrased in the reader's own voice, so these
+     read as questions they might ask rather than options a machine offers. */
+  .followups { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 1.5rem; }
+  .followups:not(:empty)::before {
+    content: "Continue";
+    padding-top: 0.55rem; border-top: 1px solid var(--border); width: 100%;
+    font-family: var(--font-body); font-size: 0.6rem; letter-spacing: 0.2em;
+    text-transform: uppercase; color: var(--ink-faint);
+  }
+  .followup {
+    display: flex; align-items: baseline; gap: 0.5rem; cursor: pointer;
+    background: none; border: none; padding: 0.15rem 0; text-align: left;
+    font-family: var(--font-display); font-size: 1rem; color: var(--oxblood);
+    transition: color 0.12s ease;
+  }
+  .followup::before { content: "\203A"; color: var(--gold); font-size: 1.05rem; line-height: 1; }
+  .followup:hover { color: var(--ink); }
+  .followup:hover::before { color: var(--oxblood); }
 
   .thinking { display: flex; align-items: center; gap: 0.55rem; }
   .dots { display: flex; gap: 0.28rem; }
@@ -468,6 +493,20 @@
   /* Two call buttons on screen at once (ours and the widget's own) is just
      confusing, so ours steps aside once the widget is up. */
   body.voice-active .voice-fab, body.voice-active .voice-tip { display: none; }
+
+  /* The widget ships colours tuned for a white page. On parchment its own
+     footer line came out near-white and unreadable, and the live transcript
+     printed straight over whatever was behind it. */
+  .webrtc_widget_powered_by, .webrtc_widget_powered_by a,
+  .voice_connect_widget_powered_by, .voice_connect_widget_powered_by a,
+  .vc_widget_powered_by, .vc_widget_powered_by a { color: var(--ink-faint) !important; }
+  .webrtc_widget_transcript_wrapper,
+  .voice_connect_widget_transcript_wrapper,
+  .vc_widget_transcript_wrapper {
+    background: var(--card) !important;
+    border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: var(--shadow-lg);
+  }
 
   /* --- Voice disclaimer modal --- */
   .disclaimer-overlay {
@@ -842,7 +881,12 @@ function renderAnswerHtml(text) {
   // Markdown library for this.
   const escaped = escapeHtml(text);
   const withBold = escaped.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-  return withBold.replace(/^#{1,6}\s+(.+)$/gm, '<span class="heading">$1</span>');
+  // Swallow the newlines around a heading as well as the heading itself. The
+  // answer renders with white-space: pre-wrap, so leaving them in stacked the
+  // Markdown's own blank lines on top of the heading's margin and left every
+  // section floating in roughly twice the intended space. Spacing is the
+  // heading's margin alone now, which keeps it on the rule grid.
+  return withBold.replace(/\n*^#{1,6}[ \t]+(.+?)[ \t]*$\n?/gm, '<span class="heading">$1</span>');
 }
 
 function scrollToBottom() {
@@ -870,6 +914,7 @@ function addAquilaMessage() {
       </div>
       <div class="answer" hidden></div>
       <div class="citations"></div>
+      <div class="followups"></div>
     </div>
   `;
   thread.appendChild(msg);
@@ -879,7 +924,20 @@ function addAquilaMessage() {
     thinkingLabelEl: msg.querySelector(".thinking-label"),
     answerEl: msg.querySelector(".answer"),
     citationsEl: msg.querySelector(".citations"),
+    followupsEl: msg.querySelector(".followups"),
   };
+}
+
+function renderFollowups(el, questions) {
+  el.innerHTML = "";
+  for (const q of questions) {
+    const btn = document.createElement("button");
+    btn.className = "followup";
+    btn.type = "button";
+    btn.textContent = q;
+    btn.addEventListener("click", () => submitQuery(q));
+    el.appendChild(btn);
+  }
 }
 
 function renderCitations(el, citations) {
@@ -896,7 +954,7 @@ function renderCitations(el, citations) {
 }
 
 async function ask(query, translation, apiBase) {
-  const { thinkingEl, thinkingLabelEl, answerEl, citationsEl } = addAquilaMessage();
+  const { thinkingEl, thinkingLabelEl, answerEl, citationsEl, followupsEl } = addAquilaMessage();
 
   const response = await fetch(`${apiBase}/chat/stream`, {
     method: "POST",
@@ -946,6 +1004,9 @@ async function ask(query, translation, apiBase) {
         scrollToBottom();
       } else if (event === "citations") {
         renderCitations(citationsEl, JSON.parse(data));
+        scrollToBottom();
+      } else if (event === "followups") {
+        renderFollowups(followupsEl, JSON.parse(data));
         scrollToBottom();
       }
     }
@@ -1045,7 +1106,23 @@ const VOICE_CONFIG_URL = "https://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81
 const disclaimerOverlay = document.getElementById("disclaimerOverlay");
 let voiceWidgetStarted = false;
 
-function startVoiceWidget() {
+const VOICE_CALL_BUTTON = ".webrtc_widget_call_button, .voice_connect_widget_call_button, .vc_widget_call_button";
+
+// The widget mounts in an idle state behind its own call button, so pressing
+// ours only got you as far as a second button to press. It exposes events but
+// no documented method to place a call, so the button is pressed for them once
+// it appears. Polls because the widget mounts asynchronously after init
+// resolves, and gives up rather than spinning forever if it never shows.
+function pressWidgetCallButton(attempt = 0) {
+  const btn = document.querySelector(VOICE_CALL_BUTTON);
+  if (btn) {
+    btn.click();
+    return;
+  }
+  if (attempt < 40) setTimeout(() => pressWidgetCallButton(attempt + 1), 100);
+}
+
+async function startVoiceWidget() {
   if (voiceWidgetStarted) return;
   // Surface a failure instead of letting the button look inert. The widget
   // script is loaded from a third party, so "it just did nothing" is a real
@@ -1056,11 +1133,12 @@ function startVoiceWidget() {
   }
   voiceWidgetStarted = true;
   try {
-    window.initWebRTCWidget(VOICE_CONFIG_URL);
+    await window.initWebRTCWidget(VOICE_CONFIG_URL);
     document.body.classList.add("voice-active");
     // The composer loses its own bottom padding rules once the FAB hides, so
     // re-measure after the widget mounts rather than trusting the load-time value.
     syncVoiceWidgetOffset();
+    pressWidgetCallButton();
   } catch (err) {
     voiceWidgetStarted = false;
     errorEl.textContent = `Could not start the call: ${err.message}`;

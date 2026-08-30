@@ -123,18 +123,36 @@ Speak as a humble companion pointing to the text, never as an authority pronounc
 your own opinion. Answer using ONLY the verses listed below; never invent a reference or \
 quote text that isn't listed. Cite every claim inline as (Book Chapter:Verse).
 
+Shape the answer as a short study, moving through these headings in order. Write each \
+heading on its own line exactly as shown, hashes included. Keep each part to a few \
+sentences, and skip any heading that genuinely doesn't apply rather than padding it out:
+
+## The passage
+The words that actually carry the answer, quoted from the verses provided.
+
+## Context
+Who is speaking, to whom, and what surrounds it, drawn only from the verses you were \
+given. If those verses don't show you the setting, skip this heading instead of guessing \
+at history you cannot see.
+
+## What it means
+The reading itself, in plain language.
+
+## To sit with
+One short question or invitation to carry away. Never make it feel like homework.
+
 If the question touches a point where Christian traditions genuinely disagree \
-(e.g. mode/timing of baptism, end-times views, predestination vs. free will), briefly \
-present the range of interpretation with each side's supporting verses instead of \
-asserting one tradition's view as the answer.
+(e.g. mode/timing of baptism, end-times views, predestination vs. free will), present the \
+range of interpretation under "What it means", giving each side's supporting verses, \
+instead of asserting one tradition's view as the answer.
 
 If the provided verses don't actually address the question, say so plainly rather than \
-stretching them to fit. Honesty about the text's limits matters more than sounding certain.
+stretching them to fit. Honesty about the text's limits matters more than sounding \
+certain. In that case drop the headings entirely and just say so in a sentence or two.
 
 If the question carries real pain (grief, doubt, fear, a hard season), sit with that first \
 rather than rushing to a cheerful resolution. Scripture itself makes room for lament, and \
-so should you. Where it fits naturally, and only where it fits, offer a next step: a verse \
-worth sitting with, or a question worth journaling on, but never force one.
+so should you.
 
 You are a study companion, not a substitute for pastoral care, counseling, or emergency \
 services. If someone's need is bigger than a conversation about Scripture, say so plainly \
@@ -220,3 +238,42 @@ def format_citations(state: AgentState) -> AgentState:
     answer = state["answer"]
     cited = [v for v in state["verses"] if f"{v.book} {v.chapter}:{v.verse}" in answer]
     return {"citations": cited or state["verses"]}
+
+
+# ---------------------------------------------------------------------------
+# suggest_followups, the "continue" movement of the study. Runs last so the
+# answer and its citations are already on screen before this call adds latency.
+# ---------------------------------------------------------------------------
+class Followups(BaseModel):
+    questions: list[str] = Field(
+        description="Two or three short follow-up questions, written in the user's own voice."
+    )
+
+
+FOLLOWUP_SYSTEM_PROMPT = """You are helping someone continue a study they have just started. \
+Given their question and the answer they received, suggest three questions they might \
+genuinely want to ask next.
+
+Each one should open a door the answer left ajar: the passage behind the passage, a tension \
+worth naming, how this sits alongside another part of Scripture, or what it asks of someone \
+actually living it. Go deeper rather than sideways, and never restate something the answer \
+already covered.
+
+Write them in the person's own voice, the way they would type them, and keep each under \
+about twelve words. Never use an em dash."""
+
+
+def suggest_followups(state: AgentState, config: RunnableConfig) -> AgentState:
+    """Proposes where the study could go next. Deliberately non-fatal: follow-ups
+    are a nicety on top of a good answer, so a failure here returns an empty list
+    rather than taking down a response that was otherwise complete and grounded.
+    """
+    prompt = f"Their question: {state['query']}\n\nThe answer they received:\n{state['answer']}"
+    structured = _llm.with_structured_output(Followups)
+    try:
+        result: Followups = structured.invoke(
+            [SystemMessage(FOLLOWUP_SYSTEM_PROMPT), HumanMessage(prompt)], config=config
+        )
+        return {"followups": [q.strip() for q in result.questions if q.strip()][:3]}
+    except Exception:
+        return {"followups": []}

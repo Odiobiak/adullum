@@ -69,7 +69,12 @@ async def chat(request: ChatRequest) -> ChatResponse:
         Citation(book=v.book, chapter=v.chapter, verse=v.verse, translation=v.translation)
         for v in result.get("citations", [])
     ]
-    return ChatResponse(answer=result["answer"], citations=citations, intent=result["intent"])
+    return ChatResponse(
+        answer=result["answer"],
+        citations=citations,
+        intent=result["intent"],
+        followups=result.get("followups", []),
+    )
 
 
 @app.post("/chat/stream")
@@ -95,6 +100,10 @@ async def chat_stream(request: ChatRequest) -> EventSourceResponse:
                         # entirely (see graph.py) — this node carries both keys at once.
                         yield {"event": "answer", "data": node_output["answer"]}
                         yield {"event": "citations", "data": json.dumps([])}
+                    elif node_name == "suggest_followups":
+                        # Arrives after the answer and citations are already on
+                        # screen, so the client appends rather than waits on it.
+                        yield {"event": "followups", "data": json.dumps(node_output.get("followups", []))}
                     elif node_name == "format_citations":
                         citations = [
                             {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}

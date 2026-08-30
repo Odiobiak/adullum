@@ -36,8 +36,25 @@ classify_intent --meta--> answer_meta --> END
                                      |
                                 grounded, or retries exhausted
                                      v
-                              format_citations --> END
+                              format_citations --> suggest_followups --> END
 ```
+
+`suggest_followups` runs last deliberately: the answer and citations have already
+streamed to the client by then, so its extra LLM call costs no perceived latency.
+It is also non-fatal, returning an empty list on failure rather than sinking an
+answer that was otherwise complete and grounded.
+
+### The shape of an answer
+
+`SYNTHESIZE_SYSTEM_PROMPT` asks for four Markdown headings (`## The passage`,
+`## Context`, `## What it means`, `## To sit with`), which the web client renders
+as ruled section headings and `suggest_followups` extends with a "Continue" block.
+Two things depend on that format, so changing the headings means changing both:
+`web/index.html::renderAnswerHtml` (which strips the surrounding newlines so the
+Markdown's blank lines don't stack on top of the heading's own margin) and
+`app/mcp_server.py::_spoken` (which turns the headings back into sayable
+sentences, since a voice gateway reads the tool's answer string verbatim and
+would otherwise pronounce the hashes).
 
 The `meta` intent exists because `synthesize` is hard-instructed to answer only from retrieved verses. Before this branch existed, a question like "what's your name?" would retrieve unrelated verses about names and Aquila would dodge the question instead of just answering as herself. Anything that is not actually a Bible-content question should route here, not through retrieval.
 

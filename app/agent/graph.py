@@ -1,9 +1,14 @@
-"""Wires the five nodes in app/agent/nodes.py into the state machine:
+"""Wires the nodes in app/agent/nodes.py into the state machine:
 
-    classify_intent -> retrieve -> synthesize -> ground_check -+-> format_citations -> END
-                                        ^_______________________|
-                                        (loops back to retrieve if ungrounded,
-                                         up to MAX_RETRIES times)
+    classify_intent -> retrieve -> synthesize -> ground_check -+-> format_citations
+                                        ^_______________________|          |
+                                        (loops back to retrieve if         v
+                                         ungrounded, up to          suggest_followups -> END
+                                         MAX_RETRIES times)
+
+suggest_followups runs last on purpose: the answer and its citations have
+already streamed to the client by then, so the extra call costs the user no
+perceived latency.
 
 Compiled once at import time into module-level `agent`, which is what
 app/main.py invokes/streams.
@@ -18,6 +23,7 @@ from app.agent.nodes import (
     format_citations,
     ground_check,
     retrieve,
+    suggest_followups,
     synthesize,
 )
 from app.agent.state import AgentState
@@ -54,6 +60,7 @@ def build_graph():
     graph.add_node("synthesize", synthesize)
     graph.add_node("ground_check", ground_check)
     graph.add_node("format_citations", format_citations)
+    graph.add_node("suggest_followups", suggest_followups)
 
     graph.set_entry_point("classify_intent")
     graph.add_conditional_edges(
@@ -69,7 +76,8 @@ def build_graph():
         _after_ground_check,
         {"retrieve": "retrieve", "format_citations": "format_citations"},
     )
-    graph.add_edge("format_citations", END)
+    graph.add_edge("format_citations", "suggest_followups")
+    graph.add_edge("suggest_followups", END)
 
     return graph.compile()
 

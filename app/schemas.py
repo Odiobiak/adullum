@@ -46,3 +46,7 @@ class ChatResponse(BaseModel):
     answer: str
     citations: list[Citation]
     intent: str
+    # Questions to carry the study further. Empty for meta/small-talk answers,
+    # which skip the retrieval path entirely, and whenever the suggestion call
+    # fails. See app/agent/nodes.py::suggest_followups.
+    followups: list[str] = []
