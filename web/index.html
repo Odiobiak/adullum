@@ -31,36 +31,31 @@
     --ring: 0 0 0 3px rgba(193, 80, 47, 0.18);
     --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
     --font-body: "EB Garamond", ui-serif, Georgia, "Iowan Old Style", serif;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --parchment: #17120d; --parchment-2: #1f1811; --card: #221a13;
-      --ink: #e9dcbb; --ink-soft: #c1af8b; --ink-faint: #8c7c60;
-      --border: #3a2d1f;
-      --oxblood: #c4675a; --oxblood-2: #d98a6f; --oxblood-soft: #33221f;
-      --gold: #d9a63e; --gold-bright: #eec46a; --gold-soft: #2e2515;
-      --good: #90ac78; --good-soft: #202a1a;
-      --user-bubble: #5a2424; --user-ink: #f3e6d3;
-      --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 6px 20px -6px rgba(0,0,0,0.5);
-      --shadow-lg: 0 2px 6px rgba(0,0,0,0.4), 0 20px 40px -14px rgba(0,0,0,0.7);
-      --ring: 0 0 0 3px rgba(196, 103, 90, 0.28);
-    }
+    /* Aquila's warmth is carried by the parchment palette itself, so this
+       page commits to the light theme on every device. Following the OS
+       into dark mode turned it into a dim brown page that read as a
+       different, colder product to anyone whose phone is set that way. */
+    color-scheme: light;
   }
   * { box-sizing: border-box; }
   /* 100vh on mobile is the layout viewport, not the visible one, so it sits
      taller than what's actually on screen once the browser chrome or the
-     keyboard takes space — that's what was pushing the composer (and its
-     Ask button) off the bottom of the screen. 100dvh tracks the real,
-     currently-visible viewport instead; the 100vh line stays first as a
-     fallback for browsers that don't support dvh yet. overscroll-behavior
-     stops an over-scroll at the top of the page from bubbling into the
-     browser's own pull-to-refresh gesture. */
+     keyboard takes space, which was pushing the composer (and its Ask
+     button) off the bottom of the screen. See --app-height below for how
+     the real height is measured. overscroll-behavior stops an over-scroll
+     at the top of the page from bubbling into the browser's own
+     pull-to-refresh gesture. */
   html, body { height: 100%; overscroll-behavior-y: none; }
   body {
     margin: 0; color: var(--ink); font: 16px/1.6 var(--font-body);
     background: var(--parchment);
     display: flex; flex-direction: column;
-    height: 100vh; height: 100dvh;
+    /* --app-height is set from window.visualViewport, the only measurement
+       that reflects what's actually on screen once mobile browser chrome
+       and the keyboard take their space. The vh/dvh values are only a
+       first paint fallback: on iOS they disagree with the visible area,
+       which left a dead band of background below the composer. */
+    height: 100vh; height: 100dvh; height: var(--app-height, 100dvh);
     overflow: hidden; overflow-x: hidden; position: relative;
   }
   /* Paper grain: a small fractal-noise tile, repeated. A textured, uneven
@@ -73,14 +68,10 @@
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.9 0 0 0 0'/%3E%3C/filter%3E%3Crect width='200' height='200' filter='url(%23n)'/%3E%3C/svg%3E");
     background-size: 200px 200px;
   }
-  @media (prefers-color-scheme: dark) { .grain { mix-blend-mode: overlay; opacity: 0.12; } }
   /* A soft wash of morning light from above, not a darkening vignette. */
   .vignette {
     position: fixed; inset: 0; z-index: 0; pointer-events: none;
     background: radial-gradient(120% 90% at 50% -10%, rgba(255, 246, 222, 0.65) 0%, transparent 60%);
-  }
-  @media (prefers-color-scheme: dark) {
-    .vignette { background: radial-gradient(140% 100% at 50% 0%, transparent 40%, rgba(0,0,0,0.35) 100%); }
   }
   .embers { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
   .ember {
@@ -339,6 +330,27 @@
   .voice-tip.show { transform: translateY(0) scale(1); opacity: 1; }
   .voice-tip strong { color: var(--oxblood); }
 
+  /* Cognigy's click-to-call widget injects its own fixed-position markup and
+     lands in the same corner as the composer, which paints over it and slices
+     the widget's call button in half. Lift it above the page chrome. The
+     container class name has varied across widget versions, so all three
+     known spellings are matched. */
+  .webrtc_widget_outer_wrapper,
+  .voice_connect_widget_outer_wrapper,
+  .vc_widget_outer_wrapper {
+    z-index: 30 !important;
+    top: auto !important;
+    /* --voice-widget-bottom is measured from the composer's real height in
+       JS, because that height differs between breakpoints (the chip row and
+       hint only render on wide screens). A hardcoded offset that cleared the
+       composer on a phone still covered the Ask button on a desktop. */
+    bottom: var(--voice-widget-bottom, 7.2rem) !important;
+  }
+
+  /* Two call buttons on screen at once (ours and the widget's own) is just
+     confusing, so ours steps aside once the widget is up. */
+  body.voice-active .voice-fab, body.voice-active .voice-tip { display: none; }
+
   /* --- Voice disclaimer modal --- */
   .disclaimer-overlay {
     position: fixed; inset: 0; z-index: 20; background: rgba(30, 20, 10, 0.45);
@@ -373,16 +385,37 @@
      wrapped grid. Dropping it and tightening padding gives that space back. */
   @media (max-width: 640px) {
     .config { display: none; }
-    header { padding: 0.9rem 1.1rem 0.7rem; }
+    header { padding: 0.9rem 1.1rem 0.6rem; }
     main { padding: 0 1.1rem; }
-    .starters { grid-template-columns: 1fr; }
+
+    /* Everything in the empty state gets tighter so the six cards fit as a
+       whole grid. Half a card clipped at the fold reads as broken layout,
+       not as "scroll for more". */
+    .empty-state { gap: 0.75rem; padding: 0.5rem 0; }
+    .empty-state h2 { font-size: 1.3rem; }
+    .empty-state p { font-size: 0.88rem; }
+    .flame-glow svg { width: 52px; height: 63px; }
+    .flame-glow::before { width: 92px; height: 92px; }
+
+    /* Two compact columns, labels only. The one-line descriptions are a
+       nice-to-have on a wide screen and pure height cost on a phone. */
+    .starters { grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .starter-card { padding: 0.6rem 0.65rem; gap: 0.45rem; align-items: center; }
+    .starter-card .label { font-size: 0.92rem; }
+    .starter-card .sub { display: none; }
+    .starter-card::after { display: none; }
+
+    /* The chips duplicate the starter cards, so on a phone they are just
+       another row competing for the same scarce vertical space. */
+    .examples { display: none; }
+    .hint { display: none; }
+
     /* The composer's own Ask button also sits bottom-right on a narrow
-       screen, so the fixed call button has to clear the whole composer
-       block (chips + input + hint), not just the safe-area inset, or the
-       two controls land on top of each other. */
-    .voice-fab { right: 1.1rem; bottom: calc(9.4rem + env(safe-area-inset-bottom)); }
-    .voice-tip { right: 1.1rem; bottom: calc(13.8rem + env(safe-area-inset-bottom)); }
-    .composer-wrap { padding-bottom: max(1.1rem, env(safe-area-inset-bottom)); }
+       screen, so the fixed call button has to clear the composer block or
+       the two controls land on top of each other. */
+    .voice-fab { right: 1.1rem; bottom: calc(6.1rem + env(safe-area-inset-bottom)); }
+    .voice-tip { right: 1.1rem; bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
+    .composer-wrap { padding: 0.6rem 0 max(0.9rem, env(safe-area-inset-bottom)); }
   }
 </style>
 </head>
@@ -557,6 +590,35 @@ document.getElementById("apiBase").value =
 // groups together as one session (in Langfuse, and for any future backend
 // memory) rather than looking like unrelated one-off calls.
 const sessionId = (crypto.randomUUID && crypto.randomUUID()) || `sess-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+// Keep the app shell exactly as tall as the visible viewport. visualViewport
+// accounts for the mobile URL bar and the on-screen keyboard, both of which
+// vh/dvh get wrong on iOS, which is what pushed the composer off screen and
+// left a band of dead background beneath it.
+function syncAppHeight() {
+  const h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+  document.documentElement.style.setProperty("--app-height", `${h}px`);
+  syncVoiceWidgetOffset();
+}
+
+// How high the call widget has to sit to clear the composer. Measured rather
+// than hardcoded: the composer is materially taller on desktop, where the
+// chip row and hint line render, than it is on a phone where both are hidden.
+// The extra 28px covers the widget's "powered by" line, which paints below
+// the widget's own reported bounding box.
+function syncVoiceWidgetOffset() {
+  const composer = document.querySelector(".composer-wrap");
+  if (!composer) return;
+  const clearance = Math.round(composer.getBoundingClientRect().height) + 28;
+  document.documentElement.style.setProperty("--voice-widget-bottom", `${clearance}px`);
+}
+
+syncAppHeight();
+window.addEventListener("resize", syncAppHeight);
+window.addEventListener("orientationchange", syncAppHeight);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener("resize", syncAppHeight);
+}
 
 // A handful of drifting embers behind the page, purely decorative.
 const embersEl = document.getElementById("embers");
@@ -760,9 +822,14 @@ document.getElementById("examples").addEventListener("click", (e) => {
   submitQuery(chip.dataset.q);
 });
 
-// Voice, over Cognigy's WebRTC voice gateway — the same agent as this page,
+// Voice, over Cognigy's WebRTC voice gateway, the same agent as this page
 // reached out loud instead of typed.
-const VOICE_WS_URL = "wss://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81fe2a57510da6639ab95acd67cefe4103f667cfd59386c6b/voiceGateway";
+//
+// This must be the plain https Endpoint config URL, NOT the wss:// gateway
+// URL. initWebRTCWidget() fetches this address to read the endpoint config
+// and works out its own socket from there, so handing it a wss:// address
+// fails silently on the click with "URL scheme wss is not supported".
+const VOICE_CONFIG_URL = "https://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81fe2a57510da6639ab95acd67cefe4103f667cfd59386c6b";
 
 // The voice disclaimer is asked once per browser tab, not once ever, since
 // a fresh visitor deserves to see it even if a previous visitor on the same
@@ -772,8 +839,24 @@ let voiceWidgetStarted = false;
 
 function startVoiceWidget() {
   if (voiceWidgetStarted) return;
+  // Surface a failure instead of letting the button look inert. The widget
+  // script is loaded from a third party, so "it just did nothing" is a real
+  // possible state and the user deserves to see why.
+  if (typeof window.initWebRTCWidget !== "function") {
+    errorEl.textContent = "The voice widget didn't load. Check your connection and reload the page.";
+    return;
+  }
   voiceWidgetStarted = true;
-  window.initWebRTCWidget(VOICE_WS_URL);
+  try {
+    window.initWebRTCWidget(VOICE_CONFIG_URL);
+    document.body.classList.add("voice-active");
+    // The composer loses its own bottom padding rules once the FAB hides, so
+    // re-measure after the widget mounts rather than trusting the load-time value.
+    syncVoiceWidgetOffset();
+  } catch (err) {
+    voiceWidgetStarted = false;
+    errorEl.textContent = `Could not start the call: ${err.message}`;
+  }
 }
 
 document.getElementById("voiceFab").addEventListener("click", () => {
