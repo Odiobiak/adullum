@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Adullum, chat with Aquila</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -47,11 +47,21 @@
     }
   }
   * { box-sizing: border-box; }
-  html, body { height: 100%; }
+  /* 100vh on mobile is the layout viewport, not the visible one, so it sits
+     taller than what's actually on screen once the browser chrome or the
+     keyboard takes space — that's what was pushing the composer (and its
+     Ask button) off the bottom of the screen. 100dvh tracks the real,
+     currently-visible viewport instead; the 100vh line stays first as a
+     fallback for browsers that don't support dvh yet. overscroll-behavior
+     stops an over-scroll at the top of the page from bubbling into the
+     browser's own pull-to-refresh gesture. */
+  html, body { height: 100%; overscroll-behavior-y: none; }
   body {
     margin: 0; color: var(--ink); font: 16px/1.6 var(--font-body);
     background: var(--parchment);
-    display: flex; flex-direction: column; height: 100vh; overflow: hidden; position: relative;
+    display: flex; flex-direction: column;
+    height: 100vh; height: 100dvh;
+    overflow: hidden; overflow-x: hidden; position: relative;
   }
   /* Paper grain: a small fractal-noise tile, repeated. A textured, uneven
      ground reads as "made", not as another gradient-blob AI panel. Baked as
@@ -139,7 +149,8 @@
     display: flex; flex-direction: column; padding: 0 1.6rem;
   }
   .thread {
-    flex: 1; min-height: 0; overflow-y: auto; padding: 1.1rem 0 1rem;
+    flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior-y: contain;
+    padding: 1.1rem 0 1rem;
     display: flex; flex-direction: column; gap: 1.3rem; scroll-behavior: smooth;
   }
   .thread::-webkit-scrollbar { width: 8px; }
@@ -293,26 +304,40 @@
   }
   .error:not(:empty) { display: block; }
 
-  /* --- Channel strip: the same agent answers here, on Cognigy webchat,
-     and by voice, so the header surfaces all three front doors at once
-     instead of leaving voice/webchat as a hidden or fake affordance. */
-  .channels { display: flex; gap: 0.5rem; margin-top: 0.55rem; flex-wrap: wrap; }
-  .channel-pill {
-    display: flex; align-items: center; gap: 0.4rem; font-family: var(--font-body);
-    font-size: 0.76rem; border-radius: 999px; padding: 0.3rem 0.7rem 0.3rem 0.55rem;
-    border: 1px solid var(--border); background: var(--card); color: var(--ink-soft);
-    cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease, transform 0.1s ease;
+  /* --- Voice call button: fixed and separate from the header/composer
+     layout on purpose, so it can never get caught in header wrapping or
+     compete with other controls for a mobile tap target. --- */
+  .voice-fab {
+    position: fixed; right: 1.5rem; bottom: 1.6rem; z-index: 6;
+    width: 4rem; height: 4rem; border-radius: 50%; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    background: linear-gradient(155deg, var(--gold-bright) 0%, var(--oxblood) 100%);
+    box-shadow: 0 6px 20px -4px rgba(193, 80, 47, 0.6), 0 2px 8px rgba(0,0,0,0.18);
+    transition: transform 0.15s ease;
   }
-  .channel-pill svg { width: 0.95rem; height: 0.95rem; flex: none; }
-  .channel-pill:hover { border-color: var(--oxblood); color: var(--oxblood); transform: translateY(-1px); }
-  .channel-pill:active { transform: translateY(0); }
-  .channel-pill.current {
-    cursor: default; background: var(--gold-soft); border-color: var(--gold); color: var(--ink);
+  .voice-fab:hover { transform: scale(1.06); }
+  .voice-fab:active { transform: scale(0.94); }
+  .voice-fab svg { width: 1.7rem; height: 1.7rem; color: #fff; }
+  .voice-fab::before, .voice-fab::after {
+    content: ""; position: absolute; inset: -8px; border-radius: 50%;
+    border: 2px solid var(--oxblood); opacity: 0.55; pointer-events: none;
+    animation: call-pulse 2.2s ease-out infinite;
   }
-  .channel-pill.current:hover { transform: none; border-color: var(--gold); color: var(--ink); }
-  .channel-pill .dot {
-    width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--good); flex: none;
+  .voice-fab::after { animation-delay: 1.1s; }
+  @keyframes call-pulse {
+    0% { transform: scale(0.86); opacity: 0.6; }
+    100% { transform: scale(1.5); opacity: 0; }
   }
+  .voice-tip {
+    position: fixed; right: 1.5rem; bottom: 6rem; z-index: 6; max-width: 13.5rem;
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 0.7rem 0.9rem; box-shadow: var(--shadow-lg); font-size: 0.84rem;
+    color: var(--ink); font-family: var(--font-body);
+    transform: translateY(6px) scale(0.96); opacity: 0; pointer-events: none;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+  }
+  .voice-tip.show { transform: translateY(0) scale(1); opacity: 1; }
+  .voice-tip strong { color: var(--oxblood); }
 
   /* --- Voice disclaimer modal --- */
   .disclaimer-overlay {
@@ -341,6 +366,24 @@
   .btn-ghost:hover { border-color: var(--ink-faint); }
   .btn-primary { background: var(--oxblood); color: var(--user-ink); border-color: var(--oxblood); }
   .btn-primary:hover { background: var(--oxblood-2); }
+
+  /* --- Small screens: the API/translation box is a dev tool, not something
+     a phone visitor needs, and on a short viewport it was eating enough
+     header height to squeeze the starter cards into a cramped, oddly
+     wrapped grid. Dropping it and tightening padding gives that space back. */
+  @media (max-width: 640px) {
+    .config { display: none; }
+    header { padding: 0.9rem 1.1rem 0.7rem; }
+    main { padding: 0 1.1rem; }
+    .starters { grid-template-columns: 1fr; }
+    /* The composer's own Ask button also sits bottom-right on a narrow
+       screen, so the fixed call button has to clear the whole composer
+       block (chips + input + hint), not just the safe-area inset, or the
+       two controls land on top of each other. */
+    .voice-fab { right: 1.1rem; bottom: calc(9.4rem + env(safe-area-inset-bottom)); }
+    .voice-tip { right: 1.1rem; bottom: calc(13.8rem + env(safe-area-inset-bottom)); }
+    .composer-wrap { padding-bottom: max(1.1rem, env(safe-area-inset-bottom)); }
+  }
 </style>
 </head>
 <body>
@@ -372,19 +415,6 @@
       <div>
         <h1>Adullum</h1>
         <p class="tagline">a warm, steadfast companion for Scripture</p>
-        <div class="channels">
-          <span class="channel-pill current" title="You're talking to Aquila right here">
-            <span class="dot"></span>Web chat
-          </span>
-          <button class="channel-pill" id="webchatPill" type="button" title="Open the same Aquila in Cognigy's webchat widget">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/></svg>
-            Cognigy webchat
-          </button>
-          <button class="channel-pill" id="voicePill" type="button" title="Talk to Aquila out loud over WebRTC">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.6 10.8a15.7 15.7 0 0 0 6.6 6.6l2.2-2.2a1.3 1.3 0 0 1 1.3-.3c1.4.5 2.9.8 4.4.8a1.3 1.3 0 0 1 1.3 1.3V21a1.3 1.3 0 0 1-1.3 1.3C10.6 22.3 1.7 13.4 1.7 2.9A1.3 1.3 0 0 1 3 1.6h3.7A1.3 1.3 0 0 1 8 2.9c0 1.5.3 3 .8 4.4a1.3 1.3 0 0 1-.3 1.3z"/></svg>
-            Voice (WebRTC)
-          </button>
-        </div>
       </div>
     </div>
     <div class="config">
@@ -461,6 +491,13 @@
     </div>
   </main>
 
+  <div class="voice-tip" id="voiceTip">Tap to <strong>talk with Aquila</strong> out loud</div>
+  <button class="voice-fab" id="voiceFab" type="button" aria-label="Talk to Aquila" title="Talk to Aquila">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M6.6 10.8a15.7 15.7 0 0 0 6.6 6.6l2.2-2.2a1.3 1.3 0 0 1 1.3-.3c1.4.5 2.9.8 4.4.8a1.3 1.3 0 0 1 1.3 1.3V21a1.3 1.3 0 0 1-1.3 1.3C10.6 22.3 1.7 13.4 1.7 2.9A1.3 1.3 0 0 1 3 1.6h3.7A1.3 1.3 0 0 1 8 2.9c0 1.5.3 3 .8 4.4a1.3 1.3 0 0 1-.3 1.3z"/>
+    </svg>
+  </button>
+
   <div class="disclaimer-overlay" id="disclaimerOverlay" hidden>
     <div class="disclaimer-modal">
       <h3>Before you talk out loud</h3>
@@ -483,7 +520,6 @@
     </div>
   </div>
 
-  <script src="https://github.com/Cognigy/Webchat/releases/latest/download/webchat.js"></script>
   <script src="https://github.com/Cognigy/click-to-call-widget/releases/latest/download/webRTCWidget.js"></script>
 <script>
 // Minimal hand-rolled SSE reader: the browser's EventSource API can't send a
@@ -683,6 +719,7 @@ queryEl.addEventListener("keydown", (e) => {
 async function submitQuery(query) {
   if (!query) return;
 
+  voiceTip.classList.remove("show");
   emptyState.remove();
   submitBtn.disabled = true;
   submitBtn.classList.add("loading");
@@ -723,20 +760,9 @@ document.getElementById("examples").addEventListener("click", (e) => {
   submitQuery(chip.dataset.q);
 });
 
-// The other two front doors from the README: the same agent, reached
-// through Cognigy's own webchat widget and through a WebRTC voice call.
-const WEBCHAT_CONFIG_URL = "https://endpoint-trial-us.cognigy.ai/a9e1af742934df244ec2bfab7ab87d5423e9d46da7c8b7d113b62453b1f8699d";
+// Voice, over Cognigy's WebRTC voice gateway — the same agent as this page,
+// reached out loud instead of typed.
 const VOICE_WS_URL = "wss://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81fe2a57510da6639ab95acd67cefe4103f667cfd59386c6b/voiceGateway";
-
-let webchatInstance = null;
-document.getElementById("webchatPill").addEventListener("click", async () => {
-  if (webchatInstance) {
-    webchatInstance.open();
-    return;
-  }
-  webchatInstance = await window.initWebchat(WEBCHAT_CONFIG_URL);
-  webchatInstance.open();
-});
 
 // The voice disclaimer is asked once per browser tab, not once ever, since
 // a fresh visitor deserves to see it even if a previous visitor on the same
@@ -750,7 +776,8 @@ function startVoiceWidget() {
   window.initWebRTCWidget(VOICE_WS_URL);
 }
 
-document.getElementById("voicePill").addEventListener("click", () => {
+document.getElementById("voiceFab").addEventListener("click", () => {
+  voiceTip.classList.remove("show");
   if (voiceWidgetStarted || sessionStorage.getItem("aquilaVoiceDisclaimerAccepted") === "1") {
     startVoiceWidget();
     return;
@@ -767,6 +794,13 @@ document.getElementById("disclaimerAccept").addEventListener("click", () => {
   disclaimerOverlay.hidden = true;
   startVoiceWidget();
 });
+
+// A one-shot invitation bubble by the call button so a first-time visitor
+// notices it's an actual feature, not just a decoration, then fades on its
+// own rather than sitting there permanently competing for attention.
+const voiceTip = document.getElementById("voiceTip");
+setTimeout(() => voiceTip.classList.add("show"), 1600);
+setTimeout(() => voiceTip.classList.remove("show"), 8000);
 </script>
 </body>
 </html>
