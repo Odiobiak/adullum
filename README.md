@@ -20,9 +20,12 @@ request after a while can take ~50 seconds to wake up; after that it's fast)
 - **Handles book-level questions.** "Give me a starting point for studying James"
   grounds on that book's own opening verses instead of drifting across the whole
   Bible.
-- **Reachable from more than one place.** The same agent answers the web chat
-  below and, over [MCP](https://modelcontextprotocol.io), a Cognigy AI Agent.
-  One brain, multiple front doors.
+- **Answers shaped as a study.** The passage, its context, what it means, and
+  something to sit with, then a few questions worth asking next so a study can
+  keep going instead of stopping at one answer.
+- **Reachable from more than one place.** The same agent answers the web chat,
+  and over [MCP](https://modelcontextprotocol.io) a Cognigy AI Agent, so you can
+  also talk to Aquila out loud from the page. One brain, multiple front doors.
 
 ## Try it out
 
@@ -101,7 +104,8 @@ and health check, opening a GitHub issue only if something actually breaks.
 - [x] MCP server so external agents (Cognigy) can call Aquila as a tool
 - [x] Langfuse tracing across every surface (web, MCP)
 - [x] Deployed, with failure-only alerting on build/health issues
-- [ ] Cognigy Voice Gateway, so this becomes an actual phone call
+- [x] Cognigy Voice Gateway, so you can talk to Aquila out loud from the page
+- [ ] Filling the silence on a voice turn, which is several seconds of pipeline
 - [ ] Supabase Auth-backed user accounts, saved studies, chat history
 - [ ] React Native / Expo mobile client against the same FastAPI service
 - [ ] Eval set tracking citation accuracy over time
