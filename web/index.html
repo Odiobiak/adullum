@@ -517,6 +517,29 @@
   .callbar-end:hover { background: var(--stop-2); }
   .voice-tip strong { color: var(--oxblood); }
 
+  /* Live captions for a voice call. The widget's own transcript is part of the
+     card we hide, so this is the only place a caller can read along while
+     they talk, and the only record of what was said once the call ends. */
+  .call-transcript {
+    /* The call bar is 1.6rem off the bottom and roughly 3rem tall, so 4.4rem
+       measured to only 0.2rem short and the two visibly overlapped by a few
+       px. Rounded up with real headroom instead of tuning to the exact edge. */
+    position: fixed; right: 1.5rem; bottom: 5rem; z-index: 7;
+    width: min(22rem, calc(100vw - 3rem)); max-height: 40vh;
+    overflow-y: auto; overscroll-behavior: contain;
+    display: flex; flex-direction: column; gap: 0.55rem;
+    background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+    padding: 0.8rem 0.95rem; box-shadow: var(--shadow-lg);
+  }
+  .call-transcript-line { font-family: var(--font-body); font-size: 0.88rem; line-height: 1.5; color: var(--ink); }
+  .call-transcript-line .who {
+    display: block; font-family: var(--font-display); font-weight: 700;
+    font-size: 0.68rem; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 0.1rem; color: var(--ink-faint);
+  }
+  .call-transcript-line.caller .who { color: var(--oxblood); }
+  .call-transcript-line.aquila .who { color: var(--gold); }
+
   /* Two call buttons on screen at once (ours and the widget's own) is just
      confusing, so ours steps aside once the widget is up. */
   body.voice-active .voice-fab, body.voice-active .voice-tip { display: none; }
@@ -623,6 +646,14 @@
        the two controls land on top of each other. */
     .voice-fab { right: 1.1rem; bottom: calc(6.1rem + env(safe-area-inset-bottom)); }
     .voice-tip { right: 1.1rem; bottom: calc(10.5rem + env(safe-area-inset-bottom)); }
+    /* Same corner the fab occupies on a phone, not the fab's desktop spot,
+       or the bar and the transcript above it would sit low enough to cover
+       the composer. */
+    .callbar { right: 1.1rem; bottom: calc(6.1rem + env(safe-area-inset-bottom)); }
+    .call-transcript {
+      right: 1.1rem; width: calc(100vw - 2.2rem); max-height: 32vh;
+      bottom: calc(9.5rem + env(safe-area-inset-bottom));
+    }
     .composer-wrap { padding: 0.6rem 0 max(0.9rem, env(safe-area-inset-bottom)); }
   }
 </style>
@@ -759,6 +790,8 @@
       <div class="error" id="error"></div>
     </div>
   </main>
+
+  <div class="call-transcript" id="callTranscript" hidden></div>
 
   <div class="callbar" id="callBar" hidden>
     <span class="callbar-dot"></span>
@@ -1158,10 +1191,44 @@ function pressWidgetCallButton(attempt = 0) {
 
 const callBar = document.getElementById("callBar");
 const callTime = document.getElementById("callTime");
+const callTranscript = document.getElementById("callTranscript");
 let voiceWidget = null;   // the resolved widget, kept so a second call reuses it
 let activeSession = null; // the live RTC session, or null between calls
 let callTimer = null;
 let connectTimeout = null;
+
+// The widget's own transcript lives inside the card this page hides, so this
+// is the only place a caller can read along while they talk, or look back at
+// what was said once the call ends. Cleared only when the NEXT call starts,
+// so it stays on screen as a record after hanging up rather than vanishing
+// the moment the call does.
+function appendTranscriptLine(speaker, text) {
+  if (!text) return;
+  const line = document.createElement("p");
+  line.className = `call-transcript-line ${speaker === "caller" ? "caller" : "aquila"}`;
+  const who = document.createElement("span");
+  who.className = "who";
+  who.textContent = speaker === "caller" ? "You" : "Aquila";
+  line.appendChild(who);
+  // A plain space, not just the label's own display:block, so the raw text
+  // (a screen reader, or anyone who copies the transcript) reads "You Hello"
+  // rather than "YouHello" run together.
+  line.appendChild(document.createTextNode(` ${text}`));
+  callTranscript.appendChild(line);
+  callTranscript.hidden = false;
+  callTranscript.scrollTop = callTranscript.scrollHeight;
+}
+
+function handleTranscription(transcription) {
+  // Confirmed against a live call: the widget sends the literal string "bot",
+  // not "remote" as its own docs' example implies. Guessing wrong here mislabels
+  // every one of Aquila's own lines as the caller's, which is worse than not
+  // showing a transcript at all.
+  const speaker = transcription.originator === "bot" ? "aquila" : "caller";
+  for (const message of transcription.messages || []) {
+    appendTranscriptLine(speaker, message.text);
+  }
+}
 
 // Hanging up through the widget's own end button is the verified path: it is
 // what actually tears the peer connection down. .click() from script also
@@ -1228,8 +1295,13 @@ function armConnectTimeout() {
 // than by an event.
 function watchSession(session) {
   activeSession = session;
+  // A new session is a new call: clear whatever the previous one left behind
+  // before its own lines start arriving.
+  callTranscript.textContent = "";
+  callTranscript.hidden = true;
   session.on("answered", showCallBar);
   session.on("active", showCallBar);
+  session.on("transcription", handleTranscription);
   // Guarded on identity: listeners are never unbound, so a late `terminated`
   // from a previous call would otherwise blank the bar on a live one.
   session.on("terminated", () => {
