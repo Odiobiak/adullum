@@ -66,6 +66,25 @@ def classify_intent(state: AgentState, config: RunnableConfig) -> AgentState:
 
 
 # ---------------------------------------------------------------------------
+# Memory: notes about the person from earlier conversations (app/memory.py).
+# Shared by answer_meta and synthesize so both describe them the same way.
+# ---------------------------------------------------------------------------
+def memory_block(state: AgentState) -> str:
+    """Empty for guests and for anyone with memory off, so the prompt is
+    byte-for-byte what it was before memory existed."""
+    memories = state.get("memories") or []
+    if not memories:
+        return ""
+    lines = "\n".join(f"- {m}" for m in memories)
+    return (
+        "\n\nWhat you remember about this person from earlier conversations. This is private "
+        "context, not Scripture: never cite it, never treat it as evidence for what the Bible "
+        "says, and only bring it up when it genuinely helps, the way a friend would, lightly:\n"
+        f"{lines}"
+    )
+
+
+# ---------------------------------------------------------------------------
 # answer_meta — questions about the assistant itself, not Bible content.
 # Routed here straight from classify_intent, bypassing retrieve()/synthesize()
 # entirely: those are hard-instructed to answer ONLY from retrieved verses,
@@ -89,7 +108,8 @@ def answer_meta(state: AgentState, config: RunnableConfig) -> AgentState:
     """Handles small talk / questions about the assistant itself. No verses are
     retrieved and no citations are produced — `format_citations` is skipped
     entirely for this path (see graph.py)."""
-    response = _llm.invoke([SystemMessage(META_SYSTEM_PROMPT), HumanMessage(state["query"])], config=config)
+    prompt = state["query"] + memory_block(state)
+    response = _llm.invoke([SystemMessage(META_SYSTEM_PROMPT), HumanMessage(prompt)], config=config)
     return {"answer": response.content, "citations": []}
 
 
@@ -171,7 +191,7 @@ def synthesize(state: AgentState, config: RunnableConfig) -> AgentState:
     verses_block = "\n".join(
         f"- {v.book} {v.chapter}:{v.verse} ({v.translation}) — {v.text}" for v in state["verses"]
     )
-    prompt = f"Question: {state['query']}\n\nVerses:\n{verses_block}"
+    prompt = f"Question: {state['query']}\n\nVerses:\n{verses_block}{memory_block(state)}"
     response = _llm.invoke([SystemMessage(SYNTHESIZE_SYSTEM_PROMPT), HumanMessage(prompt)], config=config)
     return {"answer": response.content}
 
@@ -192,17 +212,32 @@ class GroundCheck(BaseModel):
 GROUND_CHECK_PROMPT = (
     "Given the verses and the drafted answer, decide whether every citation and claim "
     "in the answer is directly supported by the verses. An answer that cites a verse "
-    "not in the list, or draws a conclusion the verse doesn't support, is NOT grounded."
+    "not in the list, or draws a conclusion the verse doesn't support, is NOT grounded. "
+    "If notes about the person are given, a warm remark about their own situation drawn "
+    "from those notes is fine, but the notes can never support a claim about what "
+    "Scripture says."
 )
 
 
-def judge_groundedness(verses: list[Verse], answer: str, config: RunnableConfig | None = None) -> GroundCheck:
+def judge_groundedness(
+    verses: list[Verse],
+    answer: str,
+    config: RunnableConfig | None = None,
+    memories: list[str] | None = None,
+) -> GroundCheck:
     """The actual judge call, pulled out of ground_check() so scripts/evaluate.py
     can score a run's groundedness with the exact same judge production uses,
     rather than a second hand-written eval prompt drifting out of sync with it.
+
+    `memories` is passed so a line like "since you're reading Romans with your
+    group" isn't marked as an invented claim. They're labelled as notes about
+    the person, so they can't be used to excuse a claim about Scripture.
     """
     verses_block = "\n".join(f"- {v.book} {v.chapter}:{v.verse} — {v.text}" for v in verses)
-    prompt = f"Verses:\n{verses_block}\n\nAnswer:\n{answer}"
+    notes_block = ""
+    if memories:
+        notes_block = "\n\nNotes about the person (not Scripture):\n" + "\n".join(f"- {m}" for m in memories)
+    prompt = f"Verses:\n{verses_block}{notes_block}\n\nAnswer:\n{answer}"
     structured = _llm.with_structured_output(GroundCheck)
     return structured.invoke([SystemMessage(GROUND_CHECK_PROMPT), HumanMessage(prompt)], config=config)
 
@@ -219,7 +254,7 @@ def ground_check(state: AgentState, config: RunnableConfig) -> AgentState:
     a verse" from something only visible by reading a trace by hand into a
     filterable dashboard metric.
     """
-    result = judge_groundedness(state["verses"], state["answer"], config=config)
+    result = judge_groundedness(state["verses"], state["answer"], config=config, memories=state.get("memories"))
     score_trace_from_config(config, name="grounded", value=1.0 if result.grounded else 0.0)
     return {"grounded": result.grounded, "retries": state.get("retries", 0) + 1}
 

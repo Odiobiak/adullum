@@ -4,6 +4,7 @@ redefining ad hoc dicts in each module is what lets FastAPI validate request/
 response bodies and lets the agent state stay typed.
 """
 
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel
@@ -50,3 +51,30 @@ class ChatResponse(BaseModel):
     # which skip the retrieval path entirely, and whenever the suggestion call
     # fails. See app/agent/nodes.py::suggest_followups.
     followups: list[str] = []
+
+
+class PlanRequest(BaseModel):
+    """Body for POST /plan."""
+
+    start_date: date
+    days: int = 365
+    translation: str | None = None  # falls back to settings.default_translation if omitted
+
+
+class PlanDay(BaseModel):
+    """One day of a reading plan, as produced by app/plan.py::generate_schedule."""
+
+    day: int
+    date: date
+    references: list[str]
+
+
+class PlanResponse(BaseModel):
+    """Body returned by POST /plan and GET /plan/{plan_id}."""
+
+    plan_id: str
+    start_date: date
+    days: int
+    translation: str
+    overview: str
+    schedule: list[PlanDay]

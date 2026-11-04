@@ -30,3 +30,7 @@ class AgentState(TypedDict, total=False):
     # the surface where latency hurts most.
     want_followups: bool
     followups: list[str]  # set by suggest_followups(): questions to carry the study further
+    # Set by the caller for signed-in people with memory on (app/memory.py::recall):
+    # short notes about the person, never Scripture. synthesize/answer_meta may
+    # let them shape tone; ground_check is told they can't support a claim.
+    memories: list[str]

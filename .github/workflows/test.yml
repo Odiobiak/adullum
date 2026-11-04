@@ -1,0 +1,30 @@
+name: Tests
+
+# Runs the pytest suite on every push and PR. Uses dummy Supabase/OpenAI
+# credentials (see tests/conftest.py) rather than real secrets, since the
+# suite only exercises pure logic and the API contract with the agent
+# mocked out — no live LLM or database call is ever made.
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Run tests
+        run: pytest
