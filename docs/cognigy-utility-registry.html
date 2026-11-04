@@ -1,0 +1,697 @@
+<title>Component Registry</title>
+<style>
+  :root {
+    --ink: #1a1712;
+    --paper: #f6f2e9;
+    --paper-raised: #fffdf8;
+    --line: #ddd3bf;
+    --muted: #756b5a;
+    --brass: #8a6d3f;
+    --brass-strong: #6e5630;
+    --built: #2f6b52;
+    --built-bg: #e4efe8;
+    --setup: #a15f0f;
+    --setup-bg: #f6e9d7;
+    --suggested: #5d4d78;
+    --suggested-bg: #ebe6f2;
+    --deferred: #8a4a3a;
+    --deferred-bg: #f3e2dd;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #efe9dc;
+      --paper: #171410;
+      --paper-raised: #1f1b15;
+      --line: #3a342a;
+      --muted: #a89d89;
+      --brass: #c9a469;
+      --brass-strong: #dab97e;
+      --built: #7fc9a4;
+      --built-bg: #1c2e26;
+      --setup: #e0a656;
+      --setup-bg: #332615;
+      --suggested: #b3a0d4;
+      --suggested-bg: #2a2436;
+      --deferred: #dd9686;
+      --deferred-bg: #34211c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #efe9dc;
+    --paper: #171410;
+    --paper-raised: #1f1b15;
+    --line: #3a342a;
+    --muted: #a89d89;
+    --brass: #c9a469;
+    --brass-strong: #dab97e;
+    --built: #7fc9a4;
+    --built-bg: #1c2e26;
+    --setup: #e0a656;
+    --setup-bg: #332615;
+    --suggested: #b3a0d4;
+    --suggested-bg: #2a2436;
+    --deferred: #dd9686;
+    --deferred-bg: #34211c;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    padding: 0 0 5rem;
+  }
+  a { color: var(--brass-strong); }
+  h1, h2, h3 { text-wrap: balance; font-weight: 600; }
+  .wrap { max-width: 74rem; margin: 0 auto; padding: 0 1.5rem; }
+
+  header.masthead {
+    border-bottom: 1px solid var(--line);
+    padding: 3rem 0 2rem;
+    margin-bottom: 2.5rem;
+  }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0 0 0.9rem;
+  }
+  h1.title { font-size: 2.5rem; margin: 0 0 0.6rem; letter-spacing: -0.01em; }
+  .dek { font-size: 1.05rem; color: var(--muted); max-width: 42rem; margin: 0 0 1.6rem; }
+
+  .refs {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--muted);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.4rem;
+  }
+  .refs code { color: var(--ink); }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-top: 1.6rem;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.65rem;
+    border-radius: 999px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid transparent;
+  }
+  .chip.built { color: var(--built); background: var(--built-bg); }
+  .chip.setup { color: var(--setup); background: var(--setup-bg); }
+  .chip.suggested { color: var(--suggested); background: var(--suggested-bg); }
+  .chip.deferred { color: var(--deferred); background: var(--deferred-bg); }
+
+  .filterbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 2.2rem;
+  }
+  .filterbar button {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    background: none;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    padding: 0.45rem 0.9rem;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+  .filterbar button:hover { border-color: var(--brass); color: var(--ink); }
+  .filterbar button.active {
+    background: var(--ink);
+    color: var(--paper);
+    border-color: var(--ink);
+  }
+
+  section.group { margin-bottom: 3.2rem; }
+  .group-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.8rem;
+    margin-bottom: 1.2rem;
+    border-bottom: 1px solid var(--line);
+    padding-bottom: 0.6rem;
+  }
+  .group-head h2 { font-size: 1.35rem; margin: 0; }
+  .group-head .count {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .group-note { color: var(--muted); font-size: 0.92rem; margin: -0.6rem 0 1.4rem; max-width: 46rem; }
+
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr)); gap: 1rem; }
+
+  .card {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.3rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
+  .card h3 { font-size: 1.05rem; margin: 0; }
+  .card .id {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--muted);
+    word-break: break-all;
+  }
+  .card p { margin: 0; font-size: 0.93rem; }
+  .card p.desc { color: var(--ink); }
+  .card .howto {
+    font-size: 0.85rem;
+    color: var(--muted);
+    border-top: 1px dashed var(--line);
+    padding-top: 0.6rem;
+    margin-top: 0.2rem;
+  }
+  .card .howto b { color: var(--ink); font-weight: 600; }
+
+  details.steps { margin-top: 0.2rem; }
+  details.steps summary {
+    cursor: pointer;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--brass-strong);
+    letter-spacing: 0.03em;
+  }
+  details.steps[open] summary { margin-bottom: 0.6rem; }
+  details.steps ol {
+    margin: 0.4rem 0 0;
+    padding-left: 1.2rem;
+    font-size: 0.88rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  details.steps li::marker { font-family: var(--mono); color: var(--muted); }
+  .callout {
+    font-size: 0.85rem;
+    background: var(--setup-bg);
+    color: var(--setup);
+    border-radius: 6px;
+    padding: 0.6rem 0.8rem;
+    margin-top: 0.5rem;
+  }
+  .callout.violet { background: var(--suggested-bg); color: var(--suggested); }
+  code.inline {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--built-bg);
+    color: var(--ink);
+    padding: 0.05em 0.35em;
+    border-radius: 4px;
+  }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr)); gap: 0.85rem; }
+  .tile {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 1rem 1.1rem;
+    background: var(--paper-raised);
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .tile h4 { margin: 0; font-size: 0.95rem; }
+  .tile p { margin: 0; font-size: 0.85rem; color: var(--muted); }
+  .tile .why {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    color: var(--brass-strong);
+    text-transform: uppercase;
+  }
+
+  footer {
+    margin-top: 3rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 0.82rem;
+  }
+  footer code { font-family: var(--mono); }
+
+  .tut-toc {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0 0 1.8rem;
+  }
+  .tut-toc a {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    padding: 0.35rem 0.75rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--suggested);
+    text-decoration: none;
+  }
+  .tut-toc a:hover { border-color: var(--suggested); background: var(--suggested-bg); }
+  .tut-toc .n { color: var(--muted); margin-right: 0.35rem; }
+
+  .tutorial {
+    background: var(--paper-raised);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.7rem 1.8rem;
+    margin-bottom: 1.3rem;
+    scroll-margin-top: 1.2rem;
+  }
+  .tutorial .tag {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--brass-strong);
+    margin: 0 0 0.5rem;
+  }
+  .tutorial h3 { margin: 0 0 0.4rem; font-size: 1.25rem; }
+  .tutorial .lede { color: var(--muted); font-size: 0.96rem; margin: 0 0 0.3rem; max-width: 46rem; }
+  .tutorial .why-it-matters { font-size: 0.92rem; margin: 0 0 1.2rem; max-width: 46rem; }
+  .tutorial ol.tut-steps {
+    margin: 0;
+    padding-left: 1.35rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+  .tutorial ol.tut-steps li { font-size: 0.95rem; }
+  .tutorial ol.tut-steps li b { color: var(--ink); }
+  .tutorial ol.tut-steps li::marker { font-family: var(--mono); color: var(--suggested); font-weight: 600; }
+  .tutorial pre {
+    background: #20180f;
+    color: #f1e9d8;
+    border: 1px solid #3a2c18;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    margin: 0.5rem 0 0;
+    line-height: 1.5;
+  }
+  .tutorial .why, .tutorial .test, .tutorial .gotcha {
+    font-size: 0.87rem;
+    border-radius: 6px;
+    padding: 0.65rem 0.85rem;
+    margin-top: 0.9rem;
+  }
+  .tutorial .why { background: var(--suggested-bg); color: var(--suggested); }
+  .tutorial .test { background: var(--built-bg); color: var(--built); }
+  .tutorial .gotcha { background: var(--setup-bg); color: var(--setup); }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Cognigy · Aquila Project · Build Reference</p>
+    <h1 class="title">Component Registry</h1>
+    <p class="dek">Every reusable piece built (or planned) for Aquila's Cognigy layer — what it does, whether it's live, and exactly how to finish the ones that need a manual step in the Cognigy GUI.</p>
+
+    <div class="refs">
+      <span>project <code>6a9275fc643b16c54c336bd1</code></span>
+      <span>agent <code>6a9275fddf81fe67d0e6b5c8</code></span>
+      <span>flow <code>6a9275fd643b16c54c336eaf</code></span>
+    </div>
+
+    <div class="legend">
+      <span class="chip built">● built</span>
+      <span class="chip setup">● needs gui setup</span>
+      <span class="chip suggested">● suggested</span>
+      <span class="chip deferred">● deferred</span>
+    </div>
+  </header>
+
+  <div class="filterbar" id="filterbar">
+    <button data-filter="all" class="active">All</button>
+    <button data-filter="built">Built</button>
+    <button data-filter="setup">Needs GUI Setup</button>
+    <button data-filter="suggested">Build Walkthroughs</button>
+    <button data-filter="deferred">Deferred</button>
+  </div>
+
+  <section class="group" data-group="built">
+    <div class="group-head"><h2>Built</h2><span class="count">3</span></div>
+    <p class="group-note">Live in the Aquila flow today. All three are tools on the one AI Agent Job — the LLM decides when to call them, per the instructions on node <code class="inline">6a9275fddf81fe67d0e6b5d8</code>.</p>
+    <div class="cards">
+
+      <article class="card" data-status="built">
+        <div class="card-top"><h3>Bootstrap Session</h3><span class="chip built">built</span></div>
+        <p class="id">tool <code>6aa2dd53516224b0b92110a2</code></p>
+        <p class="desc">Hydrates <code class="inline">context</code> from the caller's Cognigy contact profile once, at the start of a session, before the first real reply.</p>
+        <p class="howto"><b>Use it:</b> nothing to do — instruction 8 tells the agent to call it silently when <code class="inline">context.bootstrapped</code> isn't set yet. <b>Extend it:</b> add more <code class="inline">profile.*</code> fields in the code node <code class="inline">6aa2dd5ca110f07185c1d1a5</code> as new client data becomes available.</p>
+      </article>
+
+      <article class="card" data-status="built">
+        <div class="card-top"><h3>Verse of the Day</h3><span class="chip built">built</span></div>
+        <p class="id">tool <code>6aa19dd5516224b0b91eccad</code></p>
+        <p class="desc">Shows an Adaptive Card with a day-seeded verse and a "Study this" action on webchat; falls back to plain text on voice/REST.</p>
+        <p class="howto"><b>Use it:</b> ask the agent for "the verse of the day" — the tool description and instruction 6 cover invocation. <b>Extend it:</b> swap the hardcoded verse list for a Supabase pick once that Connection exists (see Supabase Query Tool below).</p>
+      </article>
+
+      <article class="card" data-status="built">
+        <div class="card-top"><h3>Show Follow-ups</h3><span class="chip built">built</span></div>
+        <p class="id">tool <code>6aa19dd7a238c05aa85f10a5</code></p>
+        <p class="desc">Renders ask_aquila's own follow-up questions as tappable buttons instead of a plain list, on webchat; joins them into one sentence on voice/REST.</p>
+        <p class="howto"><b>Use it:</b> the agent calls this automatically after ask_aquila (instruction 7), passing the follow-ups back verbatim. <b>Blocked on:</b> live end-to-end testing needs the Azure OpenAI LLM connection fixed first (currently failing on every turn, independent of this tool).</p>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="group" data-group="setup">
+    <div class="group-head"><h2>Needs GUI Setup</h2><span class="count">4</span></div>
+    <p class="group-note">The logic for each of these can be authored through the tools used to build this project — the one missing piece each time is a resource type (a Connection, a bare Flow, an Endpoint) that only the Cognigy GUI can create. Steps below are exact.</p>
+    <div class="cards">
+
+      <article class="card" data-status="setup">
+        <div class="card-top"><h3>Supabase Query Tool</h3><span class="chip setup">needs setup</span></div>
+        <p class="id">blocked on: an encrypted Connection</p>
+        <p class="desc">A reusable <code class="inline">httpRequest</code>-based tool for reading (or later, writing) Adullum's existing Supabase project — verse lookups, saved plans, session logs.</p>
+        <details class="steps">
+          <summary>▸ how to build it</summary>
+          <ol>
+            <li>Open the Aquila project → <b>Build → Flows → Aquila Flow</b>, and add a new tool (or ask me to scaffold one) with an <b>HTTP Request</b> node inside its branch.</li>
+            <li>Set the URL to <code class="inline">https://&lt;project-ref&gt;.supabase.co/rest/v1/&lt;table&gt;</code>, method GET (or POST/PATCH for writes).</li>
+            <li>In the node's <b>Authentication</b> section, pick an API-Key method and click the <b>+</b> next to Parameters to open <b>New Connection</b>. Paste in the service role key there — this is the step that encrypts it instead of storing it in plain text.</li>
+            <li>Give the Connection a clear name, e.g. <code class="inline">Supabase Service Role</code>, and save.</li>
+            <li>Set a Storage Options context key, e.g. <code class="inline">supabaseResult</code>.</li>
+            <li>Send me the Connection's reference ID and I'll wire the rest of the tool (params, pre/post-process code) to it.</li>
+          </ol>
+          <div class="callout">Supabase's gateway expects a header literally named <code class="inline">apikey</code>. Cognigy's built-in API-Key auth types produce <code class="inline">Authorization: ApiKey …</code> or a fixed <code class="inline">X-API-Key</code> header — neither is an exact match. After wiring the Connection, check the actual outgoing request in the Interaction Panel's Debug Mode against a live call; if Supabase returns "No API key found", that's the header name to fix.</div>
+        </details>
+      </article>
+
+      <article class="card" data-status="setup">
+        <div class="card-top"><h3>Salesforce Case / Handover</h3><span class="chip setup">needs setup</span></div>
+        <p class="id">blocked on: a Salesforce org + Handover Provider</p>
+        <p class="desc">Escalates a conversation to a human agent queue in Salesforce, with the transcript and structured context attached.</p>
+        <details class="steps">
+          <summary>▸ how to build it</summary>
+          <ol>
+            <li>Use the <b>Salesforce MIAW</b> connector, not the legacy Chat/LiveAgent one — Salesforce retires that Feb 14, 2026.</li>
+            <li>In Salesforce Setup: enable <b>Omni-Channel</b>, then create a <b>Service Channel</b> (Salesforce Object = Messaging Session).</li>
+            <li>Create a <b>Queue</b>, add your human agents as members, and add Messaging User / Messaging Session / Chat Session as supported objects.</li>
+            <li>Create an <b>Omni-Channel Flow</b> that routes work to that queue.</li>
+            <li>Create a <b>Messaging Channel</b> (type: Messaging for In-App and Web), routing type Omni-Flow, pointed at the flow above with the queue as fallback. Activate it.</li>
+            <li>In Cognigy: <b>Build → Handover Providers → + New Handover Provider → Salesforce</b>, and fill in the identifiers Salesforce gives you for the channel.</li>
+            <li>Add a <b>Handover to Human Agent</b> node to whichever tool should trigger escalation, select this provider, and configure Pre-chat Entities/transcript-on-handover.</li>
+          </ol>
+          <div class="callout">Deferred per your call — exploratory only, no org yet. Steps above are ready whenever that changes.</div>
+        </details>
+      </article>
+
+      <article class="card" data-status="setup">
+        <div class="card-top"><h3>Webhook Router</h3><span class="chip setup">needs setup</span></div>
+        <p class="id">blocked on: a bare Flow + a Webhook Endpoint</p>
+        <p class="desc">One inbound URL for every future external trigger — a dispatcher that routes by payload, not a new endpoint per integration.</p>
+        <details class="steps">
+          <summary>▸ how to build it</summary>
+          <ol>
+            <li><b>Build → Flows → + New Flow</b>, name it e.g. <code class="inline">Webhook Router</code> — no AI Agent Job node needed, this is a plain dispatch flow.</li>
+            <li>After Start, add a <b>Lookup</b> (switch) node keyed on a discriminator in the payload, e.g. <code class="inline">input.data.event_type</code>.</li>
+            <li>Wire each case to its handler — inline nodes for simple cases, or an <b>Execute Flow</b> node (available in the GUI's node palette) to jump into a dedicated handler flow and return.</li>
+            <li>At the end of each case, add an <b>HTTP Request</b> node that POSTs the result to <code class="inline">input.data.callbackUrl</code> — read dynamically from the incoming payload, so one router serves many different callers instead of one fixed callback.</li>
+            <li><b>Deploy → Endpoints → + New Endpoint</b>, type <b>Webhook</b>, select this flow, set Authentication Method to <b>API Key</b>, and generate a key.</li>
+            <li>Hand external callers the Endpoint URL and the key (sent as <code class="inline">x-cognigy-endpoint-key</code>).</li>
+          </ol>
+          <div class="callout violet">Bonus, free once the Endpoint exists: <code class="inline">/inject/{URLToken}</code> and <code class="inline">/notify/{URLToken}</code> push a message into an already-running session or straight to a user, without a full round trip.</div>
+        </details>
+      </article>
+
+      <article class="card" data-status="setup">
+        <div class="card-top"><h3>xApp Branding, shared</h3><span class="chip setup">needs setup</span></div>
+        <p class="id">blocked on: a call-and-return node</p>
+        <p class="desc">One place to define <code class="inline">initAppSession</code> styling, so every xApp tool picks up the same look instead of a copy-pasted config block.</p>
+        <details class="steps">
+          <summary>▸ how to build it</summary>
+          <ol>
+            <li><b>Build → Flows → + New Flow</b>, name it e.g. <code class="inline">xApp Branding</code>.</li>
+            <li>Add a single <b>xApp: Init Session</b> node with the shared <code class="inline">pageTitle</code> / <code class="inline">logo</code> / colors, and mark it as this flow's Entrypoint.</li>
+            <li>From any tool branch that needs an xApp, add an <b>Execute Flow</b> node (GUI-only — not exposed through the API used to build this project) targeting this flow.</li>
+            <li>After it returns, continue with that tool's own <code class="inline">showXAppAdaptiveCard</code> / <code class="inline">showXAppHtml</code> node as usual.</li>
+          </ol>
+          <div class="callout violet">Low priority at 2 tools — Verse of the Day and Show Follow-ups already use near-identical config by convention. Worth doing once a third or fourth xApp tool shows up.</div>
+        </details>
+      </article>
+
+    </div>
+  </section>
+
+  <section class="group" data-group="suggested">
+    <div class="group-head"><h2>Build Walkthroughs</h2><span class="count">10</span></div>
+    <p class="group-note">All ten, in the order it makes sense to build them. Each is written for the Cognigy GUI, step by step, with what's actually happening at each step — follow along inside <b>Build → AI Agents → Aquila</b> as you go. None of these need Supabase or Salesforce credentials to get a working first version; swap in the real Connection later where noted.</p>
+
+    <div class="tut-toc">
+      <a href="#build-api-caller"><span class="n">01</span>API-caller template</a>
+      <a href="#build-account-lookup"><span class="n">02</span>Account Lookup</a>
+      <a href="#build-consent"><span class="n">03</span>Consent Capture</a>
+      <a href="#build-audit-log"><span class="n">04</span>Audit Log</a>
+      <a href="#build-rate-limit"><span class="n">05</span>Rate-limit Guard</a>
+      <a href="#build-locale"><span class="n">06</span>Locale Router</a>
+      <a href="#build-health-check"><span class="n">07</span>Health-check Tool</a>
+      <a href="#build-feature-flags"><span class="n">08</span>Feature Flags</a>
+      <a href="#build-extension"><span class="n">09</span>Custom Extension</a>
+      <a href="#build-package"><span class="n">10</span>Package Export</a>
+    </div>
+
+    <article class="tutorial" id="build-api-caller" data-status="suggested">
+      <p class="tag">01 · integration</p>
+      <h3>Generic API-Caller Tool Template</h3>
+      <p class="lede">Not a single tool — a shape you duplicate for every new external API, so the auth/error/response wiring only gets solved once.</p>
+      <p class="why-it-matters">Right now, every integration this project needs (Supabase, a future client CRM, anything) means wiring an HTTP Request node from scratch: which auth type, how to unwrap the response, what to show the LLM on failure. Building this template first means every tool after it is a five-minute copy, not a fresh design.</p>
+      <ol class="tut-steps">
+        <li><b>Create the tool.</b> In the Aquila AI Agent's Job configuration, add a new Tool. Name it after the capability, not the API — e.g. <code class="inline">check_order_status</code>, never <code class="inline">call_api</code>. One tool per business capability keeps the LLM's tool list meaningful; a single do-everything "API tool" forces the LLM to guess arguments it can't know.</li>
+        <li><b>Add a Code node first, "Prepare Request."</b> Anything you need to compute before the call — normalizing a phone number, building a query string — happens here, writing into <code class="inline">input</code> or <code class="inline">context</code>. Keep the HTTP node's own fields simple CognigyScript references to what this step already prepared.</li>
+        <li><b>Add an HTTP Request node.</b> Set the URL with CognigyScript for dynamic segments, e.g. <code class="inline">https://api.example.com/v1/accounts/{{input.aiAgent.toolArgs.accountId}}</code> — tool-call arguments always live at <code class="inline">input.aiAgent.toolArgs.&lt;param&gt;</code>, never <code class="inline">input.data</code>. In the node's <b>Authentication</b> section, pick the auth type the API needs and use the <b>+</b> next to Parameters to create a Connection — this is what keeps the secret encrypted instead of sitting in plain text in the flow.</li>
+        <li><b>Turn on error logging.</b> In the HTTP node's Error Handling section, choose "Log the error with the server response and the URL" — you want this the first time something breaks, not after.</li>
+        <li><b>Add an ifThenElse right after the HTTP node</b>, condition <code class="inline">input.httprequest.statusCode &gt;= 300</code>. The wrapped response is an object <code class="inline">{ result, statusCode, length }</code>, never the raw body — this is the most common reason an HTTP tool "fires successfully but returns nothing useful," so always read through <code class="inline">input.httprequest.result</code>, never assume the top-level object is the API's JSON.
+          <pre>// Then branch — friendly failure, no raw error to the LLM
+input.result = "I couldn't reach that service right now. Let's try again in a moment.";
+
+// Else branch — shape the success response
+const data = input.httprequest.result;
+input.result = `Found it: ${data.status}, last updated ${data.updatedAt}.`;</pre>
+        </li>
+        <li><b>Resolve Tool Action.</b> Set its answer field to <code class="inline">{{input.result}}</code> — never the raw <code class="inline">JSON.stringify(input.httprequest)</code> default, which dumps the whole wrapper object at the LLM.</li>
+        <li><b>Test it.</b> Open the Interaction Panel, turn on Debug Mode, and send a message that should trigger the tool. Debug Mode shows you the exact outgoing request and incoming response — this is how you catch a wrong header name before a user does.</li>
+      </ol>
+      <div class="test">Test checklist: does the tool fire on the right phrasing, does a deliberately-wrong ID produce the friendly failure branch (not a raw error), and does Debug Mode show the auth header you expect?</div>
+    </article>
+
+    <article class="tutorial" id="build-account-lookup" data-status="suggested">
+      <p class="tag">02 · accounts</p>
+      <h3>Customer / Account Lookup Tool</h3>
+      <p class="lede">Resolves "who is this" against an account record — the first step before anything account-specific happens.</p>
+      <p class="why-it-matters">This is deliberately <em>not</em> authentication. It answers "is there an account matching what they told me," not "are they allowed to see it" — that's ID&V's job, built separately, and chained after this one. Keeping them separate means you can look someone up to greet them by name without that alone unlocking anything sensitive.</p>
+      <ol class="tut-steps">
+        <li><b>Create the tool</b> <code class="inline">lookup_account</code>, description: "Looks up the caller's account by email or account number. Call this before answering any account-specific question, but this alone does not verify identity." That last clause in the description matters — it's what stops the LLM from treating a successful lookup as permission to act.</li>
+        <li><b>Add one parameter</b>, JSON Schema: <code class="inline">{"type":"object","properties":{"identifier":{"type":"string","description":"email address or account number the user gave"}},"required":["identifier"]}</code>.</li>
+        <li><b>Add an HTTP Request node</b> using the API-caller template from #01 — for now this can point at a stub/mock endpoint, or, once the Supabase Connection exists, a GET against the Supabase REST endpoint filtering by email or account number.</li>
+        <li><b>Add a Code node, "Interpret Result."</b> On a match, set <code class="inline">context.accountId</code>, <code class="inline">context.accountName</code>, and explicitly <code class="inline">context.verified = false</code> — writing this explicitly, even though it's the default, makes the ID&V gate impossible to miss when you build it next to this. On no match, set a plain "I couldn't find an account matching that" result.</li>
+        <li><b>Resolve Tool Action</b> with the interpreted result.</li>
+        <li><b>Add one line to the agent's instructions:</b> "Before answering an account-specific question, call lookup_account if you don't already have context.accountId for this session. A successful lookup identifies the account — it does not by itself authorize account changes."</li>
+      </ol>
+      <div class="why">Chain it with ID&V: any tool that changes data or reveals sensitive details should check <code class="inline">context.verified === true</code> first, not just <code class="inline">context.accountId</code> being set.</div>
+    </article>
+
+    <article class="tutorial" id="build-consent" data-status="suggested">
+      <p class="tag">03 · compliance</p>
+      <h3>Consent / Opt-in Capture Tool</h3>
+      <p class="lede">Asks explicit yes/no before anything personal gets stored — once per session, in one place, so "what counts as consent here" has exactly one definition.</p>
+      <p class="why-it-matters">This reuses the exact channel-gated xApp pattern already proven in <code class="inline">verse_of_the_day</code> — a card on webchat, a spoken question on voice — because consent has to be explicit on both, not just implied by continuing to talk.</p>
+      <ol class="tut-steps">
+        <li><b>Create the tool</b> <code class="inline">capture_consent</code>, description: "Asks the user for explicit consent before storing any personal information. Call this once per session, before the first tool that saves user data."</li>
+        <li><b>Add an ifThenElse</b> on <code class="inline">input.channel === "webchat3"</code>, same gate used for every xApp tool in this project — voice has no card surface, so it needs its own path.</li>
+        <li><b>Then branch (webchat):</b> <code class="inline">initAppSession</code> → <code class="inline">showXAppAdaptiveCard</code> with a short, specific consent statement (name exactly what you'll store and why) and two <code class="inline">Action.Submit</code> buttons, <code class="inline">waitForInput: true</code>, <code class="inline">contextKey: "consent"</code>.</li>
+        <li><b>Else branch (voice/REST):</b> a <b>Question</b> node, type <code class="inline">yesNo</code>, asking the same thing aloud — consent has to be spoken explicitly here too, not assumed from the caller staying on the line.</li>
+        <li><b>Add a Code node</b> after both branches: <code class="inline">context.consentGiven = true|false; context.consentAt = new Date().toISOString();</code></li>
+        <li><b>Resolve Tool Action</b> reporting whether consent was given, so the agent can respond appropriately either way.</li>
+        <li><b>Gate every data-writing tool.</b> At the top of any tool that saves personal data, add an ifThenElse: <code class="inline">context.consentGiven === true</code> — if false, the response asks for consent first instead of proceeding.</li>
+      </ol>
+      <div class="gotcha">Word the consent statement for the specific thing you're about to store — a generic "is that okay?" doesn't hold up as informed consent if a client ever asks how this was captured.</div>
+    </article>
+
+    <article class="tutorial" id="build-audit-log" data-status="suggested">
+      <p class="tag">04 · compliance</p>
+      <h3>Audit / Compliance Log Tool</h3>
+      <p class="lede">A structured who-did-what-when record for every sensitive action — the thing enterprise clients ask for by name during a security review.</p>
+      <p class="why-it-matters">Before building a custom tool, check whether the built-in path already covers it: the AI Agent Job node has a <code class="inline">loggingWebhookUrl</code> field that ships request/response data to a URL you control. For simple "log everything" needs, filling that in is less work than a new tool. Build the dedicated tool below when you need to log specific <em>business</em> events (a completed account change, a consent decision) rather than every raw turn.</p>
+      <ol class="tut-steps">
+        <li><b>Pick the sink first.</b> A Supabase table (needs the Connection from the registry above), or a webhook URL (the same pattern the Webhook Router uses to call back out) — decide before building so the tool's HTTP node has somewhere real to point.</li>
+        <li><b>Create the tool</b> <code class="inline">log_audit_event</code>, parameters: <code class="inline">{"type":"object","properties":{"action":{"type":"string"},"details":{"type":"object"}},"required":["action"]}</code>.</li>
+        <li><b>Add a Code node, "Build Record."</b>
+          <pre>const record = {
+  ts: new Date().toISOString(),
+  sessionId: input.sessionId,
+  accountId: context.accountId || null,
+  action: input.aiAgent.toolArgs.action,
+  details: input.aiAgent.toolArgs.details || {},
+};
+context.lastAuditRecord = record;</pre>
+        </li>
+        <li><b>Add an HTTP Request node</b> POSTing <code class="inline">context.lastAuditRecord</code> as the JSON body to the sink from step 1.</li>
+        <li><b>Resolve Tool Action</b> with a short confirmation only — never echo the full record back, or the agent may end up narrating internal logging to the user.</li>
+        <li><b>Wire it in by instruction, not by chaining.</b> There's no call-and-return node available here, so other tools can't invoke this one directly — instead, add a line to the agent's instructions: "After a successful account change, call log_audit_event with action and a short details object." The LLM sequences the two tool calls itself.</li>
+      </ol>
+    </article>
+
+    <article class="tutorial" id="build-rate-limit" data-status="suggested">
+      <p class="tag">05 · reliability</p>
+      <h3>Rate-Limit / Abuse Guard</h3>
+      <p class="lede">A per-session counter that caps a runaway or abused tool before it reaches a downstream API — a pattern added to existing tools, not a new standalone one.</p>
+      <p class="why-it-matters">Different tools warrant different limits — a verse lookup can be called often and cheaply; a tool that changes account data or calls a metered client API should be rare. That's why this lives per-tool, not as one global gate.</p>
+      <ol class="tut-steps">
+        <li><b>Open the tool you want to guard</b> (an existing one, or a new one worth protecting from the start — anything that calls a paid/rate-limited downstream API is a good candidate).</li>
+        <li><b>Add a Code node at the very top of its branch, before anything else runs:</b>
+          <pre>context.callCounts = context.callCounts || {};
+const key = "check_order_status"; // this tool's name
+context.callCounts[key] = (context.callCounts[key] || 0) + 1;</pre>
+        </li>
+        <li><b>Add an ifThenElse</b> right after: <code class="inline">context.callCounts["check_order_status"] &gt; 5</code> — pick a limit that fits the tool, not one number reused everywhere.</li>
+        <li><b>Then branch:</b> set <code class="inline">input.result</code> to a firm, polite decline ("Let's slow down for a moment — try again shortly") and skip straight to Resolve Tool Action, bypassing the tool's real logic entirely for this turn.</li>
+        <li><b>Else branch:</b> the tool's normal logic continues unchanged.</li>
+        <li><b>Optional: add a reset.</b> Store <code class="inline">context.callCounts_resetAt</code> alongside the counts, and clear the whole map when <code class="inline">Date.now() - context.callCounts_resetAt</code> passes some window, so the limit is per time-window, not per entire session.</li>
+      </ol>
+      <div class="gotcha">This guards against loops and abuse within one session's context — it isn't a substitute for real rate-limiting on a shared/multi-tenant deployment, which needs to live at the Endpoint or API-gateway layer instead.</div>
+    </article>
+
+    <article class="tutorial" id="build-locale" data-status="suggested">
+      <p class="tag">06 · localization</p>
+      <h3>Multi-Language / Locale Router</h3>
+      <p class="lede">Sets the conversation's language early so later tools and responses can honor it, instead of the agent re-guessing every turn.</p>
+      <p class="why-it-matters">Check the built-in path first: the AI Agent's own Speaking Style settings include a Language Configuration toggle that already handles automatic detection and consistent response language. Build the tool below only when other tools — not just the reply text — need to branch on locale (choosing a translation set, a different terms-of-use string, and so on).</p>
+      <ol class="tut-steps">
+        <li><b>Check Speaking Style first.</b> In the AI Agent's configuration, confirm Language Configuration is set the way you want — if the only need is "reply in the user's language," this may be the whole solution.</li>
+        <li><b>If downstream tools need it too, create</b> <code class="inline">set_locale</code>, parameters: <code class="inline">{"type":"object","properties":{"locale":{"type":"string","description":"BCP-47 locale, e.g. en-US, es-ES"}},"required":["locale"]}</code>.</li>
+        <li><b>Add a Code node:</b> <code class="inline">context.locale = input.aiAgent.toolArgs.locale;</code></li>
+        <li><b>Resolve Tool Action</b> confirming the locale was set.</li>
+        <li><b>Chain it with session start.</b> Add it to the same first-turn instruction that triggers <code class="inline">bootstrap_session</code>, so locale gets set once, early, rather than the LLM deciding to call it mid-conversation.</li>
+        <li><b>Any tool that needs to branch on language</b> reads <code class="inline">context.locale</code> directly in an ifThenElse — no need to re-detect it each time.</li>
+      </ol>
+    </article>
+
+    <article class="tutorial" id="build-health-check" data-status="suggested">
+      <p class="tag">07 · ops</p>
+      <h3>Health-Check / Status Tool</h3>
+      <p class="lede">One callable check confirming every downstream integration is actually reachable — exactly what would have shortened today's Azure OpenAI connection debugging.</p>
+      <p class="why-it-matters">This session's own troubleshooting is the working example: confirming Adullum's <code class="inline">/health</code> endpoint and its <code class="inline">/mcp/sse</code> endpoint both worked, independently of the Cognigy-side LLM connection, is exactly what isolated where the real problem was. A tool like this turns that manual process into one callable check.</p>
+      <ol class="tut-steps">
+        <li><b>Create the tool</b> <code class="inline">check_integration_health</code>, description: "Checks whether the Bible retrieval service and connected APIs are reachable. Call this only when explicitly asked to check system status — never as part of an ordinary question."</li>
+        <li><b>Add one HTTP Request node per integration worth checking</b> — start with Adullum's own health endpoint: GET <code class="inline">https://adullum.onrender.com/health</code>, storage key <code class="inline">healthAdullum</code>.</li>
+        <li><b>Add more as they exist</b> — a Supabase reachability check, a future client API's own health endpoint — each its own HTTP node, its own context key.</li>
+        <li><b>Add a Code node, "Summarize":</b>
+          <pre>const checks = [
+  { name: "Adullum API", ok: context.healthAdullum?.statusCode === 200 || context.healthAdullum?.status === "ok" },
+  // add one line per integration checked above
+];
+input.result = checks
+  .map(c => `${c.name}: ${c.ok ? "reachable" : "NOT reachable"}`)
+  .join(". ");</pre>
+        </li>
+        <li><b>Resolve Tool Action</b> with the summary.</li>
+        <li><b>Restrict when it fires.</b> The description's "only when explicitly asked" line matters — without it, the LLM may call a health check speculatively when a real question simply fails, muddying what actually broke.</li>
+      </ol>
+      <div class="why">Once the Webhook Router exists, an external monitor can hit it on a schedule and have it call this tool internally — turning an on-demand check into automated uptime monitoring.</div>
+    </article>
+
+    <article class="tutorial" id="build-feature-flags" data-status="suggested">
+      <p class="tag">08 · multi-tenant</p>
+      <h3>Client Feature-Flag Tool</h3>
+      <p class="lede">Lets one agent serve several client/account contexts with different enabled tools, instead of forking the flow per client.</p>
+      <p class="why-it-matters">If this agent (or a package-exported copy of it, see #10) ever serves more than one client, some tools will be right for one and wrong for another. A flag check is far cheaper to maintain than a separate flow per client.</p>
+      <ol class="tut-steps">
+        <li><b>Decide where flags live, for now.</b> Until the Supabase Connection exists, hardcode a small lookup table in a Code node keyed by client/account identifier — swap it for a real Supabase row later without changing anything downstream.</li>
+        <li><b>Create the tool</b> <code class="inline">load_client_config</code> — or fold this directly into <code class="inline">bootstrap_session</code> if it should always run at session start.</li>
+        <li><b>Add a Code node:</b>
+          <pre>const configs: Record<string, any> = {
+  default: { followUpPicker: true, readingPlans: false },
+  // "acme-corp": { followUpPicker: true, readingPlans: true },
+};
+const clientId = context.clientId || "default";
+context.features = configs[clientId] || configs.default;</pre>
+        </li>
+        <li><b>Resolve Tool Action</b> confirming which config loaded.</li>
+        <li><b>Gate optional tools.</b> At the top of any tool that's optional per client (e.g. <code class="inline">show_followups</code> for a client who doesn't want the picker UI), add an ifThenElse on <code class="inline">context.features.followUpPicker === true</code> before doing anything else.</li>
+      </ol>
+    </article>
+
+    <article class="tutorial" id="build-extension" data-status="suggested">
+      <p class="tag">09 · integration</p>
+      <h3>Custom Extension</h3>
+      <p class="lede">For logic a Code node can't handle cleanly — HMAC/JWT-signed requests, or any node you want installed once and reused across many tools and projects.</p>
+      <p class="why-it-matters">A Code node's logic can only be reused by copy-pasting it into every tool that needs it. An Extension is a real installable node — write the signing logic once, and it shows up in the Flow editor's palette everywhere, the same way <code class="inline">httpRequest</code> or <code class="inline">code</code> do.</p>
+      <ol class="tut-steps">
+        <li><b>Prerequisite:</b> a Node.js/TypeScript environment and familiarity with npm — this is the one component here that's real software development, not flow configuration.</li>
+        <li><b>Scaffold it</b> with the Cognigy CLI (<code class="inline">npm install -g @cognigy/cognigy-cli</code>, then its extension-generator command), which lays out a package.json and an extension descriptor.</li>
+        <li><b>Define the node's fields</b> the same way any node has a config schema (label, type, default), and write its <code class="inline">execute</code> function — this is where the HMAC-signing or JWT logic actually lives.</li>
+        <li><b>Respect the platform limits</b> while writing it: a 20-second execution timeout, and a cap of 10 API calls per execution (excluding <code class="inline">api.log()</code>) — design the node to do one signing/calling job, not a multi-step workflow.</li>
+        <li><b>Test locally</b> using Cognigy's extension dev/test workflow before uploading anything.</li>
+        <li><b>Upload it</b> via <b>Manage → Extensions → Upload</b>, or the Cognigy CLI.</li>
+        <li><b>Use it like any built-in node</b> — it now appears in the Flow editor's node palette; add it inside a tool branch exactly like <code class="inline">httpRequest</code> or <code class="inline">code</code>.</li>
+      </ol>
+      <div class="gotcha">Reach for this only when the same logic is genuinely needed in 3+ tools or projects — for a one-off, a Code node inside the tool that needs it is simpler and faster to change.</div>
+    </article>
+
+    <article class="tutorial" id="build-package" data-status="suggested">
+      <p class="tag">10 · portability</p>
+      <h3>Package Export</h3>
+      <p class="lede">Bundles the LLM connection and the tools built here so a brand-new project starts from an import, not from zero.</p>
+      <p class="why-it-matters">The next time a new client wants "an Aquila-like agent" for a different corpus, this is the difference between reconfiguring an LLM connection and rebuilding every utility tool from scratch versus importing a package and customizing the persona.</p>
+      <ol class="tut-steps">
+        <li><b>Go to Build → Packages</b> (or the export action on the specific resources) in the Aquila project.</li>
+        <li><b>Select what to export</b> — at minimum the LLM connection (<code class="inline">gpt-4.1-mini</code>, connection <code class="inline">88e50803-f24b-4048-a83f-cc754192f766</code>) and whichever tools from this registry should travel with it.</li>
+        <li><b>Export as a .zip.</b></li>
+        <li><b>In the new project: Manage → Packages → Import</b>, and upload the zip.</li>
+        <li><b>Reassign the imported LLM connection</b> as the new AI Agent's provider, in its Job Selection / <code class="inline">llmProviderReferenceId</code> setting.</li>
+        <li><b>Regenerate any Webhook Endpoint API keys.</b> Those specifically do not survive export/import — a documented restriction, not an oversight — so generate a fresh key in the target project and update whatever calls it.</li>
+      </ol>
+    </article>
+  </section>
+
+  <footer>
+    Reference doc: <code>docs/cognigy-xapp-features.md</code> in the Adullum repo. Rebuild or edit this page by asking for it by name — it redeploys to the same link.
+  </footer>
+
+</div>
+
+<script>
+  (function () {
+    var buttons = document.querySelectorAll('#filterbar button');
+    var groups = document.querySelectorAll('.group');
+    buttons.forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        buttons.forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        var f = btn.getAttribute('data-filter');
+        groups.forEach(function (g) {
+          g.hidden = !(f === 'all' || g.getAttribute('data-group') === f);
+        });
+      });
+    });
+  })();
+</script>

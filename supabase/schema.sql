@@ -82,3 +82,21 @@ create policy "users manage messages in their own sessions" on chat_messages
     for all using (
         session_id in (select id from chat_sessions where user_id = auth.uid())
     );
+
+-- Reading plans (Cognigy xApp year-plan builder, see docs/cognigy-xapp-features.md).
+-- No user_id/RLS yet, same as the verses table: nothing ties a plan to an
+-- identity until Aquila has one (see the doc's Identity and SSO entry), so
+-- every plan is only reachable by its own id, generated server-side and
+-- never listed. Add user_id + RLS once a stable identity exists.
+create table if not exists reading_plans (
+    id            uuid primary key default gen_random_uuid(),
+    start_date    date not null,
+    days          smallint not null,
+    translation   text not null,
+    overview      text not null,
+    schedule      jsonb not null,              -- [{day, date, references: [...]}, ...]
+    created_at    timestamptz not null default now()
+);
+
+-- My Cave (profiles, journal, memory, reading_plans.user_id) lives in
+-- supabase/migrations/20261104_my_cave.sql. Run it after this file.

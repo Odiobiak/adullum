@@ -12,9 +12,13 @@ Adullum is a Bible study agent named Aquila: ask a Scripture question, get a gro
 pip install -e ".[dev]"                                  # install app + dev deps
 uvicorn app.main:app --reload                             # one process: REST API, SSE, MCP server, and the web UI all at :8000
 python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase (see --help for --batch-size)
+pytest                                                    # run the test suite (tests/)
 ```
 
-Config lives in `.env`, read once into `app/config.py::settings`. No test suite exists yet even though `pytest` is a listed dev dependency.
+Config lives in `.env`, read once into `app/config.py::settings`. `tests/conftest.py` sets dummy Supabase/OpenAI credentials so the suite runs without a real `.env` (in CI, in particular); the suite itself only covers pure logic (`app/retrieval.py`'s parsers, `app/schemas.py`, the graph's routing functions) and the API contract with the compiled `agent` mocked out in `tests/test_api.py` — nothing in it makes a real LLM or Supabase call. `.github/workflows/test.yml` runs it on every push and PR.
+
+## Always
+When writing code, always write code like a good human software engineer. Always use the best coding practice and naming convention. Make sure the code is very well documenteted, readable and easy to follow.
 
 ## Architecture
 
@@ -71,6 +75,17 @@ Langfuse SDK v4. The module docstring documents three non-obvious failure modes 
 - `os.environ` must actually have `LANGFUSE_*` set (pydantic-settings reads `.env` into its own object without touching `os.environ`; the Langfuse SDK reads `os.environ` directly). `load_dotenv()` in `app/config.py` handles this.
 - The per-request `CallbackHandler` must never be cached or shared across requests. It exposes the trace it created via the plain instance attribute `last_trace_id`, and sharing one instance would race that attribute across concurrent requests.
 - Scoring a trace from inside a node function must use that explicit `last_trace_id`, not Langfuse's ambient "current trace" context. LangGraph runs sync node functions on a worker thread that does not inherit the main coroutine's contextvars, so the ambient lookup fails there.
+
+### My Cave: accounts, journal, memory (`app/auth.py`, `app/cave.py`, `app/memory.py`, `web/cave.js`)
+
+Run `supabase/migrations/20261104_my_cave.sql` once in the Supabase SQL editor before any of this works; until then `/me/*` returns a 503 that says so, and chat quietly runs as a guest.
+- **Auth is brokered by this server.** The browser never holds a Supabase key. `/auth/*` signs people in on a throwaway client from `app/auth.py::_auth_client` (never the shared `get_supabase()` one, which a sign-in would switch to that user's token), using the implicit flow so magic-link tokens land in the URL fragment for `web/cave.js` to pick up. Magic links only return here if the site URL is listed under Supabase Auth > URL Configuration.
+- **Every `/me` query filters by `user_id` in code**, because the service-role client bypasses RLS. The RLS policies in the migration exist for a future client talking to Supabase directly.
+- **Memory is never Scripture.** `app/memory.py::recall` hands the graph `memories` for signed-in people; `synthesize`, `answer_meta` and `ground_check` all label them as notes about the person that can't support a claim about the Bible. Keep that labelling if you touch those prompts. Note-taking (`remember_turn`) runs after the answer is delivered and is non-fatal, like `suggest_followups`.
+
+### Knowledge graph (`app/connections.py`, `web/graph.js`)
+
+`GET /connections` feeds each seed verse's stored embedding back through `match_verses` to find its nearest neighbours in other chapters. No new SQL and no LLM call. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
 
 ### Web client (`web/index.html`)
 

@@ -1,0 +1,643 @@
+<title>Aquila xApp Catalogue</title>
+<style>
+  :root {
+    --ink: #1a1712; --paper: #f6f2e9; --paper-raised: #fffdf8; --line: #ddd3bf; --muted: #756b5a;
+    --brass: #8a6d3f; --brass-strong: #6e5630;
+    --built: #2f6b52; --built-bg: #e4efe8;
+    --planned: #2f5f8a; --planned-bg: #dfe9f2;
+    --setup: #a15f0f; --setup-bg: #f6e9d7;
+    --backend: #6b5a2f; --backend-bg: #ece5d0;
+    --embed: #1f7a72; --embed-bg: #d9efec;
+    --suggested: #5d4d78; --suggested-bg: #ebe6f2;
+    --deferred: #8a4a3a; --deferred-bg: #f3e2dd;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --sans: "IBM Plex Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ink: #efe9dc; --paper: #171410; --paper-raised: #1f1b15; --line: #3a342a; --muted: #a89d89;
+      --brass: #c9a469; --brass-strong: #dab97e;
+      --built: #7fc9a4; --built-bg: #1c2e26;
+      --planned: #7fb3e0; --planned-bg: #182634;
+      --setup: #e0a656; --setup-bg: #332615;
+      --backend: #c9b26e; --backend-bg: #2b2618;
+      --embed: #6ecdc4; --embed-bg: #16302d;
+      --suggested: #b3a0d4; --suggested-bg: #2a2436;
+      --deferred: #dd9686; --deferred-bg: #34211c;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ink: #efe9dc; --paper: #171410; --paper-raised: #1f1b15; --line: #3a342a; --muted: #a89d89;
+    --brass: #c9a469; --brass-strong: #dab97e;
+    --built: #7fc9a4; --built-bg: #1c2e26;
+    --planned: #7fb3e0; --planned-bg: #182634;
+    --setup: #e0a656; --setup-bg: #332615;
+    --backend: #c9b26e; --backend-bg: #2b2618;
+    --embed: #6ecdc4; --embed-bg: #16302d;
+    --suggested: #b3a0d4; --suggested-bg: #2a2436;
+    --deferred: #dd9686; --deferred-bg: #34211c;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { background: var(--paper); color: var(--ink); font-family: var(--sans); font-size: 15.5px; line-height: 1.55; }
+  a { color: var(--brass-strong); }
+  h1, h2, h3, h4 { text-wrap: balance; font-weight: 600; }
+  code.inline { font-family: var(--mono); font-size: 0.85em; background: var(--built-bg); color: var(--ink); padding: 0.05em 0.35em; border-radius: 4px; }
+  pre { background: #20180f; color: #f1e9d8; border: 1px solid #3a2c18; border-radius: 8px; padding: 0.85rem 1rem; overflow-x: auto; font-family: var(--mono); font-size: 0.78rem; margin: 0.7rem 0 0; line-height: 1.55; white-space: pre; }
+
+  .app { display: grid; grid-template-columns: 21rem 1fr; min-height: 100vh; }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar { border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 1.4rem 1.1rem 3rem; }
+  .brand { margin-bottom: 1.2rem; }
+  .brand .eyebrow { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.3rem; }
+  .brand h1 { font-size: 1.25rem; margin: 0 0 0.35rem; }
+  .brand p { font-size: 0.82rem; color: var(--muted); margin: 0; }
+
+  .sb-section { margin-bottom: 1.3rem; padding-bottom: 1.3rem; border-bottom: 1px solid var(--line); }
+  .sb-section:last-child { border-bottom: none; }
+  .sb-label { font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.6rem; display: flex; align-items: center; justify-content: space-between; }
+  .sb-label button.reset { font-family: var(--mono); font-size: 0.64rem; background: none; border: none; color: var(--brass-strong); cursor: pointer; text-decoration: underline; padding: 0; }
+
+  .order-mini { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; counter-reset: ostep; }
+  .order-mini li { counter-increment: ostep; }
+  .order-mini button { width: 100%; text-align: left; background: none; border: none; padding: 0.4rem 0.5rem; border-radius: 6px; cursor: pointer; font-size: 0.82rem; color: var(--ink); display: flex; gap: 0.55rem; align-items: baseline; }
+  .order-mini button:hover { background: var(--paper-raised); }
+  .order-mini button::before { content: counter(ostep); font-family: var(--mono); font-size: 0.68rem; color: var(--paper); background: var(--brass); width: 1.15rem; height: 1.15rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+
+  .quickfilters { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-bottom: 0.7rem; }
+  .quickfilters button, .status-toggle { font-family: var(--mono); font-size: 0.66rem; border: 1px solid var(--line); background: var(--paper); color: var(--muted); padding: 0.3rem 0.55rem; border-radius: 999px; cursor: pointer; display: inline-flex; align-items: center; gap: 0.3rem; }
+  .quickfilters button.active { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+  .status-toggle .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; display: inline-block; }
+  .status-toggle[data-active="false"] { opacity: 0.35; }
+  .status-toggle[data-active="true"] { border-color: var(--brass); }
+
+  select.part-select { width: 100%; font-family: var(--sans); font-size: 0.85rem; padding: 0.45rem 0.6rem; border-radius: 6px; border: 1px solid var(--line); background: var(--paper-raised); color: var(--ink); margin-top: 0.4rem; }
+
+  .item-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+  .part-group-head { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0.9rem 0 0.3rem; padding: 0 0.5rem; }
+  .part-group-head:first-child { margin-top: 0; }
+  .item-row { width: 100%; text-align: left; background: none; border: none; padding: 0.5rem 0.5rem; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 0.55rem; font-size: 0.86rem; color: var(--ink); }
+  .item-row:hover { background: var(--paper-raised); }
+  .item-row.active { background: var(--brass); color: var(--paper); }
+  .item-row .dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; flex: none; }
+  .item-row .num { font-family: var(--mono); font-size: 0.72rem; color: var(--muted); flex: none; width: 1.6rem; }
+  .item-row.active .num { color: var(--paper); opacity: 0.75; }
+  .item-row .ttl { flex: 1; }
+  .empty-note { font-size: 0.82rem; color: var(--muted); padding: 0.6rem 0.5rem; }
+
+  /* ---------- Detail pane ---------- */
+  .detail { padding: 3rem 3.2rem 6rem; max-width: 46rem; }
+  .detail .eyebrow { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin: 0 0 0.6rem; }
+  .detail h2 { font-size: 1.9rem; margin: 0 0 0.7rem; }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.1rem; }
+  .chip { font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.03em; padding: 0.28rem 0.65rem; border-radius: 999px; display: inline-flex; align-items: center; gap: 0.35rem; }
+  .chip.built { color: var(--built); background: var(--built-bg); }
+  .chip.planned { color: var(--planned); background: var(--planned-bg); }
+  .chip.setup { color: var(--setup); background: var(--setup-bg); }
+  .chip.backend { color: var(--backend); background: var(--backend-bg); }
+  .chip.embed { color: var(--embed); background: var(--embed-bg); }
+  .chip.suggested { color: var(--suggested); background: var(--suggested-bg); }
+  .chip.deferred { color: var(--deferred); background: var(--deferred-bg); }
+  .chip-arrow { color: var(--muted); font-size: 0.75rem; align-self: center; }
+
+  .lede { font-size: 1.02rem; margin: 0 0 1.4rem; }
+  .detail ol.steps { margin: 0; padding-left: 1.3rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .detail ol.steps li { font-size: 0.95rem; }
+  .detail ol.steps li::marker { font-family: var(--mono); color: var(--brass-strong); font-weight: 600; }
+  .detail ul.notes { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.95rem; }
+  .callout { font-size: 0.88rem; border-radius: 8px; padding: 0.75rem 0.95rem; margin-top: 1.1rem; }
+  .callout.gotcha { background: var(--setup-bg); color: var(--setup); }
+  .callout.note { background: var(--planned-bg); color: var(--planned); }
+  .spec { display: flex; flex-direction: column; gap: 1.1rem; margin-top: 0.5rem; }
+  .spec-row { border-left: 3px solid var(--line); padding-left: 0.9rem; }
+  .spec-row .k { font-family: var(--mono); font-size: 0.78rem; font-weight: 600; margin-bottom: 0.2rem; }
+  .spec-row .v { font-size: 0.92rem; color: var(--ink); }
+
+  .nav-foot { display: flex; justify-content: space-between; gap: 1rem; margin-top: 2.6rem; padding-top: 1.2rem; border-top: 1px solid var(--line); }
+  .nav-foot a { font-size: 0.85rem; font-family: var(--mono); }
+  .nav-foot .placeholder { visibility: hidden; }
+
+  /* ---------- Welcome (default) state ---------- */
+  .welcome .legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.4rem; margin: 1rem 0 1.6rem; }
+  .welcome .legend-grid > div { display: flex; gap: 0.6rem; align-items: baseline; font-size: 0.88rem; }
+  .welcome .cta { display: inline-flex; align-items: center; gap: 0.5rem; background: var(--ink); color: var(--paper); padding: 0.6rem 1.1rem; border-radius: 8px; text-decoration: none; font-size: 0.9rem; margin-top: 0.4rem; }
+  .welcome .cta:hover { background: var(--brass-strong); }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--line); }
+    .detail { padding: 2rem 1.4rem 4rem; }
+  }
+</style>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <p class="eyebrow">Cognigy · Aquila Project</p>
+      <h1>xApp Catalogue</h1>
+      <p>Pick one item, see exactly how to build it. Nothing else on screen while you work.</p>
+    </div>
+
+    <div class="sb-section">
+      <p class="sb-label">Build order</p>
+      <ol class="order-mini" id="orderList"></ol>
+    </div>
+
+    <div class="sb-section">
+      <p class="sb-label">Status <button class="reset" id="resetFilters">reset</button></p>
+      <div class="quickfilters">
+        <button id="readyNowBtn" title="Show only what's built or buildable right now">🔨 Ready now</button>
+      </div>
+      <div class="quickfilters" id="statusToggles"></div>
+      <select class="part-select" id="partSelect">
+        <option value="all">All parts</option>
+        <option value="part1">Part 1 · Study Surface</option>
+        <option value="part2">Part 2 · Enterprise</option>
+        <option value="part3">Part 3 · Webchat</option>
+        <option value="part4">Part 4 · Infrastructure</option>
+      </select>
+    </div>
+
+    <div class="sb-section">
+      <p class="sb-label" id="listLabel">All items</p>
+      <ul class="item-list" id="itemList"></ul>
+    </div>
+  </aside>
+
+  <main class="detail" id="detail"></main>
+</div>
+
+<script>
+(function () {
+  var STATUS_LABEL = { built:"Built", planned:"Planned", setup:"Needs GUI", backend:"Backend", embed:"Embed", suggested:"Suggested", deferred:"Deferred" };
+  var STATUS_ORDER = ["built","planned","setup","backend","embed","suggested","deferred"];
+  var PART_LABEL = { part1:"Part 1 · Study Surface", part2:"Part 2 · Enterprise", part3:"Part 3 · Webchat", part4:"Part 4 · Infrastructure" };
+
+  var ITEMS = [
+    // ---------------- PART 1 ----------------
+    { id:"p1-1", part:"part1", num:1, title:"Verse of the Day", status:["built"],
+      lede:"Interactive card with today's verse and a “Study this with Aquila” action. Live — tool node <code class=\"inline\">6aa19dd5516224b0b91eccad</code>.",
+      body:'<ul class="notes">'+
+        '<li><code class="inline">Pick Today’s Verse</code> (code): a curated public-domain (KJV) list, deterministic by day-of-year, into <code class="inline">context.votdVerse</code>.</li>'+
+        '<li><code class="inline">showXAppAdaptiveCard</code>: renders reference/text with <code class="inline">study</code> / <code class="inline">dismiss</code> buttons, <code class="inline">waitForInput: true</code>, <code class="inline">contextKey: "votd"</code>.</li>'+
+        '<li><code class="inline">Build Result</code> (code): on “Study this,” tells the LLM to call <code class="inline">ask_aquila</code> next with that reference — the LLM chains the two calls itself.</li>'+
+        '<li>Voice/REST fallback: plain text “Today’s verse is X: ‘...’”.</li></ul>'+
+        '<div class="callout note"><b>To extend:</b> replace the hardcoded list with a Supabase-backed pick (Part 4) once that Connection exists, so it draws from the whole ingested corpus instead of ~14 curated verses.</div>' },
+
+    { id:"p1-2", part:"part1", num:2, title:"Follow-up Picker", status:["built"],
+      lede:"Turns ask_aquila’s own follow-ups into tappable buttons. Live — tool node <code class=\"inline\">6aa19dd7a238c05aa85f10a5</code>, <code class=\"inline\">show_followups</code>.",
+      body:'<ul class="notes">'+
+        '<li>Parameter <code class="inline">questions: string[]</code> — the LLM passes ask_aquila’s follow-ups back verbatim.</li>'+
+        '<li><code class="inline">Build Follow-up Buttons</code> (code): loops over <code class="inline">input.aiAgent.toolArgs.questions</code> (Adaptive Cards can’t loop, hence <code class="inline">showXAppHtml</code>), builds one escaped <code class="inline">&lt;button onclick="SDK.submit(...)"&gt;</code> per question into <code class="inline">context.followupHtml</code>.</li>'+
+        '<li><code class="inline">showXAppHtml</code> (<code class="inline">mode: "body"</code>, <code class="inline">waitForInput: true</code>, <code class="inline">contextKey: "followupChoice"</code>).</li>'+
+        '<li>Voice/REST fallback: joins the questions into one sentence.</li></ul>'+
+        '<div class="callout note"><b>Cheaper alternative worth testing:</b> three follow-ups fit in a <code class="inline">say</code> node with quick replies, no xApp session at all. Keep the xApp version for more than five, or when they need grouping.</div>' },
+
+    { id:"p1-3", part:"part1", num:3, title:"Passage Reader", status:["backend","planned"],
+      lede:"Read a whole chapter in a scrollable page instead of a chat bubble — the answer’s “The passage” section quotes a few verses; this opens the surrounding chapter.",
+      body:'<pre>tool: read_passage { reference, translation? }\n  -> httpRequest GET {ADULLUM}/passage?ref=John+3&translation=BSB   (new Adullum route)\n  -> code: build HTML (verse numbers as small caps, paragraph breaks, current verse highlighted)\n  -> ifThenElse channel\n       then: initAppSession -> showXAppHtml (mode: "full", screenTitle: reference, showCloseIcon: true) waitForInput: false\n       else: say the first 3 verses and offer to continue</pre>'+
+        '<ol class="steps">'+
+        '<li>Adullum: add <code class="inline">GET /passage</code> in <code class="inline">app/main.py</code>, reusing <code class="inline">parse_reference</code> from <code class="inline">app/retrieval.py</code>, returning <code class="inline">{reference, translation, verses: [{n, text}]}</code>. Read-only, no LLM call — cheap and cacheable.</li>'+
+        '<li>Cognigy: <code class="inline">create_tool</code> with <code class="inline">toolType: "http"</code> pointed at that route — no secret needed if the route stays public and read-only.</li>'+
+        '<li>Wire the node chain above. <code class="inline">waitForInput: false</code> because reading isn’t a decision — the conversation continues underneath.</li>'+
+        '<li>Agent instruction: “When the user asks to read a chapter or see the whole passage, call <code class="inline">read_passage</code>.”</li></ol>' },
+
+    { id:"p1-4", part:"part1", num:4, title:"Translation Comparison", status:["backend","planned"],
+      lede:"One verse in all four ingested public-domain translations (KJV, WEB, ASV, BSB) side by side — the feature only a multi-translation corpus can offer.",
+      body:'<pre>tool: compare_translations { reference }\n  -> httpRequest GET {ADULLUM}/passage?ref=...&translation=KJV,WEB,ASV,BSB\n  -> code: build a 4-column (stacks to 1 on mobile) HTML table, differing words marked\n  -> showXAppHtml (mode: "full", screenTitle: "Compare")</pre>'+
+        '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>How to add it:</b> depends on #3’s route accepting a comma-separated translation list. Check <code class="inline">supabase/schema.sql</code> for whether the <code class="inline">verses</code> table carries a <code class="inline">translation</code> column to filter on (the ingest script takes <code class="inline">--translation</code>, so it should). Voice fallback: read the verse in two translations and stop.</p>' },
+
+    { id:"p1-5", part:"part1", num:5, title:"Answer Feedback to Langfuse", status:["backend","planned"],
+      lede:"Thumbs up/down with an optional comment, written as a Langfuse score on the exact trace that produced the answer.",
+      body:'<pre>tool: rate_answer { trace_id }\n  -> showXAppAdaptiveCard (two Action.Submit: helpful / not_helpful, Input.Text comment) contextKey "rating"\n  -> httpRequest POST {ADULLUM}/feedback { trace_id, score, comment }\n  -> Resolve Tool Action ("Thanks, noted")</pre>'+
+        '<ol class="steps">'+
+        '<li>Adullum: expose the trace id. <code class="inline">app/observability.py</code> already keeps <code class="inline">last_trace_id</code> on the per-request handler — add <code class="inline">trace_id: str | None</code> to <code class="inline">ChatResponse</code> and the <code class="inline">ask_aquila</code> MCP result, then add <code class="inline">POST /feedback</code> calling Langfuse’s <code class="inline">score</code> with that id. Don’t use the ambient trace context — the module docstring explains why.</li>'+
+        '<li>Cognigy: tool as above. Agent instruction: offer <code class="inline">rate_answer</code> only after an <code class="inline">ask_aquila</code> answer, never unprompted.</li>'+
+        '<li>Zero-xApp alternative: turn on <b>Conversation Rating</b> in the Webchat endpoint (Part 3 #5) — rates the conversation in Cognigy Insights, not the trace in Langfuse. Both can coexist.</li></ol>' },
+
+    { id:"p1-6", part:"part1", num:6, title:"Voice-to-Screen Handoff", status:["setup"],
+      lede:"A voice caller asks for something visual. Voice has no screen — generate a session PIN, text them the link, and keep the call going.",
+      body:'<pre>inside any xApp tool\'s else branch, when input.channel is voice:\n  -> initAppSession\n  -> getXAppSessionPin              (input.apps.session.pin, valid 5 minutes)\n  -> ifThenElse (VG caller number present)\n       then: Send SMS (Twilio) to caller: "{{input.apps.baseUrl}} and your PIN is {{input.apps.session.pin}}"\n             -> say "I\'ve texted you a link, open it and tell me when you\'re in"\n             -> the show node runs as normal with waitForInput\n       else: say the PIN and the short URL aloud, slowly, twice</pre>'+
+        '<ol class="steps">'+
+        '<li>GUI: install the Twilio extension (<b>Manage → Extensions</b>) and create a Twilio Connection (account SID + token), so the key is encrypted, not in a plaintext field.</li>'+
+        '<li><code class="inline">getXAppSessionPin</code> has no config. The Send SMS node comes from the extension — needs the GUI, or the extension’s node type once installed.</li>'+
+        '<li>The PIN expires in 5 minutes — say so on the call, and re-issue on request rather than failing silently.</li>'+
+        '<li>On WebRTC (browser) calls the “caller number” isn’t a phone number — fall back to reading the URL and PIN aloud.</li></ol>' },
+
+    { id:"p1-7", part:"part1", num:7, title:"Reading Plan Builder", status:["planned"],
+      lede:"A short multi-day plan (book/theme + day count), rendered as a scrollable list the user can browse before committing.",
+      body:'<pre>tool: build_reading_plan { book_or_theme, days }\n  -> initAppSession\n  -> showXAppAdaptiveCard (intake: Input.ChoiceSet book/theme, Input.Number days, Input.Date start) waitForInput, contextKey "planRequest"\n  -> loop (flow loop node, or iterating code) calling ask_aquila once per day, collecting {day, reference, summary} into context.plan\n  -> showXAppHtml (mode: "full") rendering the plan as a scrollable list, with a "Save" Action</pre>'+
+        '<ul class="notes">'+
+        '<li>N sequential <code class="inline">ask_aquila</code> calls means real latency — show a progress state in the HTML while it builds.</li>'+
+        '<li>Persistence: session-only, or a Supabase row via the Supabase Query Tool (Part 4) if the plan should outlive the conversation. Saving needs an identity (Part 2 #1).</li>'+
+        '<li>Voice fallback: offer day one only.</li>'+
+        '<li>The Webchat v3 <b>Date Picker</b> (Part 3) can collect the start date inline before the xApp opens, for a lighter first step.</li></ul>' },
+
+    { id:"p1-8", part:"part1", num:8, title:"Bookmarks and Notes", status:["setup","planned"],
+      lede:"“Save this verse” with an optional note, listed later on a “My notes” screen — the first feature that needs a real user identity and a write to Supabase.",
+      body:'<pre>tool: save_note { reference, note? }\n  -> ifThenElse (context.userId set, context.consent === true)\n       then: httpRequest POST supabase /rest/v1/notes { user_id, reference, note }  (via encrypted Connection)\n       else: call collect_consent (#12) first, or explain why it can\'t save\ntool: show_notes\n  -> httpRequest GET supabase /rest/v1/notes?user_id=eq.{{context.userId}}\n  -> code: HTML list with "Study this" per row -> showXAppHtml</pre>'+
+        '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>How to add it:</b> blocked on the Supabase Connection (Part 4) and on an identity that isn’t client-supplied (Part 2 #1). Add a <code class="inline">notes</code> table and RLS policy in <code class="inline">supabase/schema.sql</code> first.</p>' },
+
+    { id:"p1-9", part:"part1", num:9, title:"Memory Verse Practice", status:["suggested"],
+      lede:"Progressive reveal: show the reference, hide the text, let the user type it, then show a diff. Pure Cognigy, no backend.",
+      body:'<ul class="notes">'+
+        '<li><code class="inline">showXAppAdaptiveCard</code> with a multiline <code class="inline">Input.Text</code> and one <code class="inline">Action.Submit</code>.</li>'+
+        '<li>Code node compares the submission to the verse text (normalise case/punctuation), builds a second card with matched words in bold.</li>'+
+        '<li>Reuse the Verse of the Day pick, or take a reference as the tool parameter.</li></ul>' },
+
+    { id:"p1-10", part:"part1", num:10, title:"Study Session Booking", status:["suggested"],
+      lede:"Book time with a study leader. The bundled <code class=\"inline\">appointment-booking.card.json</code> template returns <code class=\"inline\">{appointmentDate, appointmentTime, service, notes, action: \"book\"}</code>. Confirm via the <code class=\"inline\">send_email</code> tool type. Fits inside the Intake Wizard (#11) once that exists.",
+      body:'' },
+
+    { id:"p1-11", part:"part1", num:11, title:"Multi-Step Intake Wizard", status:["planned"],
+      lede:"Prayer request or study-group signup: several screens gated on prior answers, reusing one <code class=\"inline\">initAppSession</code>.",
+      body:'<pre>tool: collect_intake\n  -> initAppSession (once)\n  -> showXAppAdaptiveCard step 1 (contextKey "step1") -> code (validate/branch)\n  -> showXAppAdaptiveCard step 2 (contextKey "step2", conditional on step1) -> code (validate/branch)\n  -> ... -> confirmation screen summarising all context.step*</pre>'+
+        '<ul class="notes">'+
+        '<li>Map the full step graph before building.</li>'+
+        '<li>Validate in a code node between screens — re-show the same card with an error rather than accepting bad input.</li>'+
+        '<li>Decide the persistence target (Supabase row, <code class="inline">send_email</code>, or session-only) before building the last screen.</li></ul>'+
+        '<div class="callout note"><b>Abandon-mid-flow, answered:</b> the show nodes’ Webchat v3 overlay settings include <code class="inline">showCloseIcon</code> and <code class="inline">sendEventOnCloseIconClick</code>. Turn both on and the flow gets an event when the user closes the overlay, so it can resume instead of waiting forever. Set <code class="inline">closeOnSubmit: true</code> on the last step.</div>' },
+
+    { id:"p1-12", part:"part1", num:12, title:"Consent and Privacy Opt-in", status:["planned"],
+      lede:"One Adaptive Card asking permission before anything personal is stored (notes, plans, profile). Writes <code class=\"inline\">context.consent = true</code> plus a timestamp, checked by every tool that persists.",
+      body:'<ul class="notes">'+
+        '<li>Pair with the Webchat <b>Privacy Notice</b> screen (Part 3 #6), which covers the endpoint-level notice — this card covers the specific act of saving.</li>'+
+        '<li>If Contact Profiles are on (Part 2 #6), also write the consent flag into the profile so it survives the session.</li></ul>' },
+
+    { id:"p1-13", part:"part1", num:13, title:"Study Material Upload", status:["deferred"],
+      lede:"Upload a sermon outline or notes PDF and ask Aquila about it.",
+      body:'<p style="font-size:0.95rem;">Two routes: the bundled <code class="inline">document-upload.html</code> template (base64, ~5&nbsp;MB cap — Adullum would need a route to receive and chunk them), or Webchat <b>Attachment Upload</b> (needs a File Storage Connection — Azure Blob, S3, or GCS; Cognigy virus-scans on upload).</p>'+
+        '<div class="callout gotcha">Deferred because it changes the product: Aquila answers from Scripture, and a user document is a second, ungrounded source. Decide that first.</div>' },
+
+    { id:"p1-14", part:"part1", num:14, title:"RBAC-Driven Rendering", status:["backend","setup"],
+      lede:"Same <code class=\"inline\">ask_aquila</code> answer, richer rendering for a “study leader” role (retrieval path, <code class=\"inline\">ground_check</code> verdict, trace id) than for everyone else.",
+      body:'<pre>after ask_aquila resolves\n  -> ifThenElse on context.role (from a trusted claim, NEVER from client-submitted xApp data)\n       then (leader): initAppSession -> showXAppHtml (answer + debug panel)\n       else: plain say, no xApp</pre>'+
+        '<ol class="steps">'+
+        '<li>Adullum: add an optional <code class="inline">debug</code> block to <code class="inline">ChatResponse</code> and the MCP tool result (retrieval path used, <code class="inline">ground_check</code> verdict and retry count, trace id). Check what <code class="inline">app/agent/state.py</code> tracks today — not all of it is exposed.</li>'+
+        '<li>Identity: the role must arrive through the Endpoint Transformer (Part 2 #1) into <code class="inline">input.data</code>, then be copied into <code class="inline">context.role</code> once. Never read it from <code class="inline">SDK.submit</code> payloads.</li>'+
+        '<li>Test both branches with <code class="inline">talk_to_agent</code> once the LLM connection is fixed.</li></ol>' },
+
+    { id:"p1-15", part:"part1", num:15, title:"Live Ops Dashboard", status:["backend","planned"],
+      lede:"Internal view of ingestion and groundedness health as an xApp.",
+      body:'<pre>tool: show_ops_dashboard (gate behind the same role check as #14)\n  -> httpRequest(s): translation/verse counts (Supabase), retry rate / groundedness (Langfuse API)\n  -> code: shape JSON\n  -> initAppSession -> showXAppHtml (mode: "full", counters, optional refresh via SDK.submit)</pre>'+
+        '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>Build notes:</b> needs a read-only aggregation route in Adullum (or direct Langfuse API calls). Decide refresh cadence before wiring a refresh button.</p>' },
+
+    // ---------------- PART 2 ----------------
+    { id:"p2-1", part:"part2", num:1, title:"Identity and SSO", status:["embed","setup"],
+      lede:"Who is talking to Aquila, in a way the flow can trust.",
+      body:'<ul class="notes">'+
+        '<li><b>Untrusted but useful:</b> the embed snippet accepts <code class="inline">userId</code> and <code class="inline">sessionId</code> options (Cognigy Webchat’s <code class="inline">embedding.md</code>). Set <code class="inline">userId</code> from the host page’s logged-in user so Contact Profiles and Previous Conversations line up. Anyone can edit their own page, so this is identity for continuity, not authorisation.</li>'+
+        '<li><b>Trusted:</b> pass a short-lived JWT from the host page (in <code class="inline">data</code> on the first message, or an embed option), and verify it in the endpoint’s <b>Input Transformer</b> (<b>Deploy → Endpoints → Aquila Webchat → Transformer Functions</b>). The transformer sets <code class="inline">userId</code> and puts verified claims (<code class="inline">role</code>, <code class="inline">tenant</code>) on <code class="inline">input.data</code>. Transformers are GUI-only.</li>'+
+        '<li>Adullum side: nothing until a feature needs the identity (#8/#14 in Part 1).</li></ul>' },
+
+    { id:"p2-2", part:"part2", num:2, title:"Role-Based Access", status:["planned"],
+      lede:"Depends on #1.",
+      body:'<p style="font-size:0.95rem;">Store the verified role in <code class="inline">context.role</code> once per session — extend <code class="inline">bootstrap_session</code> — and gate tools on it in an <code class="inline">ifThenElse</code> at the top of each restricted tool’s branch. Tell the agent job which tools are leader-only, so the LLM doesn’t offer them to everyone.</p>' },
+
+    { id:"p2-3", part:"part2", num:3, title:"Handover to a Human", status:["setup"],
+      lede:"“Talk to a pastor” or “talk to a study leader”: escalate to a human queue with the transcript attached.",
+      body:'<ul class="notes">'+
+        '<li>Providers available: <b>NiCE CXone</b> (Integrated if the installation is platform-integrated, otherwise Non-Integrated with Tenant ID, Business Unit ID, API credentials), <b>Salesforce MIAW</b> (not the legacy Chat/LiveAgent — retired Feb 2026), Genesys Cloud Open Messaging, 8x8, Chatwoot, RingCentral Engage, Storm.</li>'+
+        '<li>GUI: <b>Build → Handover Providers → + New</b>. Add a <b>Handover to Human Agent</b> node in the escalating tool. Add <b>Set Handover Inactivity</b> and <b>Close Handover</b> nodes for hygiene.</li>'+
+        '<li>Extras: Real-time Queue Notifications and User Inactivity Detection — turn on once the provider exists.</li></ul>'+
+        '<div class="callout gotcha">Deferred for Salesforce (no org). NiCE CXone is the natural fit for this account if a test business unit exists.</div>' },
+
+    { id:"p2-4", part:"part2", num:4, title:"Data Protection Settings", status:["setup"],
+      lede:"Endpoint → <b>Data Protection &amp; Analytics</b>. Turn on, and record the decision:",
+      body:'<ul class="notes">'+
+        '<li><b>Mask Sensitive Analytics</b> and <b>Mask Sensitive Logging</b> (replace <code class="inline">inputText</code>, <code class="inline">inputData</code>, <code class="inline">userId</code>, <code class="inline">text</code>, <code class="inline">data</code> with asterisks in Insights and Logs).</li>'+
+        '<li><b>Mask IP Address.</b></li>'+
+        '<li><b>Enable Input Sanitization</b> — server-side removal of harmful HTML from user input, before it reaches any code node or xApp.</li>'+
+        '<li><b>Hide References to External Resources in Transcripts.</b></li>'+
+        '<li>Decide <b>Collect Conversations</b> and <b>Contact Profiles</b> deliberately — both store personal data.</li>'+
+        '<li>For finer control, a Code node can edit <code class="inline">analyticsdata</code> before it’s written (e.g. <code class="inline">delete analyticsdata.data.token</code>).</li></ul>' },
+
+    { id:"p2-5", part:"part2", num:5, title:"xApp Security", status:["planned"],
+      lede:"Convention, applied consistently across every xApp tool.",
+      body:'<ul class="notes">'+
+        '<li>Every string interpolated into <code class="inline">showXAppHtml</code> must be HTML-escaped and JS-escaped in the code node that builds it — this includes LLM output and <code class="inline">ask_aquila</code> answers, not just user input. The Follow-up Picker already does this; copy its escaping helper.</li>'+
+        '<li>Prefer <code class="inline">showXAppAdaptiveCard</code> where possible — cards are data, not markup.</li>'+
+        '<li>In the embed, set <code class="inline">widgetSettings.customAllowedHtmlTags</code> to the minimum the answers need (<code class="inline">p</code>, <code class="inline">strong</code>, <code class="inline">em</code>, <code class="inline">h2</code>, <code class="inline">ul</code>, <code class="inline">li</code>, <code class="inline">a</code>, <code class="inline">blockquote</code>).</li>'+
+        '<li>Reference: Cognigy’s xApps → Security → Secure xApp from XSS.</li></ul>' },
+
+    { id:"p2-6", part:"part2", num:6, title:"Contact Profiles and Previous Conversations", status:["setup"],
+      lede:"Turn on <b>Contact Profiles</b> (endpoint) so <code class=\"inline\">bootstrap_session</code> has something to read, and <b>Previous Conversations</b> (Webchat Home Screen setting) so a returning user sees their history.",
+      body:'<p style="font-size:0.92rem;">Both depend on a stable <code class="inline">userId</code> (#1). Document retention.</p>' },
+
+    { id:"p2-7", part:"part2", num:7, title:"Audit Log", status:["suggested"],
+      lede:"One structured who/what/when row per sensitive action (save note, escalate, delete conversation).",
+      body:'<p style="font-size:0.95rem;">Cheapest version: a code node that appends to <code class="inline">analyticsdata</code>, visible in Insights. Durable version: a Supabase <code class="inline">audit_log</code> table via the Supabase Query Tool.</p>' },
+
+    { id:"p2-8", part:"part2", num:8, title:"Rate Limit and Abuse Guard", status:["suggested"],
+      lede:"A per-session counter in <code class=\"inline\">context</code>, incremented by each tool’s first code node; past a cap, the tool resolves with “let’s slow down” instead of calling Adullum.",
+      body:'<p style="font-size:0.95rem;">Protects the Render instance and the OpenAI quota from a runaway loop.</p>' },
+
+    { id:"p2-9", part:"part2", num:9, title:"Locale and Language", status:["setup"],
+      lede:"Detects and honours the conversation’s language.",
+      body:'<ul class="notes">'+
+        '<li>Turn on <b>Collect Metadata</b> in the Webchat endpoint. The first message then carries <code class="inline">data._webchat3Metadata.language</code>, <code class="inline">platform</code>, <code class="inline">browser</code>. Copy <code class="inline">language</code> into <code class="inline">context.locale</code> in <code class="inline">bootstrap_session</code>.</li>'+
+        '<li>Endpoint → <b>Real-time Translation Settings</b> can translate the whole conversation.</li>'+
+        '<li><b>RTL support</b> is built into Webchat v3 — relevant the day Aquila shows Hebrew or Aramaic terms.</li></ul>'+
+        '<div class="callout gotcha">Be careful: Aquila’s answers quote Scripture verbatim from a public-domain English translation, and machine-translating a verse breaks the grounding promise. If translation goes on, keep the “The passage” block untranslated, or offer a translation only where one is actually ingested.</div>' },
+
+    { id:"p2-10", part:"part2", num:10, title:"Business Hours, Maintenance, Session Expiry", status:["setup","embed"],
+      lede:"Endpoint- and embed-level scheduling and expiry controls.",
+      body:'<ul class="notes">'+
+        '<li><b>Business Hours</b> (Webchat Behavior settings): show a message outside hours — useful once handover (#3) is staffed.</li>'+
+        '<li><b>Maintenance</b> mode in the embed (<code class="inline">maintenance: { enabled, mode: "hide"|"disable"|"inform", title, text }</code>, needs <code class="inline">embeddingConfiguration.awaitEndpointConfig: true</code>). Use it during Adullum deploys that <code class="inline">deploy-watch.yml</code> flags as failing.</li>'+
+        '<li>Endpoint → <b>Session Management</b> sets session expiry — long enough for a slow reading, short enough that <code class="inline">context</code> (consent, role) doesn’t outlive the person.</li></ul>' },
+
+    { id:"p2-11", part:"part2", num:11, title:"Analytics and Insights", status:["setup"],
+      lede:"<b>Collect Analytics</b> on the endpoint, plus the <b>Request Rating</b> node (or Webchat Conversation Rating) for ratings into Insights.",
+      body:'<p style="font-size:0.95rem;">Langfuse stays the source for groundedness; Insights covers conversation volume, drop-off, and ratings. The OData endpoint exports both for a BI tool.</p>' },
+
+    { id:"p2-12", part:"part2", num:12, title:"Proactive Messages: Inject and Notify", status:["setup"],
+      lede:"Push a message into a running session (<code class=\"inline\">/inject</code>) or to a user (<code class=\"inline\">/notify</code>) from outside the flow — e.g. “your reading plan for today.”",
+      body:'<p style="font-size:0.95rem;">Available on endpoints that support it; check the Inject &amp; Notify section of the endpoint. Needs a caller (a scheduled job in Adullum, or a Render cron) and the endpoint URL token stored as a secret.</p>' },
+
+    { id:"p2-13", part:"part2", num:13, title:"Tenant Feature Flags", status:["suggested"],
+      lede:"A small per-tenant config that toggles which tools are active, so one agent can serve several groups or churches with different feature sets.",
+      body:'<p style="font-size:0.95rem;">A Supabase row, or a Lookup node keyed on <code class="inline">input.data.tenant</code> from #1.</p>' },
+
+    { id:"p2-14", part:"part2", num:14, title:"Health Check Tool", status:["suggested"],
+      lede:"One tool that hits Adullum <code class=\"inline\">/health</code>, the Supabase REST root, and the MCP <code class=\"inline\">/mcp/sse</code> handshake, and reports which are up.",
+      body:'<p style="font-size:0.95rem;">Belongs on the Ops Dashboard (Part 1 #15) and on every onboarding checklist.</p>' },
+
+    { id:"p2-15", part:"part2", num:15, title:"Packaging and Environments", status:["suggested"],
+      lede:"<code class=\"inline\">manage_packages</code> exports the LLM connection plus tools as a package, so a staging project or a second tenant starts from an import.",
+      body:'<p style="font-size:0.95rem;">Pair with a naming convention (<code class="inline">aquila-&lt;env&gt;</code>) and keep secrets out of the package — Connections export by reference.</p>' },
+
+    { id:"p2-16", part:"part2", num:16, title:"Custom Extension", status:["suggested"],
+      lede:"For JWT/HMAC-signed calls a Code node can’t do cleanly, or a custom xApp node with full control over rendering.",
+      body:'<p style="font-size:0.95rem;">The docs have an Extension SDK template for exactly that. Installed once, reused everywhere.</p>' },
+
+    // ---------------- PART 3 ----------------
+    { id:"p3-1", part:"part3", num:1, title:"Embed Webchat v3 on the Adullum Page", status:["embed"],
+      lede:"xApps only render in a Webchat v3 surface, so using anything in Part 1 on the Adullum site means embedding that widget there too.",
+      body:'<ol class="steps">'+
+        '<li>GUI: <b>Deploy → Endpoints → Aquila Webchat → Embedding HTML</b>, copy the snippet.</li>'+
+        '<li>Pin a version instead of <code class="inline">releases/latest</code> (e.g. <code class="inline">releases/download/v3.x.y/webchat.js</code>), so a Webchat release can’t change the page under you.</li>'+
+        '<li>Paste before <code class="inline">&lt;/body&gt;</code> in <code class="inline">web/index.html</code>, next to the existing click-to-call script:'+
+        '<pre>&lt;script src="https://github.com/Cognigy/Webchat/releases/download/v3.x.y/webchat.js"&gt;&lt;/script&gt;\n&lt;script&gt;\n  initWebchat("https://endpoint-trial-us.cognigy.ai/&lt;CONFIG_URL_TOKEN&gt;", {\n    settings: {\n      colors: { primaryColor: "#8a6d3f" },\n      behavior: { enableTypingIndicator: true, enableSTT: false },\n      embeddingConfiguration: { awaitEndpointConfig: true },\n      widgetSettings: { customAllowedHtmlTags: ["p","strong","em","h2","h3","ul","ol","li","a","blockquote","br"] }\n    }\n  });\n&lt;/script&gt;</pre></li>'+
+        '<li>Decide the relationship with the hand-rolled client: keep both (custom client for the journal feel, widget for xApps), or move fully to the widget and keep <code class="inline">/chat/stream</code> for the MCP/REST path.</li>'+
+        '<li>Alternative for a future mobile app: the <b>npm package</b> embed (<code class="inline">@cognigy/webchat</code>) instead of the hosted script.</li></ol>' },
+
+    { id:"p3-2", part:"part3", num:2, title:"Home Screen and Conversation Starters", status:["setup"],
+      lede:"Enable Home Screen, welcome text in Aquila’s voice (“Ask about a passage, or let me pick a verse for today”), and Postback Value starters mapped to tools: <code class=\"inline\">verse of the day</code>, <code class=\"inline\">start a reading plan</code>, <code class=\"inline\">compare translations</code>.",
+      body:'<p style="font-size:0.92rem;">Background colour: paper <code class="inline">#f6f2e9</code>.</p>' },
+
+    { id:"p3-3", part:"part3", num:3, title:"Teaser Message", status:["setup"],
+      lede:"A single line on the closed widget (“A verse for today?”) with one or two starters. Quiet, not a pop-up.", body:'' },
+
+    { id:"p3-4", part:"part3", num:4, title:"Previous Conversations", status:["setup"],
+      lede:"Home Screen → Previous Conversations. Needs a stable <code class=\"inline\">userId</code> (Part 2 #1) to be meaningful.", body:'' },
+
+    { id:"p3-5", part:"part3", num:5, title:"Chat Options Screen", status:["setup"],
+      lede:"Turn on: <b>Quick Replies</b> (“Read the chapter”, “Something to sit with”), <b>Conversation Rating</b> (Always), <b>Delete Conversation</b>, <b>Footer</b> (privacy link).",
+      body:'<p style="font-size:0.92rem;"><b>Text-to-Speech</b>: off by default, since the voice endpoint already exists for that.</p>' },
+
+    { id:"p3-6", part:"part3", num:6, title:"Privacy Notice", status:["setup"],
+      lede:"Notice screen shown before the first message: title, text, link to the policy, accept button.",
+      body:'<p style="font-size:0.92rem;">This is the endpoint-level notice — the consent card (Part 1 #12) covers saving specific data.</p>' },
+
+    { id:"p3-7", part:"part3", num:7, title:"Persistent Menu", status:["setup"],
+      lede:"Three entries that always work: Verse of the day, Start over, Talk to a person (once Part 2 #3 exists).", body:'' },
+
+    { id:"p3-8", part:"part3", num:8, title:"xApp Overlay Settings", status:["planned"],
+      lede:"Set on every <code class=\"inline\">showXAppAdaptiveCard</code> / <code class=\"inline\">showXAppHtml</code>: <code class=\"inline\">autoOpen: true</code>, <code class=\"inline\">screenTitle</code>, <code class=\"inline\">showCloseIcon: true</code>, <code class=\"inline\">sendEventOnCloseIconClick: true</code>, <code class=\"inline\">closeOnSubmit: true</code>, <code class=\"inline\">feedbackMessage</code>.",
+      body:'<div class="callout note">Keep these values identical across tools by convention — there’s no shared branding flow (see Part 4’s note on Execute Flow).</div>' },
+
+    { id:"p3-9", part:"part3", num:9, title:"Inline Rich Messages Instead of xApps", status:["planned"],
+      lede:"For anything that doesn’t need to block: <b>Gallery</b> of verse cards, <b>List</b> for a plan overview, <b>Text with Buttons</b>, inline <b>Adaptive Cards</b>.",
+      body:'<p style="font-size:0.92rem;">All are <code class="inline">say</code> node payloads, no session, and they degrade gracefully on REST too.</p>' },
+
+    { id:"p3-10", part:"part3", num:10, title:"Date Picker", status:["setup"],
+      lede:"Webchat v3 date picker for the reading-plan start date, or “remind me on” — lighter than an xApp for one date.", body:'' },
+
+    { id:"p3-11", part:"part3", num:11, title:"Attachment Upload", status:["setup","deferred"],
+      lede:"Webchat Behavior → Attachment Upload, needs a File Storage Connection (Azure Blob, S3, GCS; private bucket, Cognigy virus-scans).",
+      body:'<p style="font-size:0.92rem;">Tied to Part 1 #13’s product decision.</p>' },
+
+    { id:"p3-12", part:"part3", num:12, title:"Behavior: Typing, Delay, STT, Unread Badge", status:["setup","embed"],
+      lede:"<code class=\"inline\">enableTypingIndicator: true</code>; small <code class=\"inline\">messageDelay</code> (Aquila streams a study, not chat quips); <code class=\"inline\">enableSTT</code> off on the page; <b>Unread Messages</b> badge on.", body:'' },
+
+    { id:"p3-13", part:"part3", num:13, title:"Collect Metadata", status:["setup"],
+      lede:"One toggle; feeds locale (Part 2 #9) and device-aware rendering (stack translation columns on <code class=\"inline\">platform: \"mobile\"</code>).", body:'' },
+
+    { id:"p3-14", part:"part3", num:14, title:"Style Presets, Colors, Icon, Watermark", status:["setup"],
+      lede:"Pick a preset, then override colours to ink <code class=\"inline\">#1a1712</code>, paper <code class=\"inline\">#f6f2e9</code>, brass <code class=\"inline\">#8a6d3f</code>.",
+      body:'<p style="font-size:0.92rem;">Upload an icon. Watermark setting under Advanced.</p>' },
+
+    { id:"p3-15", part:"part3", num:15, title:"Webchat Plugins", status:["suggested"],
+      lede:"A custom message plugin (hosted JS) could render <code class=\"inline\">ask_aquila</code>’s four headings as ruled sections inside the widget, the way <code class=\"inline\">web/index.html::renderAnswerHtml</code> does today.",
+      body:'<p style="font-size:0.92rem;">Needs hosting for the plugin file and a <code class="inline">&lt;script&gt;</code> in the embed. Only worth it if the widget replaces the custom client.</p>' },
+
+    { id:"p3-16", part:"part3", num:16, title:"Accessibility and RTL", status:["planned"],
+      lede:"Webchat v3 is WCAG 2.2 AA — keep it that way in xApps: <code class=\"inline\">aria-label</code> on Adaptive Card inputs, transcripts for any audio, contrast checked in both themes.",
+      body:'<p style="font-size:0.92rem;">RTL is built in; relevant for Hebrew terms.</p>' },
+
+    // ---------------- PART 4 ----------------
+    { id:"p4-1", part:"part4", num:1, title:"Reusable Infrastructure — Status", status:["planned"],
+      lede:"Build once, use everywhere. Full step-by-step walkthroughs for the tool-shaped ones live in the companion Component Registry artifact.",
+      body:'<div class="callout note"><b>Correction:</b> no “Execute Flow” node is available through the tooling used to build this project — only <code class="inline">goTo</code> (redirects, does not return). There’s also no tool here to create a bare Flow or a Webhook Endpoint; both are GUI-only. So “reusable” here means a tool on the Aquila AI Agent, same pattern as <code class="inline">verse_of_the_day</code>. The GUI’s node palette does have Execute Flow — if a shared flow is built by hand, the tooling can still <code class="inline">goTo</code> into it.</div>'+
+        '<div class="spec">'+
+        '<div class="spec-row"><div class="k">Session bootstrap</div><div class="v"><span class="chip built" style="margin-right:0.4rem;">BUILT</span> tool <code class="inline">bootstrap_session</code>, node <code class="inline">6aa2dd53516224b0b92110a2</code> — pulls <code class="inline">profile.name</code>/<code class="inline">profile.email</code> into context, sets <code class="inline">context.bootstrapped</code>. Extend with locale/role/consent.</div></div>'+
+        '<div class="spec-row"><div class="k">ID&amp;V</div><div class="v">tool, same shape as bootstrap_session — not started, depends on Part 2 #1.</div></div>'+
+        '<div class="spec-row"><div class="k">Auth/Login</div><div class="v">tool, sets <code class="inline">context.accessToken</code>/<code class="inline">context.userId</code> — not started.</div></div>'+
+        '<div class="spec-row"><div class="k">Generic API-caller template</div><div class="v"><code class="inline">httpRequest</code> + pre/post-process code, duplicated per integration — full walkthrough in Component Registry #01.</div></div>'+
+        '<div class="spec-row"><div class="k">Supabase query tool</div><div class="v">API-caller template pointed at Adullum’s Supabase — scaffolding only, blocked on an encrypted Connection.</div></div>'+
+        '<div class="spec-row"><div class="k">Salesforce / CXone handover</div><div class="v">native handover node + provider — deferred (no org); CXone worth a test unit.</div></div>'+
+        '<div class="spec-row"><div class="k">xApp init/branding</div><div class="v">copy-paste convention across tools — not a real component without a call-and-return node.</div></div>'+
+        '<div class="spec-row"><div class="k">Error/fallback</div><div class="v">already centralised in the AI Agent Job node’s <code class="inline">errorHandling</code> config — nothing to build.</div></div>'+
+        '<div class="spec-row"><div class="k">Custom Extension</div><div class="v">real Cognigy Extension — full walkthrough in Component Registry #09.</div></div>'+
+        '<div class="spec-row"><div class="k">Package export</div><div class="v"><code class="inline">manage_packages</code> — full walkthrough in Component Registry #10.</div></div>'+
+        '<div class="spec-row"><div class="k">Webhook Router</div><div class="v">dedicated Flow + Webhook Endpoint, both GUI-only — blocked on the shell existing.</div></div>'+
+        '</div>' },
+
+    { id:"p4-2", part:"part4", num:2, title:"Webhook Endpoint: How the Callback Works", status:["setup"],
+      lede:"A Webhook Endpoint is bound to one Flow, accepts <code class=\"inline\">{userId, sessionId, text, data}</code>, and delivers the result to a callback URL set once in the Endpoint config.",
+      body:'<p style="font-size:0.95rem;">For a router serving different callers, have the dispatcher read a <code class="inline">callbackUrl</code> from the incoming <code class="inline">data</code> and <code class="inline">httpRequest</code>-POST the result there instead.</p>' },
+
+    { id:"p4-3", part:"part4", num:3, title:"Supabase Connection: How to Wire It", status:["setup"],
+      lede:"The <code class=\"inline\">create_tool</code>/<code class=\"inline\">manage_flow_nodes</code> API doesn’t expose Cognigy’s encrypted Connection object; only the GUI’s “+ New Connection” (HTTP Request node’s Authentication section, or Build → Connections) creates one.",
+      body:'<p style="font-size:0.95rem;">Putting the Supabase <b>service role key</b> into a tool’s plain <code class="inline">headers</code> field would store it in plaintext, visible to anyone with edit access and exportable via Packages. Create the Connection in the GUI, then hand over its reference ID.</p>'+
+        '<div class="callout gotcha">Supabase expects a header literally named <code class="inline">apikey</code>. Check the outgoing request in the Interaction Panel’s Debug Mode after wiring — Cognigy’s built-in API-Key auth types don’t produce that exact header name.</div>' },
+
+    { id:"p4-4", part:"part4", num:4, title:"Known Blocker: LLM Connection", status:["backend"],
+      lede:"The Aquila AI Agent’s LLM connection (Azure OpenAI <code class=\"inline\">gpt-4.1-mini</code>, connection <code class=\"inline\">88e50803-f24b-4048-a83f-cc754192f766</code>) was failing on every turn at time of writing.",
+      body:'<p style="font-size:0.95rem;">Confirmed independent of anything built here — tested with the new tools deleted; Adullum’s <code class="inline">/chat</code> and <code class="inline">/mcp/sse</code> work when hit directly. Until it’s fixed, nothing in Parts 1–3 can be tested end to end.</p>' }
+  ];
+
+  var BUILD_ORDER = [
+    { text:"Fix the LLM connection", link:null },
+    { text:"Webchat inclusion, GUI pass", link:"p3-2" },
+    { text:"Embed the widget on the Adullum page", link:"p3-1" },
+    { text:"Overlay settings + XSS convention on both built tools", link:"p3-8" },
+    { text:"Passage Reader, then Translation Comparison", link:"p1-3" },
+    { text:"Trace id + /feedback route, then Answer Feedback", link:"p1-5" },
+    { text:"Supabase Connection, then Consent, then Bookmarks/Notes", link:"p4-3" },
+    { text:"Identity via Transformer, then RBAC + Ops Dashboard", link:"p2-1" },
+    { text:"Voice-to-Screen once Twilio exists", link:"p1-6" },
+    { text:"Handover provider when there's a human to hand to", link:"p2-3" }
+  ];
+
+  var byId = {}; ITEMS.forEach(function (it) { byId[it.id] = it; });
+  var activeStatus = {}; STATUS_ORDER.forEach(function (s) { activeStatus[s] = true; });
+  var activePart = "all";
+
+  var orderListEl = document.getElementById("orderList");
+  BUILD_ORDER.forEach(function (step, i) {
+    var li = document.createElement("li");
+    var btn = document.createElement("button");
+    btn.textContent = step.text;
+    btn.addEventListener("click", function () { if (step.link) location.hash = step.link; });
+    li.appendChild(btn);
+    orderListEl.appendChild(li);
+  });
+
+  var statusTogglesEl = document.getElementById("statusToggles");
+  STATUS_ORDER.forEach(function (s) {
+    var btn = document.createElement("button");
+    btn.className = "status-toggle";
+    btn.setAttribute("data-active", "true");
+    btn.setAttribute("data-status", s);
+    btn.innerHTML = '<span class="dot" style="background:var(--' + s + ')"></span>' + STATUS_LABEL[s];
+    btn.addEventListener("click", function () {
+      activeStatus[s] = !activeStatus[s];
+      btn.setAttribute("data-active", String(activeStatus[s]));
+      renderList();
+    });
+    statusTogglesEl.appendChild(btn);
+  });
+
+  document.getElementById("resetFilters").addEventListener("click", function () {
+    STATUS_ORDER.forEach(function (s) { activeStatus[s] = true; });
+    document.querySelectorAll(".status-toggle").forEach(function (b) { b.setAttribute("data-active", "true"); });
+    activePart = "all";
+    document.getElementById("partSelect").value = "all";
+    document.getElementById("readyNowBtn").classList.remove("active");
+    renderList();
+  });
+
+  document.getElementById("readyNowBtn").addEventListener("click", function () {
+    var isActive = this.classList.toggle("active");
+    STATUS_ORDER.forEach(function (s) { activeStatus[s] = isActive ? (s === "built" || s === "planned") : true; });
+    document.querySelectorAll(".status-toggle").forEach(function (b) {
+      var s = b.getAttribute("data-status");
+      b.setAttribute("data-active", String(activeStatus[s]));
+    });
+    renderList();
+  });
+
+  document.getElementById("partSelect").addEventListener("change", function () {
+    activePart = this.value;
+    renderList();
+  });
+
+  var itemListEl = document.getElementById("itemList");
+  var listLabelEl = document.getElementById("listLabel");
+
+  function renderList() {
+    itemListEl.innerHTML = "";
+    var parts = ["part1", "part2", "part3", "part4"];
+    var shown = 0;
+    parts.forEach(function (p) {
+      if (activePart !== "all" && activePart !== p) return;
+      var groupItems = ITEMS.filter(function (it) {
+        return it.part === p && it.status.some(function (s) { return activeStatus[s]; });
+      });
+      if (!groupItems.length) return;
+      var head = document.createElement("li");
+      head.className = "part-group-head";
+      head.textContent = PART_LABEL[p];
+      itemListEl.appendChild(head);
+      groupItems.forEach(function (it) {
+        shown++;
+        var li = document.createElement("li");
+        var btn = document.createElement("button");
+        btn.className = "item-row" + (it.id === currentId ? " active" : "");
+        btn.setAttribute("data-id", it.id);
+        var dotColor = "var(--" + it.status[0] + ")";
+        btn.innerHTML = '<span class="dot" style="background:' + dotColor + '"></span>' +
+          '<span class="num">' + it.num + '</span><span class="ttl">' + it.title + "</span>";
+        btn.addEventListener("click", function () { location.hash = it.id; });
+        li.appendChild(btn);
+        itemListEl.appendChild(li);
+      });
+    });
+    if (!shown) {
+      var empty = document.createElement("li");
+      empty.className = "empty-note";
+      empty.textContent = "Nothing matches these filters.";
+      itemListEl.appendChild(empty);
+    }
+    listLabelEl.textContent = shown + (shown === 1 ? " item" : " items");
+  }
+
+  var currentId = null;
+  var detailEl = document.getElementById("detail");
+
+  function chipHtml(status) {
+    var out = "";
+    status.forEach(function (s, i) {
+      if (i > 0) out += '<span class="chip-arrow">→</span>';
+      out += '<span class="chip ' + s + '">' + STATUS_LABEL[s] + "</span>";
+    });
+    return out;
+  }
+
+  function renderWelcome() {
+    detailEl.innerHTML =
+      '<p class="eyebrow">Start here</p>' +
+      '<h2>Aquila xApp Catalogue</h2>' +
+      '<p class="lede">47 xApp, enterprise, and Webchat features for Aquila — pick one from the list on the left, or start with the Build Order, and this pane shows exactly how to build it. Nothing else competes for attention while you work.</p>' +
+      '<div class="welcome">' +
+      '<p style="font-family:var(--mono);font-size:0.7rem;letter-spacing:0.1em;text-transform:uppercase;color:var(--muted);margin-bottom:0.4rem;">What the tags mean</p>' +
+      '<div class="legend-grid">' +
+      Object.keys(STATUS_LABEL).map(function (s) {
+        return '<div><span class="chip ' + s + '">' + STATUS_LABEL[s] + '</span></div>';
+      }).join("") +
+      '</div>' +
+      '<a class="cta" href="#p1-1">Jump to item 1: Verse of the Day →</a>' +
+      '</div>' +
+      '<p style="margin-top:2rem;font-size:0.85rem;color:var(--muted);">Source of truth: <code class="inline">docs/cognigy-xapp-features.md</code>. Reusable tool-building walkthroughs (API-caller, account lookup, consent, audit log, rate-limit, locale, health-check, feature flags, Extension, Package Export) live in the companion <b>Component Registry</b> artifact.</p>';
+  }
+
+  function renderItem(id) {
+    var it = byId[id];
+    if (!it) { renderWelcome(); return; }
+    currentId = id;
+    var idx = ITEMS.indexOf(it);
+    var prev = ITEMS[idx - 1], next = ITEMS[idx + 1];
+    detailEl.innerHTML =
+      '<p class="eyebrow">' + PART_LABEL[it.part] + " · #" + it.num + '</p>' +
+      "<h2>" + it.title + "</h2>" +
+      '<div class="chip-row">' + chipHtml(it.status) + "</div>" +
+      '<p class="lede">' + it.lede + "</p>" +
+      it.body +
+      '<div class="nav-foot">' +
+      (prev ? '<a href="#' + prev.id + '">← ' + prev.title + "</a>" : '<span class="placeholder">-</span>') +
+      (next ? '<a href="#' + next.id + '">' + next.title + " →</a>" : '<span class="placeholder">-</span>') +
+      "</div>";
+    document.querySelectorAll(".item-row").forEach(function (b) {
+      b.classList.toggle("active", b.getAttribute("data-id") === id);
+    });
+    window.scrollTo(0, 0);
+    detailEl.scrollTop = 0;
+  }
+
+  function route() {
+    var id = location.hash.replace("#", "");
+    if (id && byId[id]) renderItem(id); else renderWelcome();
+  }
+
+  window.addEventListener("hashchange", route);
+  renderList();
+  route();
+})();
+</script>

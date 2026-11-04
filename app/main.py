@@ -9,21 +9,28 @@ a web page today, a voice pipeline or mobile app later, all talk to the same
 contract.
 """
 
+import asyncio
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
+from app import cave, connections
 from app.agent.graph import agent
+from app.auth import AuthUser, optional_user
 from app.config import settings
+from app.db import get_supabase
 from app.mcp_server import mcp
+from app.memory import recall
 from app.observability import get_langfuse_handler, trace_attributes
-from app.schemas import ChatRequest, ChatResponse, Citation
+from app.pdf import render_plan_pdf
+from app.plan import generate_overview, generate_schedule
+from app.schemas import ChatRequest, ChatResponse, Citation, PlanDay, PlanRequest, PlanResponse
 
 
 def _run_config() -> dict:
@@ -49,6 +56,30 @@ app.add_middleware(
 )
 
 
+app.include_router(cave.router)
+app.include_router(connections.router)
+
+# Holds a reference to each after-turn save until it finishes. asyncio only
+# keeps a weak reference to a bare create_task(), so without this a save could
+# be garbage collected halfway through.
+_background: set[asyncio.Task] = set()
+
+
+def _initial_state(request: ChatRequest, memories: list[str]) -> dict:
+    return {
+        "query": request.query,
+        "translation": request.translation,
+        "want_followups": True,
+        "memories": memories,
+    }
+
+
+async def _memories_for(user: AuthUser | None, query: str) -> list[str]:
+    if not user:
+        return []
+    return await asyncio.to_thread(recall, user.id, query)
+
+
 @app.get("/health")
 def health() -> dict:
     """Liveness check — used by deploy platforms and by the test page to show a connection badge."""
@@ -56,20 +87,32 @@ def health() -> dict:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    background: BackgroundTasks,
+    user: AuthUser | None = Depends(optional_user),
+) -> ChatResponse:
     """Non-streaming: waits for the full graph run, returns the final answer + citations.
     Good enough for a first web/CLI client; /chat/stream below is what a voice or
     mobile front-end will actually want.
     """
+    memories = await _memories_for(user, request.query)
     with trace_attributes(session_id=request.session_id, tags=["chat"], trace_name="chat"):
-        result = await agent.ainvoke(
-            {"query": request.query, "translation": request.translation, "want_followups": True},
-            config=_run_config(),
-        )
+        result = await agent.ainvoke(_initial_state(request, memories), config=_run_config())
     citations = [
         Citation(book=v.book, chapter=v.chapter, verse=v.verse, translation=v.translation)
         for v in result.get("citations", [])
     ]
+    if user:
+        background.add_task(
+            cave.record_turn,
+            user,
+            request.session_id,
+            request.query,
+            result["answer"],
+            [c.model_dump() for c in citations],
+            result.get("followups", []),
+        )
     return ChatResponse(
         answer=result["answer"],
         citations=citations,
@@ -79,42 +122,147 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest) -> EventSourceResponse:
-    """Streams graph progress as SSE: a `step` event per node (useful for a chat UI
-    showing "retrieving verses..." etc.), then `answer` and `citations` events.
-    Same graph, same state — this is the shape a voice front-end (TTS as tokens
-    arrive) or mobile client would consume instead of the plain /chat endpoint.
+async def chat_stream(request: ChatRequest, user: AuthUser | None = Depends(optional_user)) -> EventSourceResponse:
+    """Streams graph progress as SSE: a `stage` event per node (the web client
+    uses this to light up its little strip of agents — see `stage-strip` in
+    web/index.html), then `answer` and `citations` events. Same graph, same
+    state — this is the shape a voice front-end (TTS as tokens arrive) or
+    mobile client would consume instead of the plain /chat endpoint.
     """
 
+    memories = await _memories_for(user, request.query)
+
     async def event_generator() -> AsyncIterator[dict]:
+        retries = 0
+        answer = ""
+        citations: list[dict] = []
+        followups: list[str] = []
+        if memories:
+            # Lets the client show a quiet "Aquila remembers" mark on this answer.
+            yield {"event": "memory", "data": json.dumps({"count": len(memories)})}
         with trace_attributes(session_id=request.session_id, tags=["chat-stream"], trace_name="chat-stream"):
             async for step in agent.astream(
-                {"query": request.query, "translation": request.translation, "want_followups": True},
+                _initial_state(request, memories),
                 config=_run_config(),
                 stream_mode="updates",
             ):
                 for node_name, node_output in step.items():
+                    if node_name == "ground_check":
+                        # ground_check is the only node that writes retries, and
+                        # retrieve's own node_output diff doesn't carry it forward
+                        # (LangGraph only merges what a node returns) — so this is
+                        # carried in the closure and stamped on every stage event
+                        # from here on, letting the client tell a retry loop
+                        # through retrieve/synthesize/ground_check apart from the
+                        # first pass.
+                        retries = node_output.get("retries", retries)
+                    yield {"event": "stage", "data": json.dumps({"node": node_name, "retries": retries})}
+
                     if node_name == "synthesize":
-                        yield {"event": "answer", "data": node_output["answer"]}
+                        answer = node_output["answer"]
+                        yield {"event": "answer", "data": answer}
                     elif node_name == "answer_meta":
                         # Small-talk/identity questions skip synthesize/format_citations
                         # entirely (see graph.py) — this node carries both keys at once.
-                        yield {"event": "answer", "data": node_output["answer"]}
+                        answer = node_output["answer"]
+                        yield {"event": "answer", "data": answer}
                         yield {"event": "citations", "data": json.dumps([])}
                     elif node_name == "suggest_followups":
                         # Arrives after the answer and citations are already on
                         # screen, so the client appends rather than waits on it.
-                        yield {"event": "followups", "data": json.dumps(node_output.get("followups", []))}
+                        followups = node_output.get("followups", [])
+                        yield {"event": "followups", "data": json.dumps(followups)}
                     elif node_name == "format_citations":
                         citations = [
                             {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
                             for v in node_output["citations"]
                         ]
                         yield {"event": "citations", "data": json.dumps(citations)}
-                    else:
-                        yield {"event": "step", "data": node_name}
+
+        if user and answer:
+            # Everything has been sent; saving and note-taking happen off the
+            # request so the stream closes without waiting on them.
+            task = asyncio.create_task(
+                asyncio.to_thread(
+                    cave.record_turn, user, request.session_id, request.query, answer, citations, followups
+                )
+            )
+            _background.add(task)
+            task.add_done_callback(_background.discard)
 
     return EventSourceResponse(event_generator())
+
+
+@app.post("/plan", response_model=PlanResponse)
+async def create_plan(request: PlanRequest, user: AuthUser | None = Depends(optional_user)) -> PlanResponse:
+    """Builds a whole-Bible reading schedule and stores it, so the PDF route
+    and any later reference to the same plan (a Cognigy xApp re-rendering it
+    mid-conversation, a repeat visit) all read from the same row instead of
+    regenerating it and risking drift.
+    """
+    translation = request.translation or settings.default_translation
+    schedule = generate_schedule(request.start_date, request.days)
+    overview = generate_overview(request.start_date, request.days, translation)
+    row = {
+        "start_date": request.start_date.isoformat(),
+        "days": request.days,
+        "translation": translation,
+        "overview": overview,
+        "schedule": [
+            {"day": d.day, "date": d.date.isoformat(), "references": d.references}
+            for d in schedule
+        ],
+    }
+    if user:
+        # Signed-in plans show up under My Cave. Before the migration adds
+        # reading_plans.user_id this insert would fail, so the column is only
+        # sent when there's a user to attach.
+        row["user_id"] = user.id
+    inserted = get_supabase().table("reading_plans").insert(row).execute().data[0]
+    return PlanResponse(
+        plan_id=inserted["id"],
+        start_date=request.start_date,
+        days=request.days,
+        translation=translation,
+        overview=overview,
+        schedule=[PlanDay(**d) for d in row["schedule"]],
+    )
+
+
+def _get_plan_row(plan_id: str) -> dict:
+    rows = get_supabase().table("reading_plans").select("*").eq("id", plan_id).limit(1).execute().data
+    if not rows:
+        raise HTTPException(status_code=404, detail="Plan not found")
+    return rows[0]
+
+
+@app.get("/plan/{plan_id}", response_model=PlanResponse)
+async def get_plan(plan_id: str) -> PlanResponse:
+    row = _get_plan_row(plan_id)
+    return PlanResponse(
+        plan_id=row["id"],
+        start_date=row["start_date"],
+        days=row["days"],
+        translation=row["translation"],
+        overview=row["overview"],
+        schedule=[PlanDay(**d) for d in row["schedule"]],
+    )
+
+
+@app.get("/plan/{plan_id}/pdf")
+async def plan_pdf(plan_id: str) -> Response:
+    """Renders on demand rather than storing a file: the schedule row is the
+    source of truth, the PDF is just one view of it. The same URL serves both
+    the xApp's download button and the link a Cognigy send_email tool puts in
+    the "email me this plan" message.
+    """
+    row = _get_plan_row(plan_id)
+    pdf_bytes = render_plan_pdf(row)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="reading-plan-{plan_id}.pdf"'},
+    )
 
 
 # Exposes ask_aquila as an MCP tool at /mcp/sse — this is what Cognigy's MCP
