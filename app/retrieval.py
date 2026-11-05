@@ -10,14 +10,18 @@ Rather than force all three through one path, `hybrid_retrieve` tries the cheap,
 precise one first (reference regex) and falls back to vector + keyword, merged.
 """
 
+import logging
 import re
 from dataclasses import dataclass
 
 from openai import OpenAI
+from postgrest.exceptions import APIError
 
 from app.config import settings
 from app.db import get_supabase
 from app.schemas import Verse
+
+log = logging.getLogger(__name__)
 
 _openai = OpenAI(api_key=settings.openai_api_key)
 
@@ -215,8 +219,14 @@ def keyword_search(query: str, translation: str, k: int = 8) -> list[Verse]:
         .table("verses")
         .select("book, chapter, verse, text, translation")
         .eq("translation", translation)
-        .text_search("tsv", query, options={"type": "websearch"})
+        # limit() has to come before text_search(): postgrest-py's text_search
+        # returns a builder that no longer offers limit().
         .limit(k)
+        # "web_search" (with the underscore) maps to Postgres's
+        # websearch_to_tsquery, which accepts a whole sentence. Any other value
+        # is silently ignored and falls back to to_tsquery, which rejects
+        # anything but a single word or explicit tsquery syntax.
+        .text_search("tsv", query, options={"type": "web_search"})
         .execute()
         .data
     )
@@ -250,7 +260,15 @@ def hybrid_retrieve(query: str, translation: str, k: int = 8) -> list[Verse]:
         if book:
             add(lookup_book_start(book, translation, k=k))
 
-    add(vector_search(query, translation, k=k))
+    # Vector search is the one path that can be slow (a full scan of every
+    # embedding when the index is missing or stale), and Postgres cancels it at
+    # the statement timeout. Losing it costs some recall on thematic questions,
+    # but the reference and keyword paths still find verses, which is far
+    # better than the whole answer failing with nothing on screen.
+    try:
+        add(vector_search(query, translation, k=k))
+    except APIError as error:
+        log.warning("Vector search failed, falling back to keyword search: %s", error.message)
 
     if len(results) < k:
         add(keyword_search(query, translation, k=k - len(results)))

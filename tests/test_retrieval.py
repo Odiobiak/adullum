@@ -69,3 +69,27 @@ class TestParseBookMention:
 
     def test_unresolvable_book_name_returns_none(self):
         assert parse_book_mention("book of Frodo") is None
+
+
+class TestHybridRetrieveFallback:
+    """A statement timeout in `match_verses` once took down every answer, with
+    the stream ending silently after classify_intent. Vector search failing
+    should cost recall, not the whole response.
+    """
+
+    def test_keyword_results_survive_a_vector_search_timeout(self, monkeypatch):
+        from postgrest.exceptions import APIError
+
+        from app import retrieval
+        from app.schemas import Verse
+
+        def timed_out(query, translation, k=8):
+            raise APIError({"message": "canceling statement due to statement timeout", "code": "57014"})
+
+        keyword_hit = Verse(
+            book="Romans", chapter=3, verse=25, text="...", translation="KJV", source="keyword"
+        )
+        monkeypatch.setattr(retrieval, "vector_search", timed_out)
+        monkeypatch.setattr(retrieval, "keyword_search", lambda query, translation, k=8: [keyword_hit])
+
+        assert retrieval.hybrid_retrieve("what does propitiation mean", "KJV") == [keyword_hit]
