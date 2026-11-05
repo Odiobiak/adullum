@@ -107,7 +107,9 @@ Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home
 
 Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with four tabs side by side: Journal, Notes, Conversations and Plans. "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#notes`, `#conversations` and `#plans` open the cave (the last four on that tab); `#settings` and `#remembers` open Settings (the second scrolled to memory).
 
-Type: Inter for the interface and Source Serif 4 only for quoted Scripture (`.scripture`, `.scripture-lg`), so a verse always reads as the text rather than as UI. Labels are sentence case; keep shouted uppercase kickers, glows and gradients out.
+Type: Inter for the interface and Source Serif 4 only for quoted Scripture (`.scripture`, `.scripture-lg`), so a verse always reads as the text rather than as UI. Labels are sentence case; keep shouted uppercase kickers out.
+
+Shape: controls are pills (`--pill`), cards are generously rounded (`--radius`), and warmth comes from soft radial glows built from `--glow`/`--glow-strong` (the welcome preview, warm cards, sign in, signed out) plus the one gradient button, `.btn-ember`, which runs `--ember` into `--ember-hi` over an `--ember-glow` shadow. Build any new glow from those tokens so it follows the theme.
 
 Themes: four palettes (Dawn, Olive Grove, Twilight, Hearth) defined only as tokens at the top of `app.css` and set as `<html data-theme>`. Give any new colour a token in all four blocks rather than a literal, and check its contrast in the two light themes, where muted text and the accent are closest to failing.
 
