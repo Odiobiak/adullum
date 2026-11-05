@@ -33,10 +33,20 @@ class Settings(BaseSettings):
     # ChatOpenAI/OpenAI client construction in app/agent/nodes.py and app/retrieval.py.
     openai_api_key: str
     embedding_model: str = "text-embedding-3-small"
-    embedding_dim: int = 1536  # must match the `vector(N)` dimension in supabase/schema.sql
+    # Requested from OpenAI through the `dimensions` parameter, which only the
+    # text-embedding-3 models support. Must match the `halfvec(N)` columns in
+    # supabase/schema.sql and the migrations.
+    embedding_dim: int = 512
     chat_model: str = "gpt-4o-mini"
 
     default_translation: str = "BSB"
+    # The one translation whose verses carry embeddings. Vector search runs
+    # over it and returns the matching verses of whatever translation the
+    # reader has open (see `match_verses` in supabase/schema.sql), so the other
+    # translations need no embeddings of their own. Changing it means
+    # re-ingesting the new one and the 'BSB' named in
+    # supabase/migrations/20261108_compact_embeddings.sql.
+    search_translation: str = "BSB"
 
     # Observability (optional). Left unset, get_langfuse_handler() in
     # app/observability.py returns None and the app runs with no tracing —

@@ -85,10 +85,12 @@ and health check, opening a GitHub issue only if something actually breaks.
 3. Get a **public-domain** translation as JSON/CSV (KJV, WEB, ASV, or BSB;
    avoid NIV/ESV/NASB, which are copyrighted). See `scripts/ingest.py` for the
    expected input shape.
-4. Install deps and ingest:
+4. Install deps and ingest. BSB goes first: it is the one translation that is
+   embedded, and the others borrow its embeddings for vector search.
    ```bash
    pip install -e .
    python scripts/ingest.py --file data/bsb.json --translation BSB
+   python scripts/ingest.py --file data/kjv.json --translation KJV   # optional, text only
    ```
 5. Run it:
    ```bash

@@ -1,5 +1,11 @@
 """Load a public-domain translation into Supabase: attach book metadata, embed
-in batches, upsert.
+in batches when it is the search translation, upsert.
+
+Only `settings.search_translation` (BSB) is embedded. Vector search runs over
+its embeddings and returns the matching verses of whichever translation was
+asked for, so every other translation is stored as text alone, which keeps
+the database small and costs no OpenAI calls. Ingest the search translation
+first; until it is loaded, vector search finds nothing for any translation.
 
 Expects a JSON file that is a flat list of verse objects:
     [{"book": "Genesis", "chapter": 1, "verse": 1, "text": "In the beginning..."}, ...]
@@ -114,92 +120,121 @@ def _with_retries(label: str, fn):
             time.sleep(wait)
 
 
-def _existing_keys(supabase, translation: str) -> set[tuple[str, int, int]]:
+def _existing_keys(supabase, translation: str, *, embedded_only: bool) -> set[tuple[str, int, int]]:
     """(book, chapter, verse) for every verse of `translation` already stored,
     so a rerun after a failure skips them instead of paying to embed them
-    again. Read in pages because PostgREST caps each response at 1000 rows."""
+    again. With `embedded_only`, a stored verse that still lacks an embedding
+    isn't counted, so it gets embedded this time. Read in pages because
+    PostgREST caps each response at 1000 rows."""
     keys: set[tuple[str, int, int]] = set()
     page = 1000
     start = 0
     while True:
-        rows = _with_retries(
-            "Reading what's already ingested",
-            lambda: supabase.table("verses").select("book, chapter, verse")
-            .eq("translation", translation).order("id").range(start, start + page - 1).execute().data,
-        )
+        def read_page():
+            query = supabase.table("verses").select("book, chapter, verse").eq("translation", translation)
+            if embedded_only:
+                query = query.not_.is_("embedding", "null")
+            return query.order("id").range(start, start + page - 1).execute().data
+
+        rows = _with_retries("Reading what's already ingested", read_page)
         keys.update((r["book"], r["chapter"], r["verse"]) for r in rows)
         if len(rows) < page:
             return keys
         start += page
 
 
+# Rows per upsert. An embedded row carries 512 floats, a few KB of JSON each,
+# and large embedded batches are what tend to time out behind Cloudflare; a
+# text-only row is a few hundred bytes, so those batches can be much bigger.
+EMBEDDED_BATCH_SIZE = 100
+TEXT_ONLY_BATCH_SIZE = 500
+
+
+def verse_row(verse: dict, translation: str, embedding: list[float] | None = None) -> dict:
+    """The `verses` row for one verse from the input file, with its book
+    metadata attached. The embedding key is only present when there is one,
+    so a text-only upsert never overwrites a stored embedding with null."""
+    order = _ORDER_INDEX.get(verse["book"])
+    if order is None:
+        raise ValueError(f"Unknown book name: {verse['book']!r}, add it to BOOK_ORDER")
+    row = {
+        "translation": translation,
+        "book": verse["book"],
+        "book_order": order,
+        "testament": _testament_for(order),
+        "genre": _genre_for(order),
+        "chapter": verse["chapter"],
+        "verse": verse["verse"],
+        "text": verse["text"],
+    }
+    if embedding is not None:
+        row["embedding"] = embedding
+    return row
+
+
 def main() -> None:
-    """CLI entry point: load the verse JSON, embed + upsert in batches, print
-    progress. See the module docstring for the expected input file shape.
+    """CLI entry point: load the verse JSON, embed (search translation only)
+    and upsert in batches, print progress. See the module docstring for the
+    expected input file shape.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--file", required=True, type=Path)
     parser.add_argument("--translation", required=True)
-    # 100 rows of 1536-float embeddings is already a few MB of JSON; bigger
-    # batches are what tend to time out behind Cloudflare.
-    parser.add_argument("--batch-size", type=int, default=100)
+    parser.add_argument(
+        "--batch-size", type=int, default=None,
+        help=f"rows per upsert (default {EMBEDDED_BATCH_SIZE} when embedding, {TEXT_ONLY_BATCH_SIZE} otherwise)",
+    )
     parser.add_argument("--all", action="store_true", help="re-embed and upsert every verse, even ones already stored")
     args = parser.parse_args()
+
+    embed = args.translation == settings.search_translation
+    batch_size = args.batch_size or (EMBEDDED_BATCH_SIZE if embed else TEXT_ONLY_BATCH_SIZE)
 
     # An empty verse (some sources leave omitted verses blank) has nothing to
     # read or embed, and the embeddings API rejects empty input outright.
     raw_verses = [v for v in json.loads(args.file.read_text()) if v["text"].strip()]
-    openai_client = OpenAI(api_key=settings.openai_api_key)
+    openai_client = OpenAI(api_key=settings.openai_api_key) if embed else None
     supabase = get_supabase()
 
     if not args.all:
-        stored = _existing_keys(supabase, args.translation)
+        stored = _existing_keys(supabase, args.translation, embedded_only=embed)
         if stored:
             before = len(raw_verses)
             raw_verses = [v for v in raw_verses if (v["book"], v["chapter"], v["verse"]) not in stored]
             print(f"{before - len(raw_verses)} verses of {args.translation} already stored, skipping them (pass --all to redo)")
 
     total = len(raw_verses)
-    print(f"Ingesting {total} verses ({args.translation}) from {args.file}")
-
-    for batch_num, batch in enumerate(_batched(raw_verses, args.batch_size), start=1):
-        texts = [v["text"] for v in batch]
-        embeddings = _with_retries(
-            f"Embedding batch {batch_num}",
-            lambda: openai_client.embeddings.create(model=settings.embedding_model, input=texts).data,
+    if embed:
+        print(f"Ingesting and embedding {total} verses ({args.translation}, the search translation) from {args.file}")
+    else:
+        print(
+            f"Ingesting {total} verses ({args.translation}) from {args.file} as text only; "
+            f"vector search borrows {settings.search_translation}'s embeddings"
         )
 
-        rows = []
-        for verse, embedding in zip(batch, embeddings):
-            order = _ORDER_INDEX.get(verse["book"])
-            if order is None:
-                raise ValueError(f"Unknown book name: {verse['book']!r} — add it to BOOK_ORDER")
-            rows.append(
-                {
-                    "translation": args.translation,
-                    "book": verse["book"],
-                    "book_order": order,
-                    "testament": _testament_for(order),
-                    "genre": _genre_for(order),
-                    "chapter": verse["chapter"],
-                    "verse": verse["verse"],
-                    "text": verse["text"],
-                    "embedding": embedding.embedding,
-                }
+    for batch_num, batch in enumerate(_batched(raw_verses, batch_size), start=1):
+        if embed:
+            texts = [v["text"] for v in batch]
+            embeddings = _with_retries(
+                f"Embedding batch {batch_num}",
+                lambda: openai_client.embeddings.create(
+                    model=settings.embedding_model, input=texts, dimensions=settings.embedding_dim
+                ).data,
             )
+            rows = [verse_row(v, args.translation, e.embedding) for v, e in zip(batch, embeddings)]
+        else:
+            rows = [verse_row(v, args.translation) for v in batch]
 
         _with_retries(
             f"Saving batch {batch_num}",
             lambda: supabase.table("verses").upsert(rows, on_conflict="translation,book,chapter,verse").execute(),
         )
-        done = min(batch_num * args.batch_size, total)
-        print(f"  {done}/{total} embedded + upserted")
+        done = min(batch_num * batch_size, total)
+        print(f"  {done}/{total} {'embedded + ' if embed else ''}upserted")
 
-    print("Done. Now build the vector index in Supabase SQL editor:")
-    print(
-        "  reindex or run: create index if not exists verses_embedding_idx on verses "
-        "using ivfflat (embedding vector_cosine_ops) with (lists = 100);"
-    )
+    # The HNSW index (supabase/schema.sql) updates itself as rows arrive, so
+    # there is nothing to rebuild afterwards.
+    print("Done.")
 
 
 if __name__ == "__main__":

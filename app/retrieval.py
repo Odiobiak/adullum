@@ -141,11 +141,13 @@ def parse_reference(query: str) -> ParsedReference | None:
 
 
 def embed_query(text: str) -> list[float]:
-    """Embed a single query string with the same model used at ingest time
-    (scripts/ingest.py) — vector search only works if query and corpus embeddings
-    come from the same model/dimension.
+    """Embed a single query string with the same model and dimension used at
+    ingest time (scripts/ingest.py). Vector search only works if query and
+    corpus embeddings come from the same model and dimension.
     """
-    resp = _openai.embeddings.create(model=settings.embedding_model, input=text)
+    resp = _openai.embeddings.create(
+        model=settings.embedding_model, input=text, dimensions=settings.embedding_dim
+    )
     return resp.data[0].embedding
 
 
@@ -194,6 +196,10 @@ def vector_search(query: str, translation: str, k: int = 8) -> list[Verse]:
     """Semantic search via the `match_verses` Postgres function (supabase/schema.sql),
     which does the cosine-distance ordering in the database rather than pulling
     every embedding over the wire to rank client-side.
+
+    Only `settings.search_translation` stores embeddings. `match_verses` finds
+    the nearest verses there and returns the same verses from `translation`, so
+    this works for any loaded translation.
     """
     embedding = embed_query(query)
     rows = (

@@ -15,22 +15,29 @@ create table if not exists verses (
     chapter       smallint not null,
     verse         smallint not null,
     text          text not null,
-    embedding     vector(1536),
+    -- Only the search translation (BSB, app/config.py::search_translation)
+    -- carries an embedding; every other translation's rows leave this null and
+    -- borrow BSB's through match_verses below. 512 dimensions at half
+    -- precision is about 1 KB a verse. See
+    -- supabase/migrations/20261108_compact_embeddings.sql for why.
+    embedding     halfvec(512),
     tsv           tsvector generated always as (to_tsvector('english', text)) stored,
     unique (translation, book, chapter, verse)
 );
 
+-- Reference lookups use the index behind the unique constraint above.
 create index if not exists verses_tsv_idx on verses using gin (tsv);
-create index if not exists verses_ref_idx on verses (translation, book, chapter, verse);
 
--- Vector index — build this AFTER the corpus is loaded (needs data to pick good
--- cluster counts). Safe to re-run: drop and recreate once data is in.
+-- HNSW keeps itself current as rows arrive, so it can be created before the
+-- corpus is loaded. Rows without an embedding aren't indexed.
 create index if not exists verses_embedding_idx on verses
-    using ivfflat (embedding vector_cosine_ops) with (lists = 100);
+    using hnsw (embedding halfvec_cosine_ops);
 
--- Cosine-similarity search, callable from supabase-py as an RPC.
+-- Cosine-similarity search, callable from supabase-py as an RPC. Searches the
+-- verses that carry an embedding and returns the same verses from
+-- `match_translation`, so every translation gets semantic search.
 create or replace function match_verses(
-    query_embedding vector(1536),
+    query_embedding halfvec(512),
     match_translation text,
     match_count int default 8
 )
@@ -43,13 +50,26 @@ returns table (
     similarity float
 )
 language sql stable
+-- The index returns at most ef_search rows, and the knowledge graph asks for
+-- up to 24 neighbours, doubled below. 40 (the default) would cut that short.
+set hnsw.ef_search = 100
 as $$
-    select
-        v.id, v.book, v.chapter, v.verse, v.text,
-        1 - (v.embedding <=> query_embedding) as similarity
-    from verses v
-    where v.translation = match_translation
-    order by v.embedding <=> query_embedding
+    -- A verse the requested translation doesn't have (some modern
+    -- translations omit a few verses KJV keeps) drops out of the join, so
+    -- over-fetch to cover it.
+    with nearest as (
+        select e.book, e.chapter, e.verse, e.embedding <=> query_embedding as distance
+        from verses e
+        where e.embedding is not null
+        order by e.embedding <=> query_embedding
+        limit match_count * 2
+    )
+    select v.id, v.book, v.chapter, v.verse, v.text, 1 - n.distance as similarity
+    from nearest n
+    join verses v
+      on v.translation = match_translation
+     and v.book = n.book and v.chapter = n.chapter and v.verse = n.verse
+    order by n.distance
     limit match_count;
 $$;
 

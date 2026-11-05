@@ -16,7 +16,7 @@ services:
       - key: EMBEDDING_MODEL
         value: text-embedding-3-small
       - key: EMBEDDING_DIM
-        value: "1536"
+        value: "512"
       - key: CHAT_MODEL
         value: gpt-4o-mini
       - key: LANGFUSE_PUBLIC_KEY

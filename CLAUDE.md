@@ -13,7 +13,7 @@ pip install -e ".[dev]"                                  # install app + dev dep
 uvicorn app.main:app --reload --reload-dir app --reload-dir web   # one process: REST API, SSE, MCP server, and the web UI all at :8000
                                                           # (--reload-dir keeps OneDrive syncing .venv from restarting the server mid-request)
 python scripts/fetch_translation.py --translation KJV   # download KJV/ASV/WEB/BSB to data/kjv.json in the shape ingest.py reads
-python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase (see --help for --batch-size)
+python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase; only BSB (the search translation) is embedded, the rest go in as text
 pytest                                                    # run the test suite (tests/)
 ```
 
@@ -71,6 +71,11 @@ The `meta` intent exists because `synthesize` is hard-instructed to answer only 
 2. **Book-of-X detection** (`parse_book_mention`) for a book named with no chapter (e.g. "the Book of James"), which pulls that book's opening verses directly rather than letting a book-overview question drift across the whole corpus via unscoped vector search. Deliberately narrow (`book of X` phrasing only, not any bare book name), because several book names (Job, Mark, Acts, Titus, James, John, Ruth) are also common English words and would false-positive on unrelated questions.
 3. **Vector search** via the `match_verses` Postgres RPC (`supabase/schema.sql`), and **keyword search** over a generated `tsvector` column, topping up whatever the first two didn't fill.
 
+Embeddings are kept small on purpose, because a 1536-dimension vector on every verse of four translations once filled the 2 GB disk and put the project in read-only mode (`supabase/migrations/20261108_compact_embeddings.sql` explains and fixes it; run it once, after the others):
+- **Only `settings.search_translation` (BSB) is embedded.** `match_verses` finds the nearest BSB verses and returns the same book, chapter and verse from the requested translation, so every translation still gets semantic search. `scripts/ingest.py` stores the others as text only. Changing the search translation means re-ingesting the new one with embeddings and updating the `'BSB'` in that migration.
+- **512 dimensions at half precision** (`halfvec(512)`), about 1 KB a verse. `embed_query` and the ingest both ask OpenAI for `dimensions=settings.embedding_dim`; `text-embedding-3` models are built so that this matches shortening a full embedding and rescaling it, which is how the migration converted the stored ones without re-embedding. Verse search and memories (`user_memories`) share `embed_query`, so they must stay the same size.
+- **The index is HNSW**, which keeps itself current as rows are added. There is no rebuild step after an ingest.
+
 ### Observability (`app/observability.py`)
 
 Langfuse SDK v4. The module docstring documents three non-obvious failure modes already hit and fixed once, read it before touching this file:
@@ -91,7 +96,7 @@ Run the files in `supabase/migrations/` once each, in date order, in the Supabas
 ### The Bible reader and notes (`app/bible.py`, `app/notes.py`, `web/reader.js`)
 
 Anyone can read; notes need an account. Run `supabase/migrations/20261107_verse_notes.sql` once, after the others. Until then the reader works and saving a note returns a 503 that says what to run.
-- **A translation is offered only once it's loaded.** `app/bible.py::TRANSLATIONS` lists the public-domain ones (BSB, KJV, WEB, ASV); `/bible/translations` returns the subset that has verses in the database, cached for five minutes, so after ingesting a new one the picker shows it within that window. To add one, fetch it with `scripts/fetch_translation.py` (which normalizes book names and the quirks of each source, listed in its docstring), ingest it, and it appears.
+- **A translation is offered only once it's loaded.** `app/bible.py::TRANSLATIONS` lists the public-domain ones (BSB, KJV, WEB, ASV); `/bible/translations` returns the subset that has verses in the database, cached for five minutes, so after ingesting a new one the picker shows it within that window. To add one, fetch it with `scripts/fetch_translation.py` (which normalizes book names and the quirks of each source, listed in its docstring), ingest it, and it appears. It is stored as text only and borrows BSB's embeddings for vector search (see Retrieval above).
 - **One translation preference drives everything.** The hidden `#translation` input in `index.html` is the single value Aquila, the verse of the day, the map and the reader all read. `web/reader.js` sets it from the reader's picker and the one in Settings, remembers it on the device, and saves it to `profiles.preferred_translation` when signed in (applied on the next sign-in via the `adullum:profile` event `cave.js` dispatches).
 - **Notes are pinned to book, chapter and verse range, not to a translation**, so a note shows beside the same verse whichever translation is open. `translation` and `verse_text` record what the person was reading when they wrote it. Every `/me/notes` query filters by `user_id`, same rule as the cave.
 - **Asking Aquila about a verse or note is an ordinary question** composed by `reader.js::askQuery` with the reference first (`On John 3:16-18: ...`), so `parse_reference` pulls exactly those verses and nothing in the graph changes. A note goes in quoted as the person's own words; the synthesize prompt still grounds only on retrieved verses, so a note can't become a citation.
@@ -99,7 +104,7 @@ Anyone can read; notes need an account. Run `supabase/migrations/20261107_verse_
 
 ### Knowledge graph (`app/connections.py`, `web/graph.js`)
 
-`GET /connections` feeds each seed verse's stored embedding back through `match_verses` to find its nearest neighbours in other chapters. No new SQL and no LLM call. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
+`GET /connections` feeds each seed verse's stored embedding (read from the search translation's copy of that verse) back through `match_verses` to find its nearest neighbours in other chapters. No new SQL and no LLM call. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
 
 ### Web client (`web/index.html`, `web/cave.js`, `web/graph.js`, `web/app.css`)
 

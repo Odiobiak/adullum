@@ -1,9 +1,11 @@
 """The visual knowledge graph: how a passage connects across Scripture.
 
 GET /connections takes one or more references and returns nodes and edges
-for web/graph.js to lay out. Each seed verse's own stored embedding is fed
-back through the existing `match_verses` RPC to find the verses nearest to
-it in meaning, anywhere in the canon. That needs no new SQL and no LLM call,
+for web/graph.js to lay out. Each seed verse's stored embedding is fed back
+through the existing `match_verses` RPC to find the verses nearest to it in
+meaning, anywhere in the canon. Only the search translation stores
+embeddings, so a seed's embedding is read from that translation's copy of the
+verse, whichever translation the graph is showing. That needs no new SQL and no LLM call,
 and it reuses the exact similarity measure retrieval already trusts, so the
 graph shows the same neighbourhood Aquila sees when she answers.
 
@@ -64,28 +66,47 @@ def _node(row: dict, *, seed: bool) -> dict:
     }
 
 
+def _verse_range_rows(book: str, chapter: int, start: int, end: int, translation: str, columns: str) -> list[dict]:
+    """`columns` for verses `start`..`end` of one chapter in one translation."""
+    return (
+        get_supabase()
+        .table("verses")
+        .select(columns)
+        .eq("translation", translation)
+        .eq("book", book)
+        .eq("chapter", chapter)
+        .gte("verse", start)
+        .lte("verse", end)
+        .order("verse")
+        .execute()
+        .data
+    )
+
+
 def _seed_rows(ref_text: str, translation: str) -> list[dict]:
+    """The seed verses for one reference, in `translation`, each with the
+    `embedding` of the same verse in the search translation (None if that
+    translation doesn't have the verse)."""
     parsed = parse_reference(ref_text)
     if not parsed:
         return []
-    q = (
-        get_supabase()
-        .table("verses")
-        .select("book, chapter, verse, text, embedding")
-        .eq("translation", translation)
-        .eq("book", parsed.book)
-        .eq("chapter", parsed.chapter)
-    )
     # A whole-chapter reference seeds from its opening verse only, so one
     # seed never fans out into a chapter's worth of nodes.
     start = parsed.verse_start or 1
     end = parsed.verse_end or start
     end = min(end, start + 2)  # a long range seeds from its first three verses
-    return q.gte("verse", start).lte("verse", end).order("verse").execute().data
+
+    seeds = _verse_range_rows(parsed.book, parsed.chapter, start, end, translation, "book, chapter, verse, text")
+    embedded = _verse_range_rows(
+        parsed.book, parsed.chapter, start, end, settings.search_translation, "verse, embedding"
+    )
+    embedding_by_verse = {row["verse"]: row["embedding"] for row in embedded}
+    return [{**seed, "embedding": embedding_by_verse.get(seed["verse"])} for seed in seeds]
 
 
 def _embedding(raw) -> list[float]:
-    # PostgREST returns a pgvector column as its text form, "[0.1,0.2,...]".
+    # PostgREST returns a pgvector column (halfvec included) as its text form,
+    # "[0.1,0.2,...]".
     return json.loads(raw) if isinstance(raw, str) else raw
 
 
