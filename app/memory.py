@@ -111,8 +111,18 @@ someone they are praying for, a question they keep returning to, how they like t
 answered.
 
 Rules:
-- Write nothing when the exchange is just a question about the Bible with nothing \
-personal in it. That is most exchanges, and an empty list is the right answer then.
+- Any detail they volunteer about their own life counts, even in passing inside a \
+Bible question. Keep it.
+- Write nothing when the question has no personal detail in it at all.
+
+Examples:
+- "I'm leading a small group through Romans this autumn. What does Romans 8:28 mean?" \
+-> ["They are leading a small group through Romans this autumn."]
+- "My dad passed last month. Where is God in grief?" -> ["They lost their dad last month."]
+- "I start a new job Monday and I'm anxious. Any verses?" -> ["They start a new job soon \
+and feel anxious about it."]
+- "What does John 3:16 mean?" -> []
+- "Who wrote Hebrews?" -> []
 - Never record what the Bible says or what Aquila answered. Only the person.
 - Each note is one plain sentence, third person ("They are studying Romans with their \
 small group."). No names of third parties beyond a relationship ("their mother").

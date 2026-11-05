@@ -10,12 +10,13 @@ Adullum is a Bible study agent named Aquila: ask a Scripture question, get a gro
 
 ```bash
 pip install -e ".[dev]"                                  # install app + dev deps
-uvicorn app.main:app --reload                             # one process: REST API, SSE, MCP server, and the web UI all at :8000
+uvicorn app.main:app --reload --reload-dir app --reload-dir web   # one process: REST API, SSE, MCP server, and the web UI all at :8000
+                                                          # (--reload-dir keeps OneDrive syncing .venv from restarting the server mid-request)
 python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase (see --help for --batch-size)
 pytest                                                    # run the test suite (tests/)
 ```
 
-Config lives in `.env`, read once into `app/config.py::settings`. `tests/conftest.py` sets dummy Supabase/OpenAI credentials so the suite runs without a real `.env` (in CI, in particular); the suite itself only covers pure logic (`app/retrieval.py`'s parsers, `app/schemas.py`, the graph's routing functions) and the API contract with the compiled `agent` mocked out in `tests/test_api.py` — nothing in it makes a real LLM or Supabase call. `.github/workflows/test.yml` runs it on every push and PR.
+Config lives in `.env`, read once into `app/config.py::settings`. `tests/conftest.py` sets dummy Supabase/OpenAI credentials so the suite runs without a real `.env` (in CI, in particular); the suite itself only covers pure logic (`app/retrieval.py`'s parsers, `app/schemas.py`, the graph's routing functions) and the API contract with the compiled `agent` mocked out in `tests/test_api.py`. Nothing in it makes a real LLM or Supabase call. `.github/workflows/test.yml` runs it on every push and PR.
 
 ## Always
 When writing code, always write code like a good human software engineer. Always use the best coding practice and naming convention. Make sure the code is very well documenteted, readable and easy to follow.
@@ -78,18 +79,24 @@ Langfuse SDK v4. The module docstring documents three non-obvious failure modes 
 
 ### My Cave: accounts, journal, memory (`app/auth.py`, `app/cave.py`, `app/memory.py`, `web/cave.js`)
 
-Run `supabase/migrations/20261104_my_cave.sql` once in the Supabase SQL editor before any of this works; until then `/me/*` returns a 503 that says so, and chat quietly runs as a guest.
+Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, then `20261105_hearth.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run.
 - **Auth is brokered by this server.** The browser never holds a Supabase key. `/auth/*` signs people in on a throwaway client from `app/auth.py::_auth_client` (never the shared `get_supabase()` one, which a sign-in would switch to that user's token), using the implicit flow so magic-link tokens land in the URL fragment for `web/cave.js` to pick up. Magic links only return here if the site URL is listed under Supabase Auth > URL Configuration.
 - **Every `/me` query filters by `user_id` in code**, because the service-role client bypasses RLS. The RLS policies in the migration exist for a future client talking to Supabase directly.
+- **The home screen is one request.** `GET /me/home` (`app/hearth.py`) gathers embers, the last conversation, today's plan reading, a journal entry to revisit and two memories, each part failing to null on its own. Days are the browser's local days (it sends `today`), so a streak doesn't break at a UTC midnight.
+- **Verse text on screen always comes from the database.** The verse of the day (`app/hearth.py::VERSES_OF_THE_DAY`), the welcome page's example passage and the signed-out page's verse are fetched through `/verse-of-the-day` and `/verse`, never typed into the page. The only hard-coded quotation is the KJV 1 Samuel 22 passage that explains the name, and it is labelled KJV.
 - **Memory is never Scripture.** `app/memory.py::recall` hands the graph `memories` for signed-in people; `synthesize`, `answer_meta` and `ground_check` all label them as notes about the person that can't support a claim about the Bible. Keep that labelling if you touch those prompts. Note-taking (`remember_turn`) runs after the answer is delivered and is non-fatal, like `suggest_followups`.
 
 ### Knowledge graph (`app/connections.py`, `web/graph.js`)
 
 `GET /connections` feeds each seed verse's stored embedding back through `match_verses` to find its nearest neighbours in other chapters. No new SQL and no LLM call. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
 
-### Web client (`web/index.html`)
+### Web client (`web/index.html`, `web/cave.js`, `web/graph.js`, `web/app.css`)
 
-Single-file vanilla JS chat client, no build step. Two things worth knowing before changing the SSE handling:
+Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, Ask Aquila, My cave, signed out) as `<section data-view>` blocks, a small hash router (`#home`, `#ask`, `#cave`, `#remembers`, `#join`...), the chat stream and the voice call. `cave.js` owns everything personal (sessions, the home and cave screens, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
+
+Themes: four palettes (Dawn, Olive Grove, Twilight, Hearth) defined only as tokens at the top of `app.css` and set as `<html data-theme>`. Give any new colour a token in all four blocks rather than a literal, and check its contrast in the two light themes, where muted text and the accent are closest to failing.
+
+Two things worth knowing before changing the SSE handling:
 - It hand-rolls an SSE reader over `fetch()` because the browser's `EventSource` cannot send a POST body, and `/chat/stream` needs one.
 - The server sends CRLF line endings; the client normalizes `\r\n` to `\n` before framing on blank lines. Removing that normalization silently breaks every response (the whole stream gets stuck in an internal buffer and nothing renders, with no error shown).
 

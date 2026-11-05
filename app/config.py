@@ -53,5 +53,10 @@ class Settings(BaseSettings):
     # via this env var once deployed; local dev works out of the box.
     mcp_allowed_hosts: str = "127.0.0.1:8000,localhost:8000"
 
+    # Shows "Continue with Google" on the sign-in screen. Turn on only after
+    # enabling the Google provider in Supabase (Auth > Providers), otherwise
+    # the button leads to a Supabase error page.
+    auth_google_enabled: bool = False
+
 
 settings = Settings()

@@ -36,6 +36,9 @@ _TOKEN_CACHE_MAX = 2000
 class AuthUser:
     id: str
     email: str | None
+    # From the sign-up form, kept in Supabase's user metadata until the
+    # profile row exists (see app/cave.py::_ensure_profile).
+    display_name: str | None = None
 
 
 def _auth_client() -> Client:
@@ -62,10 +65,19 @@ def auth_error_message(err: AuthError) -> str:
     return getattr(err, "message", None) or str(err) or "Sign-in failed. Please try again."
 
 
-def sign_up(email: str, password: str, redirect_to: str | None) -> dict | None:
+def _signup_options(redirect_to: str | None, display_name: str | None) -> dict:
+    options: dict = {}
+    if redirect_to:
+        options["email_redirect_to"] = redirect_to
+    if display_name:
+        options["data"] = {"display_name": display_name}
+    return options
+
+
+def sign_up(email: str, password: str, redirect_to: str | None, display_name: str | None = None) -> dict | None:
     """Returns a session, or None when the project requires the person to
     confirm their email first (Supabase's default for hosted projects)."""
-    options = {"email_redirect_to": redirect_to} if redirect_to else {}
+    options = _signup_options(redirect_to, display_name)
     resp = _auth_client().auth.sign_up({"email": email, "password": password, "options": options})
     return session_payload(resp.session) if resp.session else None
 
@@ -75,10 +87,10 @@ def sign_in_password(email: str, password: str) -> dict:
     return session_payload(resp.session)
 
 
-def send_magic_link(email: str, redirect_to: str | None) -> None:
-    options: dict = {"should_create_user": True}
-    if redirect_to:
-        options["email_redirect_to"] = redirect_to
+def send_magic_link(email: str, redirect_to: str | None, display_name: str | None = None) -> None:
+    # The name only lands for a brand-new account; Supabase ignores `data`
+    # for someone who already has one.
+    options: dict = {"should_create_user": True, **_signup_options(redirect_to, display_name)}
     _auth_client().auth.sign_in_with_otp({"email": email, "options": options})
 
 
@@ -86,6 +98,16 @@ def verify_email_code(email: str, token: str) -> dict:
     """For the six-digit code, when the email template includes one."""
     resp = _auth_client().auth.verify_otp({"email": email, "token": token, "type": "email"})
     return session_payload(resp.session)
+
+
+def google_authorize_url(redirect_to: str) -> str:
+    """Supabase's hosted Google sign-in. Without a PKCE challenge it answers
+    with the implicit flow, so tokens come back in the URL fragment exactly
+    like a magic link, and web/cave.js handles both the same way."""
+    from urllib.parse import urlencode
+
+    query = urlencode({"provider": "google", "redirect_to": redirect_to})
+    return f"{settings.supabase_url.rstrip('/')}/auth/v1/authorize?{query}"
 
 
 def refresh(refresh_token: str) -> dict:
@@ -116,7 +138,8 @@ def _verify(token: str) -> AuthUser | None:
         return None
     if not resp or not resp.user:
         return None
-    user = AuthUser(id=resp.user.id, email=resp.user.email)
+    meta = resp.user.user_metadata or {}
+    user = AuthUser(id=resp.user.id, email=resp.user.email, display_name=meta.get("display_name"))
     with _cache_lock:
         if len(_token_cache) >= _TOKEN_CACHE_MAX:
             _token_cache.clear()

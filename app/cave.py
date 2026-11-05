@@ -18,12 +18,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import RedirectResponse
 from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 from supabase_auth.errors import AuthError
 
 from app import auth, memory
 from app.auth import AuthUser, require_user
+from app.config import settings
 from app.db import get_supabase
 
 log = logging.getLogger(__name__)
@@ -72,8 +74,13 @@ class PasswordAuth(BaseModel):
     password: str = Field(min_length=6)
 
 
+class SignupBody(PasswordAuth):
+    display_name: str | None = Field(default=None, max_length=60)
+
+
 class EmailOnly(BaseModel):
     email: str = Email
+    display_name: str | None = Field(default=None, max_length=60)
 
 
 class EmailCode(BaseModel):
@@ -92,9 +99,28 @@ def _auth_call(fn):
         raise HTTPException(status_code=400, detail=auth.auth_error_message(err)) from err
 
 
+@router.get("/auth/providers")
+def providers() -> dict:
+    """Which optional sign-in buttons the client should show."""
+    return {"google": settings.auth_google_enabled}
+
+
+@router.get("/auth/google")
+def google(request: Request) -> RedirectResponse:
+    if not settings.auth_google_enabled:
+        raise HTTPException(status_code=404, detail="Google sign-in isn't turned on.")
+    return RedirectResponse(auth.google_authorize_url(_redirect_to(request)))
+
+
+def _clean_name(name: str | None) -> str | None:
+    name = (name or "").strip()
+    return name or None
+
+
 @router.post("/auth/signup")
-def signup(body: PasswordAuth, request: Request) -> dict:
-    session = _auth_call(lambda: auth.sign_up(body.email, body.password, _redirect_to(request)))
+def signup(body: SignupBody, request: Request) -> dict:
+    name = _clean_name(body.display_name)
+    session = _auth_call(lambda: auth.sign_up(body.email, body.password, _redirect_to(request), name))
     if session is None:
         return {"status": "confirm_email"}
     return {"status": "signed_in", "session": session}
@@ -107,7 +133,7 @@ def signin(body: PasswordAuth) -> dict:
 
 @router.post("/auth/magic-link")
 def magic_link(body: EmailOnly, request: Request) -> dict:
-    _auth_call(lambda: auth.send_magic_link(body.email, _redirect_to(request)))
+    _auth_call(lambda: auth.send_magic_link(body.email, _redirect_to(request), _clean_name(body.display_name)))
     return {"status": "sent"}
 
 
@@ -138,7 +164,7 @@ def _ensure_profile(user: AuthUser) -> dict:
     rows = _db_call(lambda: db.table("profiles").select("*").eq("id", user.id).limit(1).execute().data)
     if rows:
         return rows[0]
-    default_name = (user.email or "friend").split("@")[0].replace(".", " ").title()
+    default_name = user.display_name or (user.email or "friend").split("@")[0].replace(".", " ").title()
     row = {"id": user.id, "display_name": default_name}
     return _db_call(lambda: db.table("profiles").upsert(row).execute().data[0])
 
