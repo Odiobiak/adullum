@@ -1,8 +1,9 @@
 """The hearth: everything the signed-in home screen shows, in one request.
 
 GET /me/home gathers the person's embers (a streak of days they came in),
-where they left off, today's reading, a journal entry worth returning to, and
-a couple of things Aquila remembers. Each part is fetched on its own and
+where they left off, today's reading, their prayer list at a glance, how many
+memory verses are due, a journal entry worth returning to, and a couple of
+things Aquila remembers. Each part is fetched on its own and
 degrades to null on failure, so a missing table (a migration not yet run)
 blanks one card instead of the whole screen.
 
@@ -23,8 +24,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.auth import AuthUser, require_user
 from app.cave import _ensure_profile, revisit
 from app.config import settings
+from app.days import parse_today as _parse_today  # re-exported: reading_plans and tests read it from here
 from app.db import get_supabase
+from app.memorize import memorize_summary
 from app.plan import plan_today  # re-exported: tests and callers read it from here
+from app.prayers import prayer_summary
 from app.retrieval import lookup_by_reference, parse_reference
 
 log = logging.getLogger(__name__)
@@ -67,19 +71,6 @@ def compute_embers(active_days: set[date], today: date) -> dict:
         streak += 1
         cursor -= timedelta(days=1)
     return {"week": week, "streak": streak, "lit_today": today in active_days}
-
-
-def _parse_today(today: str | None) -> date:
-    """The browser's local date, accepted only when it is within a day of the
-    server's, since no timezone is further apart than that."""
-    server = date.today()
-    if not today:
-        return server
-    try:
-        d = date.fromisoformat(today)
-    except ValueError:
-        raise HTTPException(status_code=422, detail="today must be YYYY-MM-DD")
-    return d if abs((d - server).days) <= 1 else server
 
 
 def _record_visit(user: AuthUser, day: date) -> None:
@@ -141,6 +132,17 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         )
         return plan_today(rows[0], day) if rows else None
 
+    def prayers():
+        rows = (
+            db.table("prayers").select("id, body, passage_ref, status, answered_at, created_at")
+            .eq("user_id", user.id).order("created_at", desc=True).limit(300).execute().data
+        )
+        return prayer_summary(rows, day)
+
+    def memory_verses():
+        rows = db.table("memory_verses").select("due, interval_days").eq("user_id", user.id).execute().data
+        return memorize_summary(rows, day)
+
     def memories():
         rows = (
             db.table("user_memories").select("content").eq("user_id", user.id)
@@ -154,6 +156,8 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         "embers": _part("embers", embers),
         "last_session": _part("last_session", last_session),
         "plan": _part("plan", plan),
+        "prayers": _part("prayers", prayers),
+        "memorize": _part("memorize", memory_verses),
         "revisit": (_part("revisit", lambda: revisit(user)) or {}).get("entry"),
         "memories": _part("memories", memories) or [],
     }

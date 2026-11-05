@@ -18,6 +18,9 @@
   --glow: #FBE1C6; --glow-strong: #F6CFA6; --well: #F6EEE2; --hover: #F1E6D6; --card-warm: #FFF3E6; --divider: #EADFCF;
   --danger: #B3261E; --shadow: rgba(80, 50, 20, 0.16); --ember-glow: rgba(181, 84, 28, 0.32); --ring: rgba(181, 84, 28, 0.18);
   --art-dim: #D6B48C;
+  /* Verse highlights: a fill behind the words, and a stronger edge for dots and card borders. */
+  --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
+  --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
   --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
   --body: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   --display: var(--body);
@@ -33,6 +36,8 @@
   --glow: #DDE7C6; --glow-strong: #CBDBA9; --well: #EEF1E4; --hover: #E9EEDD; --card-warm: #F6F8EC; --divider: #DDE3CF;
   --danger: #A3261E; --shadow: rgba(40, 55, 30, 0.16); --ember-glow: rgba(85, 107, 47, 0.32); --ring: rgba(85, 107, 47, 0.2);
   --art-dim: #A9B98A;
+  --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
+  --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
   --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
   color-scheme: light;
 }
@@ -44,6 +49,8 @@
   --glow: #4A3A55; --glow-strong: #5B4560; --well: #1C1D30; --hover: #33344F; --card-warm: #33304A; --divider: #3A3B5A;
   --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.4); --ember-glow: rgba(242, 179, 94, 0.4); --ring: rgba(242, 179, 94, 0.22);
   --art-dim: #6E6488;
+  --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
+  --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
   color-scheme: dark;
 }
@@ -55,6 +62,8 @@
   --glow: #3F2813; --glow-strong: #4F3015; --well: #1F1813; --hover: #2A211A; --card-warm: #261B12; --divider: #33281F;
   --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.45); --ember-glow: rgba(244, 161, 76, 0.5); --ring: rgba(244, 161, 76, 0.2);
   --art-dim: #7A5530;
+  --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
+  --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
   color-scheme: dark;
 }
@@ -139,6 +148,10 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 }
 .act:hover { border-color: var(--ember); color: var(--ember-hi); }
 .act svg { width: 16px; height: 16px; flex: none; }
+.act { white-space: nowrap; }
+/* Secondary actions in a crowded row: the icon alone (the button keeps its aria-label). */
+.act-icon { padding-left: 10px; padding-right: 10px; }
+.act-icon span { display: none; }
 .act.is-done { border-color: var(--sage); color: var(--sage); background: var(--sage-bg); }
 .act.danger:hover { border-color: var(--danger); color: var(--danger); }
 .iconbtn {
@@ -484,6 +497,11 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .chapter-text .v { border-radius: 4px; cursor: pointer; transition: background-color 0.15s ease; -webkit-tap-highlight-color: transparent; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
 .chapter-text .v:hover { background: var(--hover); }
 .chapter-text .v:focus-visible { outline: 2px solid var(--ember); outline-offset: 1px; }
+/* Highlights paint behind the verse; a selection, being temporary, shows over them. */
+.chapter-text .v.hl-gold { background: var(--hl-gold); }
+.chapter-text .v.hl-green { background: var(--hl-green); }
+.chapter-text .v.hl-blue { background: var(--hl-blue); }
+.chapter-text .v.hl-rose { background: var(--hl-rose); }
 .chapter-text .v.is-selected { background: var(--ember-bg); text-decoration: underline; text-decoration-color: var(--ember); text-decoration-thickness: 2px; text-underline-offset: 5px; }
 .chapter-text .v.is-focus { background: var(--glow); }
 .chapter-text .vn { font: 600 12px/1 var(--body); color: var(--faint); margin-right: 3px; vertical-align: super; }
@@ -512,6 +530,53 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .note-preview { border-left: 3px solid var(--ember); }
 .note-card h3 a { color: inherit; text-decoration: none; }
 .note-card h3 a:hover { color: var(--ember); }
+
+/* Highlight colours outside the text: swatches in the picker, dots, card edges */
+.hl-picker { position: absolute; right: 8px; bottom: calc(100% + 8px); display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--pill); box-shadow: 0 14px 32px var(--shadow); animation: rise 0.15s ease both; }
+.hl-swatch { width: 34px; height: 34px; border-radius: 50%; border: 2px solid var(--line-2); padding: 0; transition: transform 0.12s ease; }
+.hl-swatch:hover { transform: scale(1.08); }
+.hl-swatch.hl-gold, .hl-dot.hl-gold { background: var(--hl-gold); border-color: var(--hl-gold-edge); }
+.hl-swatch.hl-green, .hl-dot.hl-green { background: var(--hl-green); border-color: var(--hl-green-edge); }
+.hl-swatch.hl-blue, .hl-dot.hl-blue { background: var(--hl-blue); border-color: var(--hl-blue-edge); }
+.hl-swatch.hl-rose, .hl-dot.hl-rose { background: var(--hl-rose); border-color: var(--hl-rose-edge); }
+.hl-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid; flex: none; }
+.mood .hl-dot { margin-right: 6px; vertical-align: -1px; }
+.highlight-card { border-left-width: 4px; }
+.hl-edge-gold { border-left-color: var(--hl-gold-edge); }
+.hl-edge-green { border-left-color: var(--hl-green-edge); }
+.hl-edge-blue { border-left-color: var(--hl-blue-edge); }
+.hl-edge-rose { border-left-color: var(--hl-rose-edge); }
+.highlight-card h3 a, .memory-card h3 a { color: inherit; text-decoration: none; }
+.highlight-card h3 a:hover, .memory-card h3 a:hover { color: var(--ember); }
+.cave-section + .cave-section { margin-top: 36px; }
+.cave-section .row-between .moods { margin: 0; }
+
+/* ---------- Prayers (web/prayers.js) ---------- */
+/* Prayers read as a list of sentences, so one readable column rather than a grid. */
+.prayer-list { grid-template-columns: minmax(0, 1fr); max-width: 760px; }
+.prayer-body { font-size: 17px; line-height: 1.5; color: var(--text); white-space: pre-wrap; margin: 0 0 4px; }
+.prayer-passage { align-self: flex-start; text-decoration: none; font-size: 13px; padding: 4px 11px; color: var(--ember-hi); }
+.prayer-passage svg { width: 14px; height: 14px; }
+.prayer-passage:hover { border-color: var(--ember); }
+.prayer-card.is-answered { background: radial-gradient(120% 140% at 100% 0%, var(--sage-bg) 0%, var(--surface) 60%); border-color: var(--sage-line); }
+.badge.answered, .badge.learned { background: var(--sage-bg); color: var(--sage); }
+.badge.answered { display: inline-flex; align-items: center; gap: 4px; text-transform: none; }
+.badge.answered svg { width: 12px; height: 12px; }
+.answer-note { background: var(--sage-bg); border-radius: var(--radius-sm); padding: 10px 14px; }
+.answer-note strong { display: block; font-size: 13px; font-weight: 600; color: var(--sage); margin-bottom: 2px; }
+.answer-note p { font-size: 15px; color: var(--text); white-space: pre-wrap; }
+.answered-line { display: flex; align-items: center; gap: 6px; color: var(--sage); font-size: 14px; font-weight: 500; margin-top: 8px; }
+.answered-line svg { width: 16px; height: 16px; display: block; }
+
+/* ---------- Memorize (web/memorize.js) ---------- */
+.memory-card .badge { text-transform: none; }
+.memorize-head { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 20px; }
+.memorize-head .section-title { margin: 0 0 2px; }
+.practice { max-width: 560px; }
+.practice h3 { margin: 10px 0 6px; }
+.practice-text { margin: 14px 0 22px; min-height: 4.5em; }
+.practice-text:not(.is-revealed) { color: var(--soft); letter-spacing: 0.06em; }
+.practice-grades { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 980px) {
@@ -551,7 +616,8 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
   .reader-bar { top: 56px; }
   .verse-bar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 8px; right: 8px; transform: none; width: auto; }
   .verse-bar-actions .act span { display: none; }
-  .verse-bar-actions .act { padding: 8px 10px; border-color: transparent; }
+  .verse-bar-actions .act { padding: 8px; border-color: transparent; }
+  .verse-bar { padding-left: 14px; }
   .chapter-text { font-size: 19px; }
   .book-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
   .graph-search { margin-left: 0; width: 100%; order: 3; }

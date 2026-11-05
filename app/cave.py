@@ -304,6 +304,20 @@ def _journal_memory_text(entry: dict) -> str:
     return f'They journaled on {where}{mood}, writing: "{reflection}"'
 
 
+def _remember_journal(user: AuthUser, entry: dict, *, replace: bool = False) -> None:
+    """Keep Aquila's note about a journal entry in step with what it says.
+
+    With `replace`, the old note is deleted first, so Aquila remembers what
+    the entry says now rather than every draft of it. A new note is written
+    only when the entry has a reflection and the person has memory switched
+    on; with it off, editing an entry still clears the note it used to have.
+    """
+    if replace:
+        get_supabase().table("user_memories").delete().eq("journal_id", entry["id"]).eq("user_id", user.id).execute()
+    if (entry.get("reflection") or "").strip() and memory.memory_enabled(user.id):
+        memory.store_note(user.id, _journal_memory_text(entry), kind="journal", journal_id=entry["id"])
+
+
 @router.get("/me/journal")
 def list_journal(mood: Mood | None = None, user: AuthUser = Depends(require_user)) -> list[dict]:
     def run():
@@ -326,8 +340,7 @@ def create_journal(body: JournalIn, user: AuthUser = Depends(require_user)) -> d
         if not owned:
             row["session_id"] = None
     entry = _db_call(lambda: get_supabase().table("journal_entries").insert(row).execute().data[0])
-    if entry.get("reflection", "").strip():
-        memory.store_note(user.id, _journal_memory_text(entry), kind="journal", journal_id=entry["id"])
+    _remember_journal(user, entry)
     return entry
 
 
@@ -344,11 +357,7 @@ def update_journal(entry_id: uuid.UUID, body: JournalPatch, user: AuthUser = Dep
         raise HTTPException(status_code=404, detail="Entry not found")
     entry = rows[0]
     if "reflection" in patch:
-        # The note about this entry is rewritten rather than appended to, so
-        # Aquila remembers what the entry says now, not every draft of it.
-        get_supabase().table("user_memories").delete().eq("journal_id", entry["id"]).eq("user_id", user.id).execute()
-        if (entry.get("reflection") or "").strip():
-            memory.store_note(user.id, _journal_memory_text(entry), kind="journal", journal_id=entry["id"])
+        _remember_journal(user, entry, replace=True)
     return entry
 
 

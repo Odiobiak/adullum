@@ -1,6 +1,8 @@
 // Everything personal: sign-in, the home screen, the cave (journal,
 // conversations, reading plans), settings (profile, theme, what Aquila
-// remembers), the signed-out page, and the extras under each answer.
+// remembers), the signed-out page, and the extras under each answer. The
+// cave's Notes tab lives in web/reader.js, its Prayers tab in web/prayers.js
+// and its Memorize tab in web/memorize.js; this file hands them their panel.
 //
 // Loaded before index.html's main script, so it only defines things here and
 // reaches back into that script (window.AdullumApp) at call time. All talk with
@@ -22,6 +24,7 @@
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>',
     ember: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
   };
 
   // ---------------------------------------------------------------------
@@ -626,6 +629,7 @@
       el("div", { class: "row", style: "gap:2px" }, [
         el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Reflect with Aquila", onclick: () => app().submitQuery(`Help me reflect on ${v.ref}.`) }),
         el("button", { class: "act", type: "button", html: `${ICON.bookmark}<span>Keep</span>`, onclick: () => openJournal({ passage_ref: v.ref, verse_text: v.text }) }),
+        el("button", { class: "act", type: "button", html: `${ICON.heart}<span>Learn it</span>`, onclick: () => window.Memorize.add(v.ref, v.translation) }),
         el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]) }),
         el("button", { class: "act", type: "button", html: `${ICON.share}<span>Share</span>`, onclick: () => shareCard(v) }),
       ]),
@@ -713,7 +717,14 @@
     const v = await versePromise;
     $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
     main.replaceChildren(continueCard(data.last_session), homePlanCard(data.plan));
-    side.replaceChildren(...[data.embers ? weekCard(data.embers) : null, data.revisit ? revisitCard(data.revisit) : null].filter(Boolean));
+    // The prayer and memory-verse cards are null until their migration has
+    // run, and the memory-verse card only appears when something is due.
+    side.replaceChildren(...[
+      data.embers ? weekCard(data.embers) : null,
+      data.memorize ? window.Memorize.homeCard(data.memorize, showHome) : null,
+      data.prayers ? window.Prayers.homeCard(data.prayers, showHome) : null,
+      data.revisit ? revisitCard(data.revisit) : null,
+    ].filter(Boolean));
   }
 
   // ---------------------------------------------------------------------
@@ -1025,13 +1036,17 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Conversations and Plans, side by side as tabs
+  // The cave: Journal, Notes, Prayers, Memorize, Conversations and Plans,
+  // side by side as tabs
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
-  const CAVE_ROUTES = { journal: "journal", notes: "notes", conversations: "sessions", plans: "plans" };
+  const CAVE_ROUTES = { journal: "journal", notes: "notes", prayers: "prayers", memorize: "memorize", conversations: "sessions", plans: "plans" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
     notes: ["Open the Bible", () => app().go("bible")],
+    prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
+    // Practice has its own button inside the tab, beside the count of what's due.
+    memorize: ["Add from the Bible", () => app().go("bible")],
     sessions: ["New conversation", () => app().newConversation()],
     plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
   };
@@ -1045,7 +1060,14 @@
     const panel = $("#cavePanel");
     panel.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
-      await { journal: renderJournal, notes: (p) => window.Reader.renderAllNotes(p), sessions: renderSessions, plans: renderPlans }[caveTab](panel);
+      await {
+        journal: renderJournal,
+        notes: (p) => window.Reader.renderAllNotes(p),
+        prayers: (p) => window.Prayers.renderTab(p),
+        memorize: (p) => window.Memorize.renderTab(p),
+        sessions: renderSessions,
+        plans: renderPlans,
+      }[caveTab](panel);
     } catch (err) {
       panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Couldn't open this" }), err.message]));
     }
@@ -1186,6 +1208,9 @@
     );
   }
 
+  // Where each kind of memory came from, as shown under it in Settings.
+  const MEMORY_SOURCES = { note: "from a conversation", journal: "from your journal", prayer: "from your prayer list" };
+
   async function renderMemories(panel) {
     panel.replaceChildren(el("p", { class: "faint", text: "Opening..." }));
     let rows;
@@ -1212,7 +1237,7 @@
           const item = el("li", {}, [
             el("div", {}, [
               el("p", { text: m.content }),
-              el("small", { text: `${when(m.created_at)} · ${m.kind === "journal" ? "from your journal" : "from a conversation"}` }),
+              el("small", { text: `${when(m.created_at)} · ${MEMORY_SOURCES[m.kind] || MEMORY_SOURCES.note}` }),
             ]),
           ]);
           item.append(el("button", {
@@ -1315,6 +1340,11 @@
     overlay,
     formMessage,
     when,
+    agoPhrase,
+    localToday,
+    card,
+    cardHead,
+    showCave,
     signedIn,
     signOut,
     onView,

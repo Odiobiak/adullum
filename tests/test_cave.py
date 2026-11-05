@@ -67,6 +67,54 @@ class TestJournalHelpers:
         assert cave._valid_uuid(USER.id) == USER.id
 
 
+class TestRememberJournal:
+    """Journal entries become notes about the person only when memory is on."""
+
+    ENTRY = {"id": "j1", "passage_ref": "Psalms 42:5", "reflection": "Still hoping."}
+
+    class FakeDb:
+        """Records the chained calls made against user_memories."""
+
+        def __init__(self):
+            self.calls = []
+
+        def table(self, name):
+            self.calls.append(("table", name))
+            return self
+
+        def __getattr__(self, name):
+            return lambda *args, **kwargs: self.calls.append((name, args)) or self
+
+    def fake(self, monkeypatch, enabled):
+        db, stored = self.FakeDb(), []
+        monkeypatch.setattr(cave, "get_supabase", lambda: db)
+        monkeypatch.setattr(memory, "memory_enabled", lambda user_id: enabled)
+        monkeypatch.setattr(memory, "store_note", lambda *args, **kwargs: stored.append(kwargs))
+        return db, stored
+
+    def test_stored_when_memory_is_on(self, monkeypatch):
+        _, stored = self.fake(monkeypatch, enabled=True)
+        cave._remember_journal(USER, self.ENTRY)
+        assert stored == [{"kind": "journal", "journal_id": "j1"}]
+
+    def test_not_stored_when_memory_is_off(self, monkeypatch):
+        _, stored = self.fake(monkeypatch, enabled=False)
+        cave._remember_journal(USER, self.ENTRY)
+        assert stored == []
+
+    def test_editing_with_memory_off_still_clears_the_old_note(self, monkeypatch):
+        db, stored = self.fake(monkeypatch, enabled=False)
+        cave._remember_journal(USER, self.ENTRY, replace=True)
+        assert ("delete", ()) in db.calls
+        assert ("eq", ("journal_id", "j1")) in db.calls and ("eq", ("user_id", USER.id)) in db.calls
+        assert stored == []
+
+    def test_an_empty_reflection_is_not_stored(self, monkeypatch):
+        _, stored = self.fake(monkeypatch, enabled=True)
+        cave._remember_journal(USER, {**self.ENTRY, "reflection": "  "})
+        assert stored == []
+
+
 class TestBearer:
     def test_parses_only_bearer(self):
         assert auth._bearer("Bearer abc") == "abc"

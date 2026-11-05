@@ -153,7 +153,11 @@ def store_note(
     kind: str = "note",
     session_id: str | None = None,
     journal_id: str | None = None,
+    prayer_id: str | None = None,
 ) -> None:
+    """Embed `content` and keep it as a note about the person, unless an
+    almost identical note is already kept. A note made from a journal entry or
+    a prayer carries that row's id, so it is deleted along with it."""
     if not content:
         return
     try:
@@ -174,15 +178,18 @@ def store_note(
         )
         if dupes and kind == "note":
             return
-        db.table("user_memories").insert(
-            {
-                "user_id": user_id,
-                "content": content,
-                "kind": kind,
-                "session_id": session_id,
-                "journal_id": journal_id,
-                "embedding": embedding,
-            }
-        ).execute()
+        row = {
+            "user_id": user_id,
+            "content": content,
+            "kind": kind,
+            "session_id": session_id,
+            "journal_id": journal_id,
+            "embedding": embedding,
+        }
+        # Only sent when set, so journal and conversation notes keep working on a
+        # database where the prayers migration (which adds the column) hasn't run.
+        if prayer_id:
+            row["prayer_id"] = prayer_id
+        db.table("user_memories").insert(row).execute()
     except Exception:
         log.warning("storing memory failed", exc_info=True)
