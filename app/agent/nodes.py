@@ -1,19 +1,22 @@
-"""The five LangGraph node functions wired together in app/agent/graph.py.
+"""The LangGraph node functions wired together in app/agent/graph.py: the
+study path (classify_intent through suggest_followups) and listen(), the
+gentler Aquila of Refuge.
 
 Each function takes the current AgentState and returns only the keys it changes
 (LangGraph merges the rest) — see app/agent/state.py for the full field list and
 who sets what.
 """
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableConfig
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 
 from app.agent.state import AgentState, Intent
+from app.care import sounds_unsafe
 from app.config import settings
 from app.observability import score_trace_from_config
-from app.retrieval import hybrid_retrieve
+from app.retrieval import find_references, hybrid_retrieve
 from app.schemas import Verse
 
 # temperature=0: this is a grounded Q&A agent, not a creative one — we want the
@@ -312,3 +315,138 @@ def suggest_followups(state: AgentState, config: RunnableConfig) -> AgentState:
         return {"followups": [q.strip() for q in result.questions if q.strip()][:3]}
     except Exception:
         return {"followups": []}
+
+
+# ---------------------------------------------------------------------------
+# listen: Aquila in Refuge. One node, reached straight from the entry point
+# when the caller sets mode="listen" (app/refuge.py). People come to Refuge in
+# every kind of season, so this isn't a study and it doesn't produce one: no
+# headings, no follow-ups, and Scripture only when it's wanted. What stays the
+# same is the rule that matters most: she only ever quotes a verse that was
+# actually looked up, checked below by reference rather than trusted.
+# ---------------------------------------------------------------------------
+# A little warmth in the wording; the study path stays at 0 for consistency.
+_warm_llm = ChatOpenAI(model=settings.chat_model, api_key=settings.openai_api_key, temperature=0.5)
+
+# How much of a long talk goes into each prompt.
+LISTEN_HISTORY_LIMIT = 24
+
+LISTEN_SYSTEM_PROMPT = """You are Aquila, a warm and steadfast companion who loves God. \
+Right now you're in Refuge, a quiet, private room in the app. People come here in every \
+kind of season: carrying something heavy, hoping for something, planning what's next with \
+God, giving thanks, or just needing to be heard.
+
+Here you listen first.
+- Reply in a few short sentences, like a friend sitting beside them. No headings, no lists, \
+no lecture.
+- Show you heard them, in your own words, and ask at most one gentle question.
+- Don't rush to fix or explain, and never tell them how they should feel.
+- When they're hopeful, planning or grateful, be glad with them, and help them think it \
+through with God: what they're hoping for, what a first small step could be, what they'd \
+want to pray about it.
+- Offer Scripture only when they ask for it or one verse would truly meet them, and then \
+only one, quoted exactly from the verses listed for you, with its reference. If no verses \
+are listed, don't quote Scripture or name any reference at all.
+- You aren't a counsellor, a pastor or an emergency service. If what they're carrying needs \
+more than a conversation, say so gently and encourage them to reach a person.
+
+Write like a person, not like an AI assistant. Never use an em dash. Skip the hedging and \
+the "it's not just X, it's Y" phrasing, and don't repeat their words back to them."""
+
+CARE_INSTRUCTION = """They may not be safe right now. Respond with warmth and without alarm. \
+Tell them you're really glad they told you, that they deserve a real person with them right \
+now, and that the people listed just below your message are free and there for exactly \
+this. Ask whether they're safe at the moment. Don't quote Scripture in this reply. Keep it \
+short."""
+
+class CareCheck(BaseModel):
+    at_risk: bool = Field(
+        description=(
+            "True if the latest message, read in context, suggests thoughts of suicide or "
+            "self-harm, wanting to die or not be here, being in danger from someone, or being "
+            "unable to keep themselves safe. When unsure, answer true."
+        )
+    )
+    wants_verse: bool = Field(
+        description=(
+            "True if they ask for Scripture, a verse, or what the Bible or God says, or say yes "
+            "to an offer of a verse."
+        )
+    )
+
+
+CARE_CHECK_PROMPT = "Read the conversation and judge only the person's latest message."
+
+
+def _listen_messages(history: list[dict]) -> list:
+    """The exchange as chat messages, most recent last, trimmed to the limit."""
+    out = []
+    for m in history[-LISTEN_HISTORY_LIMIT:]:
+        text = str(m.get("content") or "")
+        out.append(AIMessage(text) if m.get("role") == "aquila" else HumanMessage(text))
+    return out
+
+
+def unlisted_references(reply: str, verses: list[Verse]) -> list[str]:
+    """References named in `reply` that aren't among `verses`. A chapter named
+    without a verse counts as listed if any listed verse is in it."""
+    listed = {(v.book, v.chapter, v.verse) for v in verses}
+    chapters = {(v.book, v.chapter) for v in verses}
+    unlisted = []
+    for ref in find_references(reply):
+        if ref.verse_start is None:
+            ok = (ref.book, ref.chapter) in chapters
+        else:
+            ok = all((ref.book, ref.chapter, n) in listed for n in range(ref.verse_start, ref.verse_end + 1))
+        if not ok:
+            unlisted.append(f"{ref.book} {ref.chapter}" + (f":{ref.verse_start}" if ref.verse_start else ""))
+    return unlisted
+
+
+def listen(state: AgentState, config: RunnableConfig) -> AgentState:
+    """Reads the whole talk, checks whether the person may not be safe, looks
+    up a few verses only if Scripture is wanted, and replies.
+
+    If the reply names a verse that wasn't looked up, it is written again
+    once, and if it still does, it is written with no verses at all. A reply
+    with no Scripture is always better than one with an invented verse.
+    """
+    history = state.get("history") or [{"role": "user", "content": state["query"]}]
+    latest = state["query"]
+    chat = _listen_messages(history)
+
+    check: CareCheck = _llm.with_structured_output(CareCheck).invoke(
+        [SystemMessage(CARE_CHECK_PROMPT), *chat], config=config
+    )
+    care = check.at_risk or sounds_unsafe(latest)
+
+    translation = state.get("translation") or settings.default_translation
+    verses: list[Verse] = []
+    if check.wants_verse and not care:
+        # The latest message alone is often just "yes please", so the one
+        # before it gives the search something to go on.
+        user_turns = [m["content"] for m in history if m.get("role") != "aquila"][-2:]
+        verses = hybrid_retrieve(" ".join(user_turns), translation, k=4)
+
+    def reply_with(listed: list[Verse], extra: str = "") -> str:
+        system = LISTEN_SYSTEM_PROMPT
+        if care:
+            system += "\n\n" + CARE_INSTRUCTION
+        if listed:
+            block = "\n".join(f"- {v.book} {v.chapter}:{v.verse} ({v.translation}): {v.text}" for v in listed)
+            system += f"\n\nVerses you may quote, and no others:\n{block}"
+        else:
+            system += "\n\nNo verses are listed for this reply."
+        if extra:
+            system += "\n\n" + extra
+        return _warm_llm.invoke([SystemMessage(system), *chat], config=config).content
+
+    answer = reply_with(verses)
+    if unlisted_references(answer, verses):
+        answer = reply_with(verses, "Your last draft named a verse that isn't listed. Only quote a listed verse, or none.")
+        if unlisted_references(answer, verses):
+            verses = []
+            answer = reply_with([], "Don't name or quote any Bible verse in this reply.")
+
+    cited = [v for v in verses if f"{v.book} {v.chapter}:{v.verse}" in answer]
+    return {"answer": answer, "care": care, "verses": verses, "citations": cited, "translation": translation}

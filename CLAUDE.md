@@ -34,6 +34,8 @@ One FastAPI process (`app/main.py`) serves three things off the same LangGraph a
 `app/agent/graph.py` wires the nodes in `app/agent/nodes.py` using the state in `app/agent/state.py`:
 
 ```
+(mode="listen") --> listen --> END                      Refuge's Aquila, see below
+
 classify_intent --meta--> answer_meta --> END
        |
      other
@@ -49,6 +51,15 @@ classify_intent --meta--> answer_meta --> END
 streamed to the client by then, so its extra LLM call costs no perceived latency.
 It is also non-fatal, returning an empty list on failure rather than sinking an
 answer that was otherwise complete and grounded.
+
+`listen` is the same Aquila in Refuge (`app/refuge.py` sets `mode="listen"` and the
+whole talk as `history`): no headings, no follow-ups, one gentle reply. It still
+never invents a verse. It looks verses up only when Scripture is wanted, and
+`unlisted_references` checks every reference in the reply against what was looked
+up, rewriting once and then dropping Scripture altogether. A care check (the model,
+plus the phrases in `app/care.py`, which always count) sets `care`, and the client
+shows helplines under the reply. Keep `LISTEN_SYSTEM_PROMPT`'s house-style line if
+you touch it.
 
 ### The shape of an answer
 
@@ -85,7 +96,7 @@ Langfuse SDK v4. The module docstring documents three non-obvious failure modes 
 
 ### The cave: accounts, journal, plans, memory (`app/auth.py`, `app/cave.py`, `app/reading_plans.py`, `app/memory.py`, `web/cave.js`)
 
-Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, `20261105_hearth.sql`, then `20261106_plan_titles.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run; until the third, plans shaped with Aquila save without their title and show a generic one.
+Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, `20261105_hearth.sql`, `20261106_plan_titles.sql`, and on through `20261110_refuge.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run; until the third, plans shaped with Aquila save without their title and show a generic one.
 - **Auth is brokered by this server.** The browser never holds a Supabase key. `/auth/*` signs people in on a throwaway client from `app/auth.py::_auth_client` (never the shared `get_supabase()` one, which a sign-in would switch to that user's token), using the implicit flow so magic-link tokens land in the URL fragment for `web/cave.js` to pick up. Magic links only return here if the site URL is listed under Supabase Auth > URL Configuration.
 - **Every `/me` query filters by `user_id` in code**, because the service-role client bypasses RLS. The RLS policies in the migration exist for a future client talking to Supabase directly.
 - **The home screen is one request.** `GET /me/home` (`app/hearth.py`) gathers embers, the last conversation, today's plan reading, the prayer list at a glance, how many memory verses are due, a journal entry to revisit and two memories (the screen doesn't show the memories; they live in Settings), each part failing to null on its own. Days are the browser's local days (it sends `today`, checked by `app/days.py::parse_today`), so a streak doesn't break at a UTC midnight.
@@ -98,6 +109,17 @@ Run the files in `supabase/migrations/` once each, in date order, in the Supabas
 Run `supabase/migrations/20261109_prayers_highlights_memorize.sql` once, after the others. Until then those two tabs (and highlights) return a 503 that says what to run, and their home cards don't appear.
 - **A prayer is open until it's marked answered**, with an optional line on how; it can be reopened. When memory is on, `prayers.py::_remember` keeps one memory note per prayer (`user_memories.prayer_id`, deleted with it, rewritten when it's answered or edited), so Aquila can bring an open request up. Same "never Scripture" labelling as every memory.
 - **Memory verses are read from the verses table, never sent by the browser**, and capped at six verses. Practice shows the first letter of each word, then the verse; the person answers "Not yet", "Almost" or "Got it", and `memorize.py::next_review` (a cut-down SM-2) sets the next due date. Keep the schedule on the server, so every device agrees on what's due.
+
+### Refuge and the admin desk (`app/refuge.py`, `app/one_another.py`, `app/care.py`, `web/refuge.js`)
+
+A quiet room in the cave for every kind of season, not only hard ones. Run `supabase/migrations/20261110_refuge.sql` once, after the others; until then the tab shows the setup message. Five rooms, drawn in place inside the tab (not hash routes, so Leave quickly can replace the one history entry and Back never leads back in):
+- **Write it out**: a blank page or a guided shape (lament, thanks, hoping). "Let it go" never touches the server; only "Keep it" stores anything (`refuge_writings`). "Plant it in Grow" turns a hope into a seed.
+- **Talk with Aquila**: the graph's `listen` node through `POST /me/refuge/talk`. The browser holds the talk, and it vanishes when the person leaves Refuge (`Refuge.hide`, called by `cave.js` on any other tab or view) unless they press Keep (`refuge_talks`). These runs pass `callbacks: []`, so they are never traced to Langfuse, and nothing here reaches `user_memories`. Keep both true.
+- **Grow**: hopes, goals (with steps), habits and prayers (tended day by day, shown as a week of dots, never as a streak count). `refuge_seeds` and `refuge_checkins`, local days via `parse_today`.
+- **Be still**: one minute of breathing with Psalm 46:10, read from the database.
+- **One another**: share a burden or good news without a name. A post goes through `one_another.screen` (contact details refused; signs of risk are not posted and the writer is shown helplines; OpenAI moderation refuses hate, harassment, sexual and illicit content, while violence goes to a person since it also catches someone describing harm done to them), then waits as `pending` on the **admin desk** (`#desk`, `/admin/refuge`) until someone in `ADMIN_EMAILS` approves it. A report takes it off the wall at once and back to the desk. Others can only react, send one of `KIND_WORDS` (verses stored by reference and read from the database), or report. Nobody, the desk included, is ever sent who wrote a post; keep `user_id` out of every wall and desk select.
+
+Helplines live in `web/refuge.js::HELPLINES`, chosen by the browser's region and changeable. Nothing in Refuge appears on the home screen.
 
 ### The Bible reader, notes and highlights (`app/bible.py`, `app/notes.py`, `app/highlights.py`, `web/reader.js`)
 
@@ -115,9 +137,9 @@ Anyone can read; notes, highlights and memorizing need an account. Run `supabase
 
 ### Web client (`web/index.html`, `web/cave.js`, `web/graph.js`, `web/app.css`)
 
-Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, the Bible, Aquila, the cave, settings, signed out) as `<section data-view>` blocks, a small hash router, the chat stream and the voice call. `cave.js` owns everything personal (sessions, the home, cave and settings screens, the plan builder, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
+Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, the Bible, Aquila, the cave, settings, the admin desk, signed out) as `<section data-view>` blocks, a small hash router, the chat stream and the voice call. `cave.js` owns everything personal (sessions, past conversations in the Aquila rail with rename and delete, the home, cave and settings screens, the plan builder, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
 
-Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with six tabs side by side: Journal, Notes (highlights and notes), Prayers, Memorize, Conversations and Plans. `cave.js` draws the cave and hands each tab its panel; the Notes tab is drawn by `reader.js`, Prayers by `prayers.js` (`window.Prayers`) and Memorize by `memorize.js` (`window.Memorize`). "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#notes`, `#prayers`, `#memorize`, `#conversations` and `#plans` open the cave (all but the first on that tab); `#settings` and `#remembers` open Settings (the second scrolled to memory).
+Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with six tabs side by side: Journal, Notes (highlights and notes), Prayers, Memorize, Refuge and Plans. `cave.js` draws the cave and hands each tab its panel; the Notes tab is drawn by `reader.js`, Prayers by `prayers.js` (`window.Prayers`), Memorize by `memorize.js` (`window.Memorize`) and Refuge by `refuge.js` (`window.Refuge`). Past conversations live with Aquila, in the rail (or the Conversations sheet on a phone), where they can be opened, renamed and deleted. "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#notes`, `#prayers`, `#memorize`, `#refuge` and `#plans` open the cave (all but the first on that tab); `#conversations` lands on Aquila; `#settings` and `#remembers` open Settings (the second scrolled to memory); `#desk` is the admin desk.
 
 Type: Inter for the interface and Source Serif 4 only for quoted Scripture (`.scripture`, `.scripture-lg`), so a verse always reads as the text rather than as UI. Labels are sentence case; keep shouted uppercase kickers out.
 
@@ -131,7 +153,7 @@ Two things worth knowing before changing the SSE handling:
 
 ### Deployment
 
-`render.yaml` defines the Render Blueprint; secrets are filled in on Render's dashboard, never committed. `.github/workflows/deploy-watch.yml` polls the Render API and the live `/health` endpoint, opening (or updating) a GitHub issue only on an actual build/deploy failure or a failing health check, and closing it on recovery, so a healthy deploy produces no noise.
+`render.yaml` defines the Render Blueprint; secrets are filled in on Render's dashboard, never committed. That includes `ADMIN_EMAILS` (who can open the admin desk); left empty, nobody can approve a post and the One another wall stays empty. `.github/workflows/deploy-watch.yml` polls the Render API and the live `/health` endpoint, opening (or updating) a GitHub issue only on an actual build/deploy failure or a failing health check, and closing it on recovery, so a healthy deploy produces no noise.
 
 ## Product constraints that shape the code
 

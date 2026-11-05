@@ -68,5 +68,11 @@ class Settings(BaseSettings):
     # the button leads to a Supabase error page.
     auth_google_enabled: bool = False
 
+    # Comma-separated email addresses that can open the admin desk (#desk),
+    # where posts to Refuge's One another wall are approved before anyone sees
+    # them and reported posts come back for a second look. Left empty, nobody
+    # can approve anything and the wall stays empty, which is the safe default.
+    admin_emails: str = ""
+
 
 settings = Settings()

@@ -19,6 +19,8 @@ services:
         value: "512"
       - key: CHAT_MODEL
         value: gpt-4o-mini
+      - key: ADMIN_EMAILS
+        value: odicheobiakarije@gmail.com
       - key: LANGFUSE_PUBLIC_KEY
         sync: false
       - key: LANGFUSE_SECRET_KEY

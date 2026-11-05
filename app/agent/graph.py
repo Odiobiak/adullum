@@ -6,6 +6,9 @@
                                          ungrounded, up to          suggest_followups -> END
                                          MAX_RETRIES times)              (text only)
 
+A run with mode="listen" (Refuge, app/refuge.py) skips all of that and goes
+straight to listen -> END: one gentle reply over the whole talk so far.
+
 suggest_followups runs last on purpose: the answer and its citations have
 already streamed to the client by then, so the extra call costs the user no
 perceived latency. It only runs when the caller sets `want_followups`, which
@@ -23,11 +26,18 @@ from app.agent.nodes import (
     classify_intent,
     format_citations,
     ground_check,
+    listen,
     retrieve,
     suggest_followups,
     synthesize,
 )
 from app.agent.state import AgentState
+
+
+def _entry(state: AgentState) -> str:
+    """Where a run starts: Refuge's listening mode has its own node, and
+    everything else (left unset, "study") is a study question."""
+    return "listen" if state.get("mode") == "listen" else "classify_intent"
 
 
 def _after_classify(state: AgentState) -> str:
@@ -70,8 +80,10 @@ def build_graph():
     graph.add_node("ground_check", ground_check)
     graph.add_node("format_citations", format_citations)
     graph.add_node("suggest_followups", suggest_followups)
+    graph.add_node("listen", listen)
 
-    graph.set_entry_point("classify_intent")
+    graph.set_conditional_entry_point(_entry, {"listen": "listen", "classify_intent": "classify_intent"})
+    graph.add_edge("listen", END)
     graph.add_conditional_edges(
         "classify_intent",
         _after_classify,

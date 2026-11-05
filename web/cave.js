@@ -1,8 +1,9 @@
-// Everything personal: sign-in, the home screen, the cave (journal,
-// conversations, reading plans), settings (profile, theme, what Aquila
-// remembers), the signed-out page, and the extras under each answer. The
-// cave's Notes tab lives in web/reader.js, its Prayers tab in web/prayers.js
-// and its Memorize tab in web/memorize.js; this file hands them their panel.
+// Everything personal: sign-in, the home screen, the cave (journal, reading
+// plans), past conversations with Aquila, settings (profile, theme, what
+// Aquila remembers), the signed-out page, and the extras under each answer.
+// The cave's Notes tab lives in web/reader.js, its Prayers tab in
+// web/prayers.js, its Memorize tab in web/memorize.js and its Refuge tab in
+// web/refuge.js; this file hands them their panel.
 //
 // Loaded before index.html's main script, so it only defines things here and
 // reaches back into that script (window.AdullumApp) at call time. All talk with
@@ -284,7 +285,7 @@
     if (!signedIn()) return null;
     try {
       const me = await api("/me");
-      profile = { ...me.profile, email: me.user.email };
+      profile = { ...me.profile, email: me.user.email, is_admin: !!me.is_admin, desk_waiting: me.desk_waiting };
       if (session && !session.user) writeSession({ ...session, user: me.user });
       // web/reader.js listens for this to apply the saved translation.
       document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
@@ -308,6 +309,13 @@
     if (me) me.textContent = ((name || email() || "A").trim()[0] || "A").toUpperCase();
     if ($("#menuName")) $("#menuName").textContent = name || "Your account";
     if ($("#menuEmail")) $("#menuEmail").textContent = email();
+    // The admin desk link is only there for the people in ADMIN_EMAILS.
+    const desk = $("#menuDesk");
+    if (desk) {
+      desk.hidden = !(profile && profile.is_admin);
+      const waiting = profile && profile.desk_waiting;
+      desk.textContent = waiting ? `Admin desk (${waiting} waiting)` : "Admin desk";
+    }
     if (embers !== undefined) {
       const pill = $("#streakPill");
       if (embers && embers.streak > 0) {
@@ -730,11 +738,63 @@
   // ---------------------------------------------------------------------
   // Past conversations: the Ask rail on wide screens, a sheet on phones
   // ---------------------------------------------------------------------
-  function conversationButton(s, onOpen) {
-    return el("button", { class: "rail-item", type: "button", "aria-current": String(s.id === (app() && app().getSessionId())), onclick: onOpen }, [
+  // One past conversation: tap to open, and a small button beside it to
+  // rename or delete it. `onChanged` redraws whichever list it sits in.
+  function conversationButton(s, onOpen, onChanged) {
+    const open = el("button", { class: "rail-item", type: "button", "aria-current": String(s.id === (app() && app().getSessionId())), onclick: onOpen }, [
       el("span", { text: s.title || "Untitled" }),
       el("small", { text: when(s.updated_at || s.created_at) }),
     ]);
+    const more = el("button", { class: "rail-more", type: "button", "aria-label": `Rename or delete "${s.title || "Untitled"}"`, html: ICON_MORE, onclick: () => manageConversation(s, onChanged) });
+    return el("div", { class: "rail-row" }, [open, more]);
+  }
+
+  const ICON_MORE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>';
+
+  function manageConversation(s, onChanged) {
+    const title = el("input", { class: "field", maxlength: "120", "aria-label": "Name" });
+    title.value = s.title || "";
+    const msg = formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Save" });
+    const remove = el("button", { class: "btn btn-ghost btn-sm danger-text", type: "button", text: "Delete" });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "manageConvTitle" }, [
+      el("h3", { id: "manageConvTitle", text: "This conversation" }),
+      el("label", { class: "field-wrap" }, ["Name", title]),
+      msg.node,
+      el("div", { class: "sheet-actions" }, [remove, el("span", { style: "flex:1" }), el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
+    ]);
+    const close = overlay(form);
+    const changed = () => {
+      refreshRail();
+      if (onChanged) onChanged();
+    };
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!title.value.trim()) return msg.say("Give it a name.", true);
+      save.disabled = true;
+      try {
+        await api(`/me/sessions/${s.id}`, { method: "PATCH", body: { title: title.value.trim() } });
+        close();
+        toast("Renamed.");
+        changed();
+      } catch (err) {
+        msg.say(err.message, true);
+        save.disabled = false;
+      }
+    });
+    remove.onclick = async () => {
+      if (!confirm("Delete this conversation? This can't be undone.")) return;
+      try {
+        await api(`/me/sessions/${s.id}`, { method: "DELETE" });
+        close();
+        toast("Deleted.");
+        // Deleting the conversation on screen starts a fresh one.
+        if (app() && app().getSessionId() === s.id) app().newConversation();
+        changed();
+      } catch (err) {
+        msg.say(err.message, true);
+      }
+    };
   }
 
   let railTimer = null;
@@ -760,7 +820,7 @@
   }
 
   async function openConversations() {
-    const list = el("div", {}, el("p", { class: "faint", text: "Opening..." }));
+    const list = el("div", { class: "conv-list" }, el("p", { class: "faint", text: "Opening..." }));
     const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "convTitle" }, [
       el("div", { class: "row-between" }, [
         el("h3", { id: "convTitle", text: "Conversations" }),
@@ -769,16 +829,19 @@
       list,
     ]);
     const close = overlay(sheet);
-    try {
-      const rows = await api("/me/sessions");
-      list.replaceChildren(
-        ...(rows.length
-          ? rows.slice(0, 30).map((s) => conversationButton(s, () => { close(); openSession(s.id); }))
-          : [el("p", { class: "faint", text: "Your conversations will appear here." })])
-      );
-    } catch (err) {
-      list.replaceChildren(el("p", { class: "form-msg bad", text: err.message }));
-    }
+    const fill = async () => {
+      try {
+        const rows = await api("/me/sessions");
+        list.replaceChildren(
+          ...(rows.length
+            ? rows.slice(0, 30).map((s) => conversationButton(s, () => { close(); openSession(s.id); }, fill))
+            : [el("p", { class: "faint", text: "Your conversations will appear here." })])
+        );
+      } catch (err) {
+        list.replaceChildren(el("p", { class: "form-msg bad", text: err.message }));
+      }
+    };
+    fill();
   }
 
   // ---------------------------------------------------------------------
@@ -1036,19 +1099,20 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Notes, Prayers, Memorize, Conversations and Plans,
-  // side by side as tabs
+  // The cave: Journal, Notes, Prayers, Memorize, Refuge and Plans, side by
+  // side as tabs. Past conversations live with Aquila (the rail, or the
+  // Conversations sheet on a phone), where they can be opened, renamed and deleted.
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
-  const CAVE_ROUTES = { journal: "journal", notes: "notes", prayers: "prayers", memorize: "memorize", conversations: "sessions", plans: "plans" };
+  const CAVE_ROUTES = { journal: "journal", notes: "notes", prayers: "prayers", memorize: "memorize", refuge: "refuge", plans: "plans" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
     notes: ["Open the Bible", () => app().go("bible")],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
     // Practice has its own button inside the tab, beside the count of what's due.
     memorize: ["Add from the Bible", () => app().go("bible")],
-    sessions: ["New conversation", () => app().newConversation()],
     plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
+    // Refuge has no header button: its rooms are its own ways in.
   };
   let caveTab = "journal";
   let moodFilter = null;
@@ -1056,7 +1120,11 @@
   async function showCave(tab) {
     caveTab = tab || caveTab;
     $$("[data-cave-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.caveTab === caveTab)));
-    $("#caveAction").textContent = CAVE_ACTIONS[caveTab][0];
+    const action = CAVE_ACTIONS[caveTab];
+    $("#caveAction").hidden = !action;
+    if (action) $("#caveAction").textContent = action[0];
+    // Leaving Refuge settles the page back and lets an unkept talk vanish.
+    if (caveTab !== "refuge") window.Refuge.hide();
     const panel = $("#cavePanel");
     panel.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
@@ -1065,7 +1133,7 @@
         notes: (p) => window.Reader.renderAllNotes(p),
         prayers: (p) => window.Prayers.renderTab(p),
         memorize: (p) => window.Memorize.renderTab(p),
-        sessions: renderSessions,
+        refuge: (p) => window.Refuge.renderTab(p),
         plans: renderPlans,
       }[caveTab](panel);
     } catch (err) {
@@ -1140,44 +1208,6 @@
     if (e.verse_text) node.append(el("p", { class: "verse", text: e.verse_text }));
     node.append(refl, actions);
     return node;
-  }
-
-  async function renderSessions(panel) {
-    const rows = await api("/me/sessions");
-    if (!rows.length) {
-      panel.replaceChildren(el("div", { class: "empty" }, [
-        el("strong", { text: "No conversations yet" }),
-        "Every conversation with Aquila is kept here, newest first.",
-        el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "#aquila", text: "Ask Aquila" })),
-      ]));
-      return;
-    }
-    panel.replaceChildren(
-      el("div", { class: "entries" }, rows.map((s) => {
-        const node = el("article", { class: "entry fade-in" }, [
-          el("div", { class: "entry-meta" }, [el("span", { text: when(s.updated_at || s.created_at) })]),
-          el("h3", { text: s.title || "Untitled" }),
-        ]);
-        node.append(
-          el("div", { class: "entry-actions" }, [
-            el("button", { class: "act", type: "button", text: "Open", onclick: () => openSession(s.id) }),
-            el("button", {
-              class: "act danger", type: "button", text: "Delete",
-              onclick: async () => {
-                if (!confirm("Delete this conversation?")) return;
-                try {
-                  await api(`/me/sessions/${s.id}`, { method: "DELETE" });
-                  node.remove();
-                } catch (err) {
-                  toast(err.message);
-                }
-              },
-            }),
-          ])
-        );
-        return node;
-      }))
-    );
   }
 
   async function renderPlans(panel) {
@@ -1324,6 +1354,7 @@
   // Called by index.html's router each time the view changes
   // ---------------------------------------------------------------------
   function onView(view, route) {
+    if (view !== "cave") window.Refuge.hide();
     if (view === "welcome") showWelcome();
     else if (view === "signin") showSignin(route);
     else if (view === "home") showHome();
@@ -1331,6 +1362,7 @@
     else if (view === "cave") showCave(CAVE_ROUTES[route]);
     else if (view === "settings") showSettings(route);
     else if (view === "signedout") showSignedOut();
+    else if (view === "desk") window.Refuge.renderDesk();
   }
 
   window.Cave = {
@@ -1355,6 +1387,7 @@
     refreshRail,
     shareCard,
     toast,
+    verseText,
   };
 
   consumeRedirect();
@@ -1363,7 +1396,7 @@
     wireAuth();
     wireSettings();
     $$("[data-cave-tab]").forEach((b) => b.addEventListener("click", () => showCave(b.dataset.caveTab)));
-    $("#caveAction").addEventListener("click", () => CAVE_ACTIONS[caveTab][1]());
+    $("#caveAction").addEventListener("click", () => CAVE_ACTIONS[caveTab] && CAVE_ACTIONS[caveTab][1]());
     if (signedIn()) loadProfile();
     else updateChrome();
   });

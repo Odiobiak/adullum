@@ -34,3 +34,12 @@ class AgentState(TypedDict, total=False):
     # short notes about the person, never Scripture. synthesize/answer_meta may
     # let them shape tone; ground_check is told they can't support a claim.
     memories: list[str]
+
+    # Refuge (app/refuge.py) runs the graph in "listen" mode: a gentler
+    # Aquila who listens before she says anything, over the whole exchange in
+    # `history` ([{role: "user" | "aquila", content}]) rather than one study
+    # question. graph.py sends it straight to listen(); the study path never
+    # sees these keys. Left unset, the mode is "study".
+    mode: Literal["study", "listen"]
+    history: list[dict]
+    care: bool  # set by listen(): the person may not be safe, so the client shows helplines

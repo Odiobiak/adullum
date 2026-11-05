@@ -169,3 +169,20 @@ def require_user(authorization: str | None = Header(default=None)) -> AuthUser:
     if not user:
         raise HTTPException(status_code=401, detail="Sign in to open your cave.")
     return user
+
+
+def is_admin(user: AuthUser | None) -> bool:
+    """Whether this person can open the admin desk (settings.admin_emails)."""
+    if not user or not user.email:
+        return False
+    admins = {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
+    return user.email.lower() in admins
+
+
+def require_admin(authorization: str | None = Header(default=None)) -> AuthUser:
+    """FastAPI dependency for the admin desk. Signed out is a 401, signed in
+    without admin rights is a 403, so the client can tell the two apart."""
+    user = require_user(authorization)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Only the people who look after Adullum can open the admin desk.")
+    return user

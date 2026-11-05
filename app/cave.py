@@ -2,7 +2,8 @@
 
 Routes for signing in (/auth/*) and for everything a person keeps here
 (/me/*): their conversations, journal, and Aquila's notes about them. Reading
-plans have their own module, app/reading_plans.py. Every /me query filters by
+plans have their own module, app/reading_plans.py, and Refuge has
+app/refuge.py and app/one_another.py. Every /me query filters by
 the signed-in user's id itself, because the server's Supabase client uses the
 service-role key and bypasses RLS (see app/db.py). Never drop the `.eq("user_id", user.id)` from a query
 in this file.
@@ -185,7 +186,24 @@ def me(user: AuthUser = Depends(require_user)) -> dict:
             "plans": count("reading_plans"),
         }
     )
-    return {"user": {"id": user.id, "email": user.email}, "profile": profile, "counts": counts}
+    admin = auth.is_admin(user)
+    desk_waiting = None
+    if admin:
+        # The menu shows how many posts are waiting on the admin desk. The
+        # import is here because app/one_another.py imports from this module.
+        from app.one_another import waiting_count
+
+        try:
+            desk_waiting = waiting_count()
+        except Exception:
+            log.warning("couldn't count the admin desk", exc_info=True)
+    return {
+        "user": {"id": user.id, "email": user.email},
+        "profile": profile,
+        "counts": counts,
+        "is_admin": admin,
+        "desk_waiting": desk_waiting,
+    }
 
 
 @router.patch("/me")
@@ -244,6 +262,20 @@ def get_session(session_id: uuid.UUID, user: AuthUser = Depends(require_user)) -
         .data
     )
     return {**session, "messages": messages}
+
+
+class SessionPatch(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+
+
+@router.patch("/me/sessions/{session_id}")
+def rename_session(session_id: uuid.UUID, body: SessionPatch, user: AuthUser = Depends(require_user)) -> dict:
+    title = " ".join(body.title.split())
+    if not title:
+        raise HTTPException(status_code=422, detail="Give it a name.")
+    _own_session(str(session_id), user)
+    _db_call(lambda: get_supabase().table("chat_sessions").update({"title": title}).eq("id", str(session_id)).eq("user_id", user.id).execute())
+    return {"id": str(session_id), "title": title}
 
 
 @router.delete("/me/sessions/{session_id}")

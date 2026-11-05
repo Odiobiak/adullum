@@ -123,21 +123,32 @@ def parse_reference(query: str) -> ParsedReference | None:
     which the single-word book group can't match, so it is shortened to the
     "Song" alias first.
     """
-    query = _SONG_OF_RE.sub("Song", query)
-    for match in _REFERENCE_RE.finditer(query):
+    found = find_references(query)
+    return found[0] if found else None
+
+
+def find_references(text: str) -> list[ParsedReference]:
+    """Every Bible reference in `text`, in order, resolved the same way as
+    parse_reference. Used to check that a reply only names verses it was given
+    (app/agent/nodes.py::listen)."""
+    text = _SONG_OF_RE.sub("Song", text)
+    found = []
+    for match in _REFERENCE_RE.finditer(text):
         key = match.group("book").replace(" ", "").lower()
         canonical = _ALIAS_TO_CANONICAL.get(key)
         if not canonical:
             continue
         vstart = match.group("vstart")
         vend = match.group("vend")
-        return ParsedReference(
-            book=canonical,
-            chapter=int(match.group("chapter")),
-            verse_start=int(vstart) if vstart else None,
-            verse_end=int(vend) if vend else (int(vstart) if vstart else None),
+        found.append(
+            ParsedReference(
+                book=canonical,
+                chapter=int(match.group("chapter")),
+                verse_start=int(vstart) if vstart else None,
+                verse_end=int(vend) if vend else (int(vstart) if vstart else None),
+            )
         )
-    return None
+    return found
 
 
 def embed_query(text: str) -> list[float]:
