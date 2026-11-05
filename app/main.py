@@ -20,7 +20,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
-from app import cave, connections, hearth
+from app import bible, cave, connections, hearth, notes, reading_plans
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -56,9 +56,12 @@ app.add_middleware(
 )
 
 
+app.include_router(bible.router)
 app.include_router(cave.router)
 app.include_router(connections.router)
 app.include_router(hearth.router)
+app.include_router(notes.router)
+app.include_router(reading_plans.router)
 
 # Holds a reference to each after-turn save until it finishes. asyncio only
 # keeps a weak reference to a bare create_task(), so without this a save could

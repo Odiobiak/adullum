@@ -85,6 +85,11 @@ class TestRoutes:
         assert client.get("/me/home").status_code == 401
         assert client.post("/me/plans/x/progress", json={"day": 1, "done": True}).status_code == 401
 
+    def test_plan_routes_require_sign_in(self):
+        assert client.get("/me/plans").status_code == 401
+        assert client.post("/me/plans/build", json={"request": "The Gospels in a month"}).status_code == 401
+        assert client.delete("/me/plans/x").status_code == 401
+
     def test_providers_reports_google_off_by_default(self):
         assert client.get("/auth/providers").json() == {"google": False}
         assert client.get("/auth/google", follow_redirects=False).status_code == 404

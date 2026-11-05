@@ -1,10 +1,10 @@
 """My Cave: the signed-in side of Adullum.
 
 Routes for signing in (/auth/*) and for everything a person keeps here
-(/me/*): their conversations, journal, Aquila's notes about them, and their
-reading plans. Every /me query filters by the signed-in user's id itself,
-because the server's Supabase client uses the service-role key and bypasses
-RLS (see app/db.py). Never drop the `.eq("user_id", user.id)` from a query
+(/me/*): their conversations, journal, and Aquila's notes about them. Reading
+plans have their own module, app/reading_plans.py. Every /me query filters by
+the signed-in user's id itself, because the server's Supabase client uses the
+service-role key and bypasses RLS (see app/db.py). Never drop the `.eq("user_id", user.id)` from a query
 in this file.
 
 `record_turn` also lives here: it is what main.py calls after an answer has
@@ -40,14 +40,14 @@ _SETUP_HINT = (
 )
 
 
-def _db_call(fn):
+def _db_call(fn, setup_hint: str = _SETUP_HINT):
     """Runs a query, turning a missing table (migration not applied yet) into
     a clear 503 instead of an opaque 500."""
     try:
         return fn()
     except APIError as err:
         if err.code in ("42P01", "PGRST205", "42703"):
-            raise HTTPException(status_code=503, detail=_SETUP_HINT) from err
+            raise HTTPException(status_code=503, detail=setup_hint) from err
         raise
 
 
@@ -407,23 +407,6 @@ def forget(memory_id: int, user: AuthUser = Depends(require_user)) -> dict:
 def forget_all(user: AuthUser = Depends(require_user)) -> dict:
     _db_call(lambda: get_supabase().table("user_memories").delete().eq("user_id", user.id).execute())
     return {"status": "forgotten"}
-
-
-# ---------------------------------------------------------------------------
-# /me/plans
-# ---------------------------------------------------------------------------
-@router.get("/me/plans")
-def list_plans(user: AuthUser = Depends(require_user)) -> list[dict]:
-    return _db_call(
-        lambda: get_supabase()
-        .table("reading_plans")
-        .select("id, start_date, days, translation, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", desc=True)
-        .limit(20)
-        .execute()
-        .data
-    )
 
 
 # ---------------------------------------------------------------------------

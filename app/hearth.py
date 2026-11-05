@@ -19,12 +19,12 @@ import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel
 
 from app.auth import AuthUser, require_user
 from app.cave import _ensure_profile, revisit
 from app.config import settings
 from app.db import get_supabase
+from app.plan import plan_today  # re-exported: tests and callers read it from here
 from app.retrieval import lookup_by_reference, parse_reference
 
 log = logging.getLogger(__name__)
@@ -67,27 +67,6 @@ def compute_embers(active_days: set[date], today: date) -> dict:
         streak += 1
         cursor -= timedelta(days=1)
     return {"week": week, "streak": streak, "lit_today": today in active_days}
-
-
-def plan_today(plan: dict, today: date) -> dict:
-    """Where a plan stands on `today`: the day number, that day's readings,
-    and overall progress. Before the start date it shows day 1; after the end
-    it holds on the last day."""
-    start = date.fromisoformat(str(plan["start_date"]))
-    days = int(plan["days"])
-    day = min(max((today - start).days + 1, 1), days)
-    schedule = plan.get("schedule") or []
-    refs = schedule[day - 1]["references"] if len(schedule) >= day else []
-    completed = sorted(set(plan.get("completed_days") or []))
-    return {
-        "id": plan["id"],
-        "days": days,
-        "day": day,
-        "refs": refs,
-        "done_today": day in completed,
-        "completed": len(completed),
-        "progress_pct": round(100 * len(completed) / days, 1) if days else 0,
-    }
 
 
 def _parse_today(today: str | None) -> date:
@@ -178,42 +157,6 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         "revisit": (_part("revisit", lambda: revisit(user)) or {}).get("entry"),
         "memories": _part("memories", memories) or [],
     }
-
-
-class ProgressBody(BaseModel):
-    day: int
-    done: bool
-    today: str | None = None
-
-
-@router.post("/me/plans/{plan_id}/progress")
-def plan_progress(plan_id: str, body: ProgressBody, user: AuthUser = Depends(require_user)) -> dict:
-    db = get_supabase()
-    rows = db.table("reading_plans").select("*").eq("id", plan_id).eq("user_id", user.id).limit(1).execute().data
-    if not rows:
-        raise HTTPException(status_code=404, detail="Plan not found")
-    row = rows[0]
-    if not 1 <= body.day <= int(row["days"]):
-        raise HTTPException(status_code=422, detail="That day isn't part of this plan.")
-    completed = set(row.get("completed_days") or [])
-    if body.done:
-        completed.add(body.day)
-    else:
-        completed.discard(body.day)
-    try:
-        row = (
-            db.table("reading_plans").update({"completed_days": sorted(completed)})
-            .eq("id", plan_id).eq("user_id", user.id).execute().data[0]
-        )
-    except Exception as err:
-        raise HTTPException(
-            status_code=503,
-            detail="Plan progress isn't set up yet. Run supabase/migrations/20261105_hearth.sql in Supabase.",
-        ) from err
-    day = _parse_today(body.today)
-    if body.done:
-        _record_visit(user, day)
-    return plan_today(row, day)
 
 
 @router.get("/verse-of-the-day")

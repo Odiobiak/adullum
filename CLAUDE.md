@@ -12,6 +12,7 @@ Adullum is a Bible study agent named Aquila: ask a Scripture question, get a gro
 pip install -e ".[dev]"                                  # install app + dev deps
 uvicorn app.main:app --reload --reload-dir app --reload-dir web   # one process: REST API, SSE, MCP server, and the web UI all at :8000
                                                           # (--reload-dir keeps OneDrive syncing .venv from restarting the server mid-request)
+python scripts/fetch_translation.py --translation KJV   # download KJV/ASV/WEB/BSB to data/kjv.json in the shape ingest.py reads
 python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase (see --help for --batch-size)
 pytest                                                    # run the test suite (tests/)
 ```
@@ -77,14 +78,24 @@ Langfuse SDK v4. The module docstring documents three non-obvious failure modes 
 - The per-request `CallbackHandler` must never be cached or shared across requests. It exposes the trace it created via the plain instance attribute `last_trace_id`, and sharing one instance would race that attribute across concurrent requests.
 - Scoring a trace from inside a node function must use that explicit `last_trace_id`, not Langfuse's ambient "current trace" context. LangGraph runs sync node functions on a worker thread that does not inherit the main coroutine's contextvars, so the ambient lookup fails there.
 
-### My Cave: accounts, journal, memory (`app/auth.py`, `app/cave.py`, `app/memory.py`, `web/cave.js`)
+### The cave: accounts, journal, plans, memory (`app/auth.py`, `app/cave.py`, `app/reading_plans.py`, `app/memory.py`, `web/cave.js`)
 
-Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, then `20261105_hearth.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run.
+Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, `20261105_hearth.sql`, then `20261106_plan_titles.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run; until the third, plans shaped with Aquila save without their title and show a generic one.
 - **Auth is brokered by this server.** The browser never holds a Supabase key. `/auth/*` signs people in on a throwaway client from `app/auth.py::_auth_client` (never the shared `get_supabase()` one, which a sign-in would switch to that user's token), using the implicit flow so magic-link tokens land in the URL fragment for `web/cave.js` to pick up. Magic links only return here if the site URL is listed under Supabase Auth > URL Configuration.
 - **Every `/me` query filters by `user_id` in code**, because the service-role client bypasses RLS. The RLS policies in the migration exist for a future client talking to Supabase directly.
-- **The home screen is one request.** `GET /me/home` (`app/hearth.py`) gathers embers, the last conversation, today's plan reading, a journal entry to revisit and two memories, each part failing to null on its own. Days are the browser's local days (it sends `today`), so a streak doesn't break at a UTC midnight.
+- **The home screen is one request.** `GET /me/home` (`app/hearth.py`) gathers embers, the last conversation, today's plan reading, a journal entry to revisit and two memories (the screen doesn't show the memories; they live in Settings), each part failing to null on its own. Days are the browser's local days (it sends `today`), so a streak doesn't break at a UTC midnight.
 - **Verse text on screen always comes from the database.** The verse of the day (`app/hearth.py::VERSES_OF_THE_DAY`), the welcome page's example passage and the signed-out page's verse are fetched through `/verse-of-the-day` and `/verse`, never typed into the page. The only hard-coded quotation is the KJV 1 Samuel 22 passage that explains the name, and it is labelled KJV.
+- **Plans shaped with Aquila can't invent a chapter.** `POST /me/plans/build` asks the model only for books and chapter ranges (`app/plan.py::PlanDraft`). `expand_sections` resolves every book through `app/retrieval.py::canonical_book`, clamps ranges to `BOOK_CHAPTER_COUNTS`, and the split into days is the same arithmetic as the whole-Bible plan. Keep the model out of the day-by-day layout.
 - **Memory is never Scripture.** `app/memory.py::recall` hands the graph `memories` for signed-in people; `synthesize`, `answer_meta` and `ground_check` all label them as notes about the person that can't support a claim about the Bible. Keep that labelling if you touch those prompts. Note-taking (`remember_turn`) runs after the answer is delivered and is non-fatal, like `suggest_followups`.
+
+### The Bible reader and notes (`app/bible.py`, `app/notes.py`, `web/reader.js`)
+
+Anyone can read; notes need an account. Run `supabase/migrations/20261107_verse_notes.sql` once, after the others. Until then the reader works and saving a note returns a 503 that says what to run.
+- **A translation is offered only once it's loaded.** `app/bible.py::TRANSLATIONS` lists the public-domain ones (BSB, KJV, WEB, ASV); `/bible/translations` returns the subset that has verses in the database, cached for five minutes, so after ingesting a new one the picker shows it within that window. To add one, fetch it with `scripts/fetch_translation.py` (which normalizes book names and the quirks of each source, listed in its docstring), ingest it, and it appears.
+- **One translation preference drives everything.** The hidden `#translation` input in `index.html` is the single value Aquila, the verse of the day, the map and the reader all read. `web/reader.js` sets it from the reader's picker and the one in Settings, remembers it on the device, and saves it to `profiles.preferred_translation` when signed in (applied on the next sign-in via the `adullum:profile` event `cave.js` dispatches).
+- **Notes are pinned to book, chapter and verse range, not to a translation**, so a note shows beside the same verse whichever translation is open. `translation` and `verse_text` record what the person was reading when they wrote it. Every `/me/notes` query filters by `user_id`, same rule as the cave.
+- **Asking Aquila about a verse or note is an ordinary question** composed by `reader.js::askQuery` with the reference first (`On John 3:16-18: ...`), so `parse_reference` pulls exactly those verses and nothing in the graph changes. A note goes in quoted as the person's own words; the synthesize prompt still grounds only on retrieved verses, so a note can't become a citation.
+- Reader links are `#bible/<Book-with-hyphens>/<chapter>[/<verse>]`; `Reader.href("John 3:16")` builds one. "Read in context" under each answer and in the map's side panel uses it.
 
 ### Knowledge graph (`app/connections.py`, `web/graph.js`)
 
@@ -92,7 +103,11 @@ Run the files in `supabase/migrations/` once each, in date order, in the Supabas
 
 ### Web client (`web/index.html`, `web/cave.js`, `web/graph.js`, `web/app.css`)
 
-Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, Ask Aquila, My cave, signed out) as `<section data-view>` blocks, a small hash router (`#home`, `#ask`, `#cave`, `#remembers`, `#join`...), the chat stream and the voice call. `cave.js` owns everything personal (sessions, the home and cave screens, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
+Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, the Bible, Aquila, the cave, settings, signed out) as `<section data-view>` blocks, a small hash router, the chat stream and the voice call. `cave.js` owns everything personal (sessions, the home, cave and settings screens, the plan builder, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
+
+Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with four tabs side by side: Journal, Notes, Conversations and Plans. "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#notes`, `#conversations` and `#plans` open the cave (the last four on that tab); `#settings` and `#remembers` open Settings (the second scrolled to memory).
+
+Type: Inter for the interface and Source Serif 4 only for quoted Scripture (`.scripture`, `.scripture-lg`), so a verse always reads as the text rather than as UI. Labels are sentence case; keep shouted uppercase kickers, glows and gradients out.
 
 Themes: four palettes (Dawn, Olive Grove, Twilight, Hearth) defined only as tokens at the top of `app.css` and set as `<html data-theme>`. Give any new colour a token in all four blocks rather than a literal, and check its contrast in the two light themes, where muted text and the accent are closest to failing.
 

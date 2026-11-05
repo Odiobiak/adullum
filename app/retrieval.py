@@ -58,10 +58,25 @@ _ALIAS_TO_CANONICAL = {
     for alias in aliases + [canonical]
 }
 
+# Names that only ever arrive as whole book names (from a model building a
+# reading plan, say), never inside a typed reference, so they live here
+# rather than in BOOK_ALIASES where the reference regex would have to match them.
+_ALIAS_TO_CANONICAL.update({"songofsongs": "Song of Solomon", "canticles": "Song of Solomon", "revelations": "Revelation"})
+
+
+def canonical_book(name: str) -> str | None:
+    """Resolve a book name as a person or a model might write it ("Psalm",
+    "1 Cor", "Song of Songs") to its canonical name, or None if it isn't a
+    book of the 66-book canon."""
+    key = re.sub(r"[\s.]", "", name or "").lower()
+    return _ALIAS_TO_CANONICAL.get(key)
+
+
 _REFERENCE_RE = re.compile(
     r"\b(?P<book>[1-3]?\s?[A-Za-z]+)\s+(?P<chapter>\d{1,3})"
     r"(?::(?P<vstart>\d{1,3})(?:[-–](?P<vend>\d{1,3}))?)?"
 )
+_SONG_OF_RE = re.compile(r"\bsong\s+of\s+(?:solomon|songs)\b", re.IGNORECASE)
 
 # Matches "(the) book of James", "book of 1 Corinthians", etc. — deliberately
 # narrower than matching any bare book name (which would false-positive on
@@ -99,7 +114,12 @@ def parse_reference(query: str) -> ParsedReference | None:
     [+ verse[-range]]) AND resolves to a known book alias — a query like "chapter 3
     of that book" matches the regex's chapter part but has no recognizable book
     name, so it correctly falls through to vector/keyword search instead.
+
+    "Song of Solomon 2:1" is the one canonical name with spaces in the middle,
+    which the single-word book group can't match, so it is shortened to the
+    "Song" alias first.
     """
+    query = _SONG_OF_RE.sub("Song", query)
     for match in _REFERENCE_RE.finditer(query):
         key = match.group("book").replace(" ", "").lower()
         canonical = _ALIAS_TO_CANONICAL.get(key)

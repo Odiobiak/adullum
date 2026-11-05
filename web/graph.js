@@ -333,6 +333,10 @@
       close();
       window.AdullumApp && window.AdullumApp.submitQuery(`What does ${ref} mean, and how does it connect with the rest of Scripture?`);
     });
+    btn("Read in context", () => {
+      close();
+      if (window.Reader && window.AdullumApp) window.AdullumApp.go(window.Reader.href(ref));
+    });
     btn("Save to journal", () => window.Cave && window.Cave.openJournal({ passage_ref: ref, verse_text: d.text }));
 
     panel.append(h, meta, p, actions);

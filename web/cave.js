@@ -1,5 +1,6 @@
-// Everything personal: sign-in, the home screen, My Cave, the journal, the
-// signed-out page, themes, and the extras under each of Aquila's answers.
+// Everything personal: sign-in, the home screen, the cave (journal,
+// conversations, reading plans), settings (profile, theme, what Aquila
+// remembers), the signed-out page, and the extras under each answer.
 //
 // Loaded before index.html's main script, so it only defines things here and
 // reaches back into that script (window.AdullumApp) at call time. All talk with
@@ -9,13 +10,17 @@
   const STORE_KEY = "adullumSession";
   const MOODS = ["grief", "joy", "waiting", "decision", "gratitude", "doubt", "peace", "longing"];
   const THEME_NAMES = { dawn: "Dawn", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth" };
+  // Starting points offered under the plan builder. Tapping one fills the box.
+  const PLAN_IDEAS = ["The Gospels in a month", "Two weeks on anxiety", "Psalms for hard nights", "Romans, slowly"];
 
   const ICON = {
     bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     graph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.3 7l7.3.7M7 8.3l2.2 7.4M16.4 10l-4.8 6"/></svg>',
     speaker: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5L6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>',
-    image: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 15l5-5 4 4 3-3 6 6"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>',
     ember: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>',
   };
 
@@ -66,11 +71,25 @@
     if (days < 14) return `${days} days ago`;
     if (days < 60) return `${Math.round(days / 7)} weeks ago`;
     if (days < 365) return `${Math.round(days / 30)} months ago`;
-    return "A while back";
+    return "a while back";
   }
   function partOfDay() {
     const h = new Date().getHours();
     return h < 12 ? "morning" : h < 17 ? "afternoon" : "evening";
+  }
+
+  // "Matthew 1", "Matthew 2", "Matthew 3", "Mark 1" -> "Matthew 1-3", "Mark 1".
+  // A plan stores one reference per chapter; people read runs of them.
+  function compactRefs(refs) {
+    const runs = [];
+    for (const ref of refs || []) {
+      const m = ref.match(/^(.*\S)\s+(\d+)$/);
+      const last = runs[runs.length - 1];
+      if (m && last && last.book === m[1] && Number(m[2]) === last.end + 1) last.end += 1;
+      else if (m) runs.push({ book: m[1], start: Number(m[2]), end: Number(m[2]) });
+      else runs.push({ label: ref });
+    }
+    return runs.map((r) => r.label || (r.start === r.end ? `${r.book} ${r.start}` : `${r.book} ${r.start}-${r.end}`));
   }
 
   let toastTimer = null;
@@ -89,6 +108,8 @@
     toastTimer = setTimeout(() => (t.hidden = true), 3400);
   }
 
+  // Shows `content` in a dimmed overlay that closes on Escape or an outside
+  // click. Returns the function that closes it.
   function overlay(content) {
     const wrap = el("div", { class: "sheet-overlay" }, content);
     const close = () => {
@@ -104,15 +125,25 @@
     return close;
   }
 
+  function formMessage() {
+    const node = el("p", { class: "form-msg", role: "alert" });
+    return {
+      node,
+      say(text, bad) {
+        node.textContent = text || "";
+        node.classList.toggle("bad", !!bad);
+      },
+    };
+  }
+
   // ---------------------------------------------------------------------
   // Themes. index.html's early script applies the saved one before paint;
-  // this keeps the pickers and the saved choice in step.
+  // this keeps every picker and the saved choice in step.
   // ---------------------------------------------------------------------
   function setTheme(t) {
     if (!THEME_NAMES[t]) t = "dawn";
     document.documentElement.dataset.theme = t;
     $$("[data-set-theme]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setTheme === t)));
-    $$("[data-theme-name]").forEach((n) => (n.textContent = THEME_NAMES[t]));
     try {
       localStorage.setItem("adullumTheme", t);
     } catch {
@@ -152,6 +183,7 @@
   }
   let session = readSession();
   let profile = null;
+  let lastName = "";
   const signedIn = () => !!session;
 
   let refreshing = null;
@@ -216,13 +248,12 @@
   }
 
   function signOut() {
-    lastName = (profile && profile.display_name) || "";
+    lastName = displayName();
     writeSession(null);
     profile = null;
     updateChrome();
     app().go("signedout");
   }
-  let lastName = "";
 
   // Magic links and Google land back here with tokens in the URL fragment
   // (implicit flow, see app/auth.py). Read them once, then scrub the URL so
@@ -239,7 +270,7 @@
         user: null,
       });
       history.replaceState(null, "", location.pathname + location.search + "#home");
-      setTimeout(() => toast("Welcome in. Your cave is ready."), 300);
+      setTimeout(() => toast("You're signed in."), 300);
     } else if (params.get("error_description")) {
       history.replaceState(null, "", location.pathname + location.search + "#signin");
       setTimeout(() => toast(params.get("error_description").replace(/\+/g, " ")), 300);
@@ -252,6 +283,8 @@
       const me = await api("/me");
       profile = { ...me.profile, email: me.user.email };
       if (session && !session.user) writeSession({ ...session, user: me.user });
+      // web/reader.js listens for this to apply the saved translation.
+      document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
     } catch {
       /* the header falls back to the email initial */
     }
@@ -262,14 +295,16 @@
   function displayName() {
     return (profile && profile.display_name) || "";
   }
+  function email() {
+    return (profile && profile.email) || (session && session.user && session.user.email) || "";
+  }
 
   function updateChrome(embers) {
     const name = displayName();
-    const email = (profile && profile.email) || (session && session.user && session.user.email) || "";
     const me = $("#meBtn");
-    if (me) me.textContent = ((name || email || "A").trim()[0] || "A").toUpperCase();
-    if ($("#menuName")) $("#menuName").textContent = name || "Friend";
-    if ($("#menuEmail")) $("#menuEmail").textContent = email;
+    if (me) me.textContent = ((name || email() || "A").trim()[0] || "A").toUpperCase();
+    if ($("#menuName")) $("#menuName").textContent = name || "Your account";
+    if ($("#menuEmail")) $("#menuEmail").textContent = email();
     if (embers !== undefined) {
       const pill = $("#streakPill");
       if (embers && embers.streak > 0) {
@@ -293,16 +328,16 @@
     const join = authMode === "join";
     $("#authForm").hidden = authMode === "sent";
     $("#authSent").hidden = authMode !== "sent";
-    $("#authHeading").textContent = join ? "Make your cave" : "Welcome back";
+    $("#authHeading").textContent = join ? "Create your account" : "Welcome back";
     $("#authSub").textContent = join
-      ? "A private place for your studies, your journal, and a companion who remembers."
-      : "Your journal, your conversations, and Aquila are right where you left them.";
+      ? "Free, private, and yours: a journal, your conversations, and reading plans."
+      : "Your journal, conversations and plans are where you left them.";
     $("#nameRow").hidden = !join;
     $("#pwRow").hidden = authMethod !== "password";
     $("#authPassword").autocomplete = join ? "new-password" : "current-password";
     $$("[data-method]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.method === authMethod)));
-    $("#authPrimary").textContent = authMethod === "link" ? "Email me a sign-in link" : join ? "Create my cave" : "Sign in";
-    $("#switchPrompt").textContent = join ? "Already have a cave?" : "New here?";
+    $("#authPrimary").textContent = authMethod === "link" ? "Email me a sign-in link" : join ? "Create account" : "Sign in";
+    $("#switchPrompt").textContent = join ? "Already have an account?" : "New here?";
     $("#switchMode").textContent = join ? "Sign in" : "Create one";
   }
   function say(id, text, bad) {
@@ -328,18 +363,18 @@
 
     const busy = (on) => ($("#authPrimary").disabled = on);
     async function sendLink() {
-      const email = $("#authEmail").value.trim();
-      await api("/auth/magic-link", { method: "POST", body: { email, display_name: $("#authName").value.trim() || null } });
-      $("#sentTo").textContent = email;
+      const address = $("#authEmail").value.trim();
+      await api("/auth/magic-link", { method: "POST", body: { email: address, display_name: $("#authName").value.trim() || null } });
+      $("#sentTo").textContent = address;
       authMode = "sent";
       renderAuth();
     }
 
     $("#authForm").addEventListener("submit", async (e) => {
       e.preventDefault();
-      const email = $("#authEmail").value.trim();
+      const address = $("#authEmail").value.trim();
       const password = $("#authPassword").value;
-      if (!email) return say("#authMsg", "Add your email first.", true);
+      if (!address) return say("#authMsg", "Add your email first.", true);
       if (authMethod === "password" && password.length < 6) return say("#authMsg", "Passwords need at least 6 characters.", true);
       say("#authMsg", "");
       busy(true);
@@ -347,11 +382,11 @@
         if (authMethod === "link") {
           await sendLink();
         } else if (authMode === "join") {
-          const res = await api("/auth/signup", { method: "POST", body: { email, password, display_name: $("#authName").value.trim() || null } });
+          const res = await api("/auth/signup", { method: "POST", body: { email: address, password, display_name: $("#authName").value.trim() || null } });
           if (res.status === "confirm_email") say("#authMsg", "Almost there. Confirm your email from the message we just sent, then sign in.");
-          else await startSession(res.session, { welcome: "Your cave is ready." });
+          else await startSession(res.session, { welcome: "Your account is ready." });
         } else {
-          const res = await api("/auth/signin", { method: "POST", body: { email, password } });
+          const res = await api("/auth/signin", { method: "POST", body: { email: address, password } });
           await startSession(res.session, { welcome: "Welcome back." });
         }
       } catch (err) {
@@ -374,7 +409,7 @@
       e.preventDefault();
       try {
         const res = await api("/auth/verify", { method: "POST", body: { email: $("#sentTo").textContent, code: $("#authCode").value.trim() } });
-        await startSession(res.session, { welcome: "Welcome in." });
+        await startSession(res.session, { welcome: "You're signed in." });
       } catch (err) {
         say("#codeMsg", err.message, true);
       }
@@ -427,7 +462,7 @@
     const preview = $("#previewPassage");
     if (preview && !preview.textContent) {
       try {
-        preview.textContent = `"${(await verseText("Romans 5:3-4")).text}"`;
+        preview.textContent = `"${(await verseText("Matthew 11:28-29")).text}"`;
       } catch {
         /* the example still reads without its quote */
       }
@@ -435,13 +470,17 @@
   }
 
   // ---------------------------------------------------------------------
-  // Home
+  // Shared pieces: cards, reading plans, the plan builder
   // ---------------------------------------------------------------------
-  function card(kicker, { warm, ember } = {}, body = []) {
+  // A card with a small label (or a head row) followed by its body.
+  function card(head, { warm } = {}, body = []) {
     return el("section", { class: `card fade-in${warm ? " warm" : ""}` }, [
-      typeof kicker === "string" ? el("h2", { class: `kicker${ember ? " ember" : ""}`, text: kicker }) : kicker,
+      typeof head === "string" ? el("h2", { class: "kicker", text: head }) : head,
       ...body,
     ]);
+  }
+  function cardHead(label, aside) {
+    return el("div", { class: "card-head" }, [el("h2", { class: "kicker", text: label }), aside]);
   }
 
   async function openSession(id, then) {
@@ -454,189 +493,239 @@
     }
   }
 
-  function planCard(plan, rerender) {
-    if (!plan) {
-      return card("Read through the Bible", {}, [
-        el("p", { class: "muted", style: "margin:0 0 18px", text: "A chapter or so a day, Genesis to Revelation. Aquila keeps your place and lets you know what's next." }),
-        el("button", {
-          class: "btn btn-ember btn-sm", type: "button", text: "Start a one-year plan",
-          onclick: async (e) => {
-            e.target.disabled = true;
-            try {
-              await api("/plan", { method: "POST", body: { start_date: localToday(), days: 365, translation: translation() } });
-              toast("Your plan starts today.");
-              rerender();
-            } catch (err) {
-              e.target.disabled = false;
-              toast(err.message);
-            }
-          },
-        }),
-      ]);
+  async function startWholeBiblePlan(button, onDone) {
+    if (button) button.disabled = true;
+    try {
+      await api("/plan", { method: "POST", body: { start_date: localToday(), days: 365, translation: translation() } });
+      toast("Your one-year plan starts today.");
+      onDone();
+    } catch (err) {
+      if (button) button.disabled = false;
+      toast(err.message);
     }
+  }
+
+  // The box where someone tells Aquila what they'd like to read. Used on the
+  // home screen (compact, inside a card) and at the top of the Plans tab.
+  function planBuilder({ onBuilt, compact = false }) {
+    const id = compact ? "homePlanRequest" : "planRequest";
+    const input = el("textarea", { id, rows: "2", maxlength: "500", placeholder: "For example: the Gospels in a month, or two weeks on anxiety" });
+    const msg = formMessage();
+    const build = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Shape my plan" });
+    const whole = el("button", { class: "linkish", type: "button", text: "Or read the whole Bible in a year" });
+    whole.onclick = () => startWholeBiblePlan(whole, onBuilt);
+
+    const form = el("form", { class: `plan-builder${compact ? "" : " card"}` }, [
+      compact ? null : el("h2", { class: "section-title", text: "Plan with Aquila" }),
+      el("p", {
+        class: "muted", style: "margin:0 0 12px;font-size:15px",
+        text: "Tell Aquila what you'd like to read, or what you're walking through, and how long you have. She'll lay it out day by day.",
+      }),
+      el("label", { class: "sr", for: id, text: "What would you like to read?" }),
+      input,
+      el("div", { class: "topics" }, PLAN_IDEAS.map((idea) =>
+        el("button", { class: "topic", type: "button", text: idea, onclick: () => { input.value = idea; input.focus(); } })
+      )),
+      msg.node,
+      el("div", { class: "builder-actions" }, [build, whole]),
+    ]);
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        form.requestSubmit();
+      }
+    });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const request = input.value.trim();
+      if (request.length < 3) return msg.say("Tell Aquila a little about what you'd like to read.", true);
+      msg.say("");
+      build.disabled = true;
+      build.textContent = "Shaping your plan...";
+      try {
+        const plan = await api("/me/plans/build", { method: "POST", body: { request, today: localToday(), translation: translation() } });
+        toast(`"${plan.title}" starts today.`);
+        onBuilt(plan);
+      } catch (err) {
+        msg.say(err.message, true);
+        build.disabled = false;
+        build.textContent = "Shape my plan";
+      }
+    });
+    return form;
+  }
+
+  // One reading plan: where it stands today, today's chapters, and its
+  // actions. `compact` is the home screen's version.
+  function planItem(plan, { compact = false, onChange }) {
     const bar = el("span", { style: `width:${Math.max(plan.progress_pct, 1)}%` });
-    const doneBtn = el("button", { class: `btn btn-sm ${plan.done_today ? "act is-done" : "btn-ember"}`, type: "button" });
+    const progressText = el("span");
+    const doneBtn = el("button", { type: "button" });
     const paint = (p) => {
-      doneBtn.className = `btn btn-sm ${p.done_today ? "act is-done" : "btn-ember"}`;
-      doneBtn.innerHTML = `${ICON.check}<span>${p.done_today ? "Read today" : "Mark as read"}</span>`;
+      doneBtn.className = p.done_today ? "btn btn-sm btn-ghost" : "btn btn-sm btn-ember";
+      doneBtn.innerHTML = p.done_today ? `${ICON.check}<span>Read today</span>` : "<span>Mark as read</span>";
       bar.style.width = `${Math.max(p.progress_pct, 1)}%`;
+      progressText.textContent = `${p.completed} of ${p.days} days read`;
     };
     paint(plan);
     doneBtn.addEventListener("click", async () => {
       const next = !plan.done_today;
       try {
-        plan = await api(`/me/plans/${plan.id}/progress`, { method: "POST", body: { day: plan.day, done: next, today: localToday() } });
+        plan = { ...plan, ...(await api(`/me/plans/${plan.id}/progress`, { method: "POST", body: { day: plan.day, done: next, today: localToday() } })) };
         paint(plan);
         if (next) toast(`Day ${plan.day} read. ${plan.completed} of ${plan.days} done.`);
       } catch (err) {
         toast(err.message);
       }
     });
-    return card(
-      el("div", { class: "row-between" }, [
-        el("h2", { class: "kicker", text: "Today in your plan" }),
-        el("span", { class: "faint", style: "font-size:14px", text: `Through the Bible in ${plan.days} days · Day ${plan.day}` }),
+
+    const refs = compactRefs(plan.refs);
+    const body = [
+      !compact && plan.overview ? el("p", { class: "overview", text: plan.overview }) : null,
+      el("div", { class: "bar", role: "progressbar", "aria-label": `${plan.title} progress`, "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(plan.progress_pct) }, bar),
+      el("div", { class: "progress-line" }, [progressText, el("span", { text: `Day ${plan.day} of ${plan.days}` })]),
+      el("div", { class: "refs" }, [
+        el("span", { class: "kicker", text: "Today" }),
+        ...refs.map((r) => el("button", { class: "chapter", type: "button", text: r, title: `Read ${r} with Aquila`, onclick: () => app().submitQuery(`Walk me through ${r}.`) })),
       ]),
-      {},
-      [
-        el("div", { class: "bar", role: "progressbar", "aria-label": "Plan progress", "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(plan.progress_pct) }, bar),
-        el("div", { class: "row-between", style: "margin:0" }, [
-          el("div", { class: "row", style: "gap:8px" }, plan.refs.map((r) =>
-            el("button", { class: "chapter", type: "button", text: r, title: `Read ${r} with Aquila`, onclick: () => app().submitQuery(`Walk me through ${r}.`) })
-          )),
-          doneBtn,
-        ]),
-      ]
-    );
+      el("div", { class: "card-actions-row" }, [
+        doneBtn,
+        compact ? el("a", { class: "act", href: "#plans", text: "All plans" }) : null,
+        compact ? null : el("a", { class: "act", href: `${apiBase()}/plan/${plan.id}/pdf`, html: `${ICON.download}<span>PDF</span>` }),
+        compact
+          ? null
+          : el("button", {
+              class: "act danger", type: "button", text: "Delete",
+              onclick: async () => {
+                if (!confirm(`Delete "${plan.title}"? Your progress in it goes too.`)) return;
+                try {
+                  await api(`/me/plans/${plan.id}`, { method: "DELETE" });
+                  onChange();
+                } catch (err) {
+                  toast(err.message);
+                }
+              },
+            }),
+      ]),
+    ];
+    if (compact) return card(cardHead("Today's reading", el("span", { class: "faint", style: "font-size:13px", text: plan.title })), {}, body);
+    return el("article", { class: "card plan-item" }, [el("h3", { class: "section-title", text: plan.title }), ...body]);
+  }
+
+  // ---------------------------------------------------------------------
+  // Home
+  // ---------------------------------------------------------------------
+  function homeVerseCard(v) {
+    return el("section", { class: "card warm today-band fade-in" }, [
+      el("div", {}, [
+        el("h2", { class: "kicker ember", text: "Verse for today" }),
+        el("p", { class: "scripture-lg", text: `"${v.text}"` }),
+        el("p", { class: "verse-ref", style: "margin-top:8px", text: `${v.ref} · ${v.translation}` }),
+      ]),
+      el("div", { class: "row", style: "gap:2px" }, [
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Reflect with Aquila", onclick: () => app().submitQuery(`Help me reflect on ${v.ref}.`) }),
+        el("button", { class: "act", type: "button", html: `${ICON.bookmark}<span>Keep</span>`, onclick: () => openJournal({ passage_ref: v.ref, verse_text: v.text }) }),
+        el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]) }),
+        el("button", { class: "act", type: "button", html: `${ICON.share}<span>Share</span>`, onclick: () => shareCard(v) }),
+      ]),
+    ]);
+  }
+
+  function continueCard(s) {
+    if (!s) {
+      return card("Your first conversation", {}, [
+        el("p", { class: "muted", style: "margin:0 0 16px", text: "Ask about a passage, a hard question, or the season you're in. Every conversation is kept in your cave so you can pick it back up." }),
+        el("a", { class: "btn btn-ember btn-sm", href: "#aquila", text: "Ask Aquila" }),
+      ]);
+    }
+    return card(cardHead("Pick up where you left off", el("span", { class: "faint", style: "font-size:13px", text: when(s.updated_at) })), {}, [
+      el("p", { class: "big-q", text: s.title || "Your last conversation" }),
+      s.refs.length ? el("p", { class: "muted", style: "font-size:15px", text: `You were reading ${s.refs.join(", ")}.` }) : null,
+      el("div", { class: "card-actions-row" }, [
+        el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Continue", onclick: () => openSession(s.id) }),
+        s.followup ? el("button", { class: "btn btn-ghost btn-sm btn-wrap", type: "button", text: s.followup, onclick: () => openSession(s.id, s.followup) }) : null,
+      ]),
+    ]);
+  }
+
+  function homePlanCard(plan) {
+    if (plan) return planItem(plan, { compact: true, onChange: showHome });
+    return card("Reading plan", {}, [planBuilder({ compact: true, onBuilt: showHome })]);
+  }
+
+  function weekCard(e) {
+    const line = e.streak > 1 ? `${e.streak} days in a row.` : e.streak === 1 ? "Day one. Come back tomorrow to keep it going." : "One ember for every day you come in.";
+    return card("This week", {}, [
+      el("p", { class: "faint", style: "margin:-4px 0 14px;font-size:14px", text: line }),
+      el("div", { class: "week" }, e.week.map((d) =>
+        el("div", {}, [
+          el("div", { class: `day-dot${d.lit ? " lit" : ""}`, html: ICON.ember, title: d.lit ? "You came in" : "" }),
+          el("span", { class: `day-label${d.today ? " today" : ""}`, text: d.label }),
+        ])
+      )),
+    ]);
+  }
+
+  function revisitCard(r) {
+    const where = r.passage_ref || r.question || "a passage";
+    const reflection = r.reflection.length > 220 ? `${r.reflection.slice(0, 217)}...` : r.reflection;
+    return card(`From your journal, ${agoPhrase(r.created_at)}`, {}, [
+      el("p", { style: "margin:0 0 6px;font-size:15px" }, ["You were with ", el("strong", { text: where }), r.mood ? ` in a season of ${r.mood}, and wrote:` : ", and wrote:"]),
+      el("p", { class: "scripture", style: "font-size:17px;color:var(--soft);font-style:italic;margin:0 0 12px", text: `"${reflection}"` }),
+      el("p", { class: "muted", style: "font-size:15px", text: "How is that now?" }),
+      el("div", { class: "card-actions-row" }, [
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Return to it with Aquila", onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${r.reflection.slice(0, 300)}"`) }),
+        el("a", { class: "act", href: "#journal", text: "Open journal" }),
+      ]),
+    ]);
+  }
+
+  function setGreeting() {
+    const name = displayName();
+    $("#greet").textContent = `Good ${partOfDay()}${name ? `, ${name}` : ""}`;
   }
 
   async function showHome() {
-    const name = displayName();
-    $("#greet").textContent = `Good ${partOfDay()}${name ? `, ${name}` : ""}.`;
-    $("#dayLine").textContent = `${new Date().toLocaleDateString(undefined, { weekday: "long" })} ${partOfDay()}`;
-    $("#homeQuery").placeholder = `What are you carrying this ${partOfDay()}?`;
+    setGreeting();
+    $("#dayLine").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
     const main = $("#homeMain");
     const side = $("#homeSide");
-    if (!main.children.length) main.append(el("div", { class: "empty", text: "Gathering your cave..." }));
+    if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
 
+    // The verse is public and cached for the day, so it loads alongside the
+    // home request rather than after it.
+    const versePromise = verseOfTheDay().catch(() => null);
     let data;
     try {
       data = await api(`/me/home?today=${localToday()}`);
     } catch (err) {
       main.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Your cave isn't open yet" }), err.message]));
+      side.replaceChildren();
       return;
     }
-    if (data.profile && data.profile.display_name && profile) profile.display_name = data.profile.display_name;
-    const nm = displayName();
-    $("#greet").textContent = `Good ${partOfDay()}${nm ? `, ${nm}` : ""}.`;
+    // /me may still be loading on a fresh visit, so the home payload's profile
+    // fills in the name rather than waiting for it.
+    if (data.profile) profile = { ...(profile || {}), ...data.profile };
+    setGreeting();
     updateChrome(data.embers);
 
-    const e = data.embers;
-    $("#streakLine").textContent = !e
-      ? ""
-      : e.streak > 1
-        ? `${e.streak} days in a row. The fire is warm.`
-        : e.streak === 1
-          ? "Your first ember is lit. Come back tomorrow and keep it going."
-          : "";
-    $("#streakLine").hidden = !$("#streakLine").textContent;
-
-    // Main column
-    const mainCards = [];
-    const s = data.last_session;
-    if (s) {
-      mainCards.push(
-        card(
-          el("div", { class: "row-between" }, [
-            el("h2", { class: "kicker", text: "Pick up where you left off" }),
-            el("span", { class: "faint", style: "font-size:14px", text: when(s.updated_at) }),
-          ]),
-          {},
-          [
-            el("p", { class: "big-q", text: s.title || "Your last conversation" }),
-            s.refs.length ? el("p", { class: "muted", style: "margin:0 0 20px", text: `You were sitting with ${s.refs.join(", ")}.` }) : el("div", { style: "height:12px" }),
-            el("div", { class: "row" }, [
-              el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Continue with Aquila", onclick: () => openSession(s.id) }),
-              s.followup ? el("button", { class: "btn btn-ghost btn-sm btn-wrap", type: "button", text: s.followup, onclick: () => openSession(s.id, s.followup) }) : null,
-            ]),
-          ]
-        )
-      );
-    } else {
-      mainCards.push(
-        card("Your first conversation", {}, [
-          el("p", { class: "muted", style: "margin:0 0 18px", text: "Ask about a passage, a hard question, or the season you're in. Everything you ask is kept here so you can pick it back up." }),
-          el("a", { class: "btn btn-ember btn-sm", href: "#ask", text: "Ask Aquila" }),
-        ])
-      );
-    }
-    mainCards.push(planCard(data.plan, showHome));
-    const r = data.revisit;
-    if (r) {
-      const where = r.passage_ref || r.question || "a passage";
-      mainCards.push(
-        card(`From your journal, ${agoPhrase(r.created_at).toLowerCase()}`, { ember: true }, [
-          el("p", { style: "font-size:19px;margin:0 0 8px" }, ["You sat with ", el("strong", { text: where }), r.mood ? ` in a season of ${r.mood}, and wrote:` : ", and wrote:"]),
-          el("p", { style: "font-size:18px;color:var(--soft);font-style:italic;margin:0 0 18px", text: `"${r.reflection.length > 220 ? r.reflection.slice(0, 217) + "..." : r.reflection}"` }),
-          el("p", { class: "muted", style: "margin:0 0 14px", text: "How is that now?" }),
-          el("div", { class: "row" }, [
-            el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Return to it with Aquila", onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${r.reflection.slice(0, 300)}"`) }),
-            el("a", { class: "btn btn-ghost btn-sm", href: "#cave", text: "Open my journal" }),
-          ]),
-        ])
-      );
-    }
-    main.replaceChildren(...mainCards);
-
-    // Side column
-    const sideCards = [];
-    if (e) {
-      sideCards.push(
-        card("Your embers this week", {}, [
-          el("p", { class: "faint", style: "margin:-6px 0 18px;font-size:15px", text: "One for every day you come in." }),
-          el("div", { class: "week" }, e.week.map((d) =>
-            el("div", {}, [
-              el("div", { class: `day-dot${d.lit ? " lit" : ""}`, html: ICON.ember, title: d.lit ? "You came in" : "" }),
-              el("span", { class: `day-label${d.today ? " today" : ""}`, text: d.label }),
-            ])
-          )),
-        ])
-      );
-    }
-    try {
-      const v = await verseOfTheDay();
-      sideCards.push(
-        card("Verse for today", { warm: true, ember: true }, [
-          el("p", { style: "font:600 21px/1.4 var(--display);margin:0 0 10px", text: `"${v.text}"` }),
-          el("p", { class: "verse-ref", style: "margin:0 0 18px", text: `${v.ref} · ${v.translation}` }),
-          el("div", { class: "row", style: "gap:8px" }, [
-            el("button", { class: "act", type: "button", html: `${ICON.bookmark}<span>Keep it</span>`, onclick: () => openJournal({ passage_ref: v.ref, verse_text: v.text }) }),
-            el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]) }),
-            el("button", { class: "act", type: "button", html: `${ICON.image}<span>Share</span>`, onclick: () => shareCard(v) }),
-          ]),
-        ])
-      );
-    } catch {
-      /* no verse card today */
-    }
-    if (data.memories && data.memories.length) {
-      sideCards.push(
-        card(
-          el("div", { class: "row-between", style: "margin-bottom:12px" }, [
-            el("h2", { class: "kicker", text: "Aquila remembers" }),
-            el("a", { href: "#remembers", style: "font-size:14px;font-weight:600;text-decoration:none", text: "Manage" }),
-          ]),
-          {},
-          [el("ul", { class: "remember" }, data.memories.map((m) => el("li", { text: m.replace(/^They /, "You ").replace(/^They're /, "You're ") })))]
-        )
-      );
-    }
-    side.replaceChildren(...sideCards);
+    const v = await versePromise;
+    $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
+    main.replaceChildren(continueCard(data.last_session), homePlanCard(data.plan));
+    side.replaceChildren(...[data.embers ? weekCard(data.embers) : null, data.revisit ? revisitCard(data.revisit) : null].filter(Boolean));
   }
 
   // ---------------------------------------------------------------------
-  // The Ask Aquila rail: past conversations, current one highlighted
+  // Past conversations: the Ask rail on wide screens, a sheet on phones
   // ---------------------------------------------------------------------
+  function conversationButton(s, onOpen) {
+    return el("button", { class: "rail-item", type: "button", "aria-current": String(s.id === (app() && app().getSessionId())), onclick: onOpen }, [
+      el("span", { text: s.title || "Untitled" }),
+      el("small", { text: when(s.updated_at || s.created_at) }),
+    ]);
+  }
+
   let railTimer = null;
   function refreshRail() {
     if (!signedIn()) return;
@@ -648,16 +737,10 @@
       if (!list) return;
       try {
         const rows = await api("/me/sessions");
-        const current = app() && app().getSessionId();
         list.replaceChildren(
           ...(rows.length
-            ? rows.slice(0, 30).map((s) =>
-                el("button", { class: "rail-item", type: "button", "aria-current": String(s.id === current), onclick: () => openSession(s.id) }, [
-                  el("span", { text: s.title || "Untitled" }),
-                  el("small", { text: when(s.updated_at || s.created_at) }),
-                ])
-              )
-            : [el("p", { class: "faint", style: "padding:8px 14px;font-size:14px", text: "Your conversations will appear here." })])
+            ? rows.slice(0, 30).map((s) => conversationButton(s, () => openSession(s.id)))
+            : [el("p", { class: "faint", style: "padding:4px 10px;font-size:14px", text: "Your conversations will appear here." })])
         );
       } catch {
         /* the rail is a convenience */
@@ -665,12 +748,34 @@
     }, 1200);
   }
 
+  async function openConversations() {
+    const list = el("div", {}, el("p", { class: "faint", text: "Opening..." }));
+    const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "convTitle" }, [
+      el("div", { class: "row-between" }, [
+        el("h3", { id: "convTitle", text: "Conversations" }),
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "New", onclick: () => { close(); app().newConversation(); } }),
+      ]),
+      list,
+    ]);
+    const close = overlay(sheet);
+    try {
+      const rows = await api("/me/sessions");
+      list.replaceChildren(
+        ...(rows.length
+          ? rows.slice(0, 30).map((s) => conversationButton(s, () => { close(); openSession(s.id); }))
+          : [el("p", { class: "faint", text: "Your conversations will appear here." })])
+      );
+    } catch (err) {
+      list.replaceChildren(el("p", { class: "form-msg bad", text: err.message }));
+    }
+  }
+
   // ---------------------------------------------------------------------
   // Journal sheet: save an answer, a verse, or a free-written entry
   // ---------------------------------------------------------------------
   function moodPicker() {
     let selected = null;
-    const wrap = el("div", { class: "moods", role: "group", "aria-label": "The season you're in", style: "margin:8px 0 16px" });
+    const wrap = el("div", { class: "moods", role: "group", "aria-label": "The season you're in" });
     for (const m of MOODS) {
       const b = el("button", { class: "mood", type: "button", "aria-pressed": "false", text: m });
       b.onclick = () => {
@@ -684,7 +789,7 @@
 
   function openJournal(item = {}, onSaved) {
     if (!signedIn()) {
-      toast("Sign in to keep this in your journal.");
+      toast("Create a free account to keep a journal.");
       app().go("join");
       return;
     }
@@ -692,8 +797,8 @@
     const passage = el("input", { id: "journalPassage", placeholder: "Psalm 23, or leave blank" });
     const tags = el("input", { id: "journalTags", placeholder: "prayer, small group" });
     const moods = moodPicker();
-    const msg = el("p", { class: "form-msg", role: "alert" });
-    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Keep it" });
+    const msg = formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Save" });
     const freeWrite = !item.passage_ref && !item.question;
 
     const preview = freeWrite
@@ -703,25 +808,21 @@
           : [el("strong", { text: item.question || "" }), document.createTextNode((item.answer || "").replace(/^#+\s*/gm, "").slice(0, 400))]);
 
     const formEl = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "journalTitle" }, [
-      el("h3", { id: "journalTitle", text: freeWrite ? "Write in your journal" : "Into the journal" }),
-      el("p", { class: "sheet-lede", text: "Only you can read this. Aquila will remember it, gently, next time you talk." }),
+      el("h3", { id: "journalTitle", text: freeWrite ? "New journal entry" : "Save to your journal" }),
+      el("p", { class: "sheet-lede", text: "Only you can see this. Aquila may bring it up gently next time you talk." }),
       preview,
       el("label", { class: "field-wrap" }, ["Your reflection", reflection]),
       el("span", { class: "field-label" }, "The season you're in"),
       moods.node,
       el("label", { class: "field-wrap" }, ["Tags", tags]),
-      msg,
+      msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
     ]);
     const close = overlay(formEl);
 
     formEl.addEventListener("submit", async (e) => {
       e.preventDefault();
-      if (freeWrite && !reflection.value.trim()) {
-        msg.textContent = "Write a line or two first.";
-        msg.classList.add("bad");
-        return;
-      }
+      if (freeWrite && !reflection.value.trim()) return msg.say("Write a line or two first.", true);
       save.disabled = true;
       try {
         const first = (item.citations || [])[0];
@@ -740,11 +841,10 @@
           },
         });
         close();
-        toast("Kept in your journal.");
+        toast("Saved to your journal.");
         if (onSaved) onSaved(entry);
       } catch (err) {
-        msg.textContent = err.message;
-        msg.classList.add("bad");
+        msg.say(err.message, true);
         save.disabled = false;
       }
     });
@@ -787,18 +887,13 @@
       if (!near.length) return;
       msg.querySelector(".answer-actions").after(
         el("div", { class: "connect fade-in" }, [
-          el("span", {
-            html: '<svg width="96" height="56" viewBox="0 0 120 70" fill="none" aria-hidden="true"><path d="M60 35L18 14M60 35L104 18M60 35L30 60M60 35L96 58" stroke="#F4A14C" stroke-opacity=".35" stroke-width="2"/><circle cx="60" cy="35" r="9" fill="#F4A14C"/><circle cx="18" cy="14" r="6" fill="#F4A14C" fill-opacity=".55"/><circle cx="104" cy="18" r="6" fill="#F4A14C" fill-opacity=".55"/><circle cx="30" cy="60" r="6" fill="#F4A14C" fill-opacity=".55"/><circle cx="96" cy="58" r="6" fill="#F4A14C" fill-opacity=".55"/></svg>',
-          }),
-          el("div", { style: "flex:1;min-width:200px" }, [
-            el("p", { style: "font-weight:700;margin:0 0 4px", text: `${ref} sits close to` }),
-            el("p", { class: "muted", style: "margin:0 0 8px", text: near.join(" · ") }),
-            el("button", { class: "linkish", type: "button", style: "padding:0", text: "Open the map →", onclick: () => window.Graph.open([ref]) }),
-          ]),
+          el("strong", { text: `Close to ${ref}:` }),
+          el("span", { class: "muted", text: near.join(" · ") }),
+          el("button", { class: "linkish", type: "button", style: "padding:0", text: "Open the map", onclick: () => window.Graph.open([ref]) }),
         ])
       );
     } catch {
-      /* the map card is extra */
+      /* the map line is extra */
     }
   }
 
@@ -809,17 +904,18 @@
     saveBtn.onclick = () =>
       openJournal({ question: data.query, answer: data.answer, citations: data.citations }, () => {
         saveBtn.classList.add("is-done");
-        saveBtn.innerHTML = `${ICON.check}<span>In your journal</span>`;
+        saveBtn.innerHTML = `${ICON.check}<span>Saved</span>`;
       });
     const listenBtn = el("button", { class: "act", type: "button", html: `${ICON.speaker}<span>Listen</span>` });
     listenBtn.onclick = () => listen(listenBtn, data.answer);
     const row = el("div", { class: "answer-actions" }, [
       saveBtn,
-      refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Explore connections</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
+      refs.length ? el("a", { class: "act", href: `#${window.Reader.href(refs[0])}`, title: `Open ${refs[0]} in the Bible`, html: `${ICON.book}<span>Read in context</span>` }) : null,
+      refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
       listenBtn,
       refs.length
         ? el("button", {
-            class: "act", type: "button", html: `${ICON.image}<span>Share as a card</span>`,
+            class: "act", type: "button", html: `${ICON.share}<span>Share</span>`,
             onclick: async () => {
               try {
                 shareCard(await verseText(refs[0]));
@@ -838,9 +934,9 @@
   function markMemory(msg) {
     if (!msg || msg.querySelector(".memory-mark")) return;
     const mark = el("a", {
-      class: "memory-mark", href: "#remembers", style: "text-decoration:none",
-      title: "Aquila drew on what she remembers about you. See or change it in My cave.",
-      html: `<svg class="flame" viewBox="0 0 24 24" fill="#F4A14C" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg><span>Aquila remembers you</span>`,
+      class: "memory-mark", href: "#remembers",
+      title: "Aquila drew on what she remembers about you. See or change it in Settings.",
+      html: `${ICON.ember.replace("<svg ", '<svg fill="#F4A14C" ')}<span>Aquila remembered something you shared</span>`,
     });
     msg.querySelector(".stages").after(mark);
   }
@@ -876,20 +972,17 @@
     c.width = W;
     c.height = H;
     const ctx = c.getContext("2d");
-    const g = ctx.createRadialGradient(W / 2, H * 1.05, 40, W / 2, H * 0.9, H * 0.9);
-    g.addColorStop(0, token("--glow-strong"));
-    g.addColorStop(1, token("--ground"));
-    ctx.fillStyle = g;
+    ctx.fillStyle = token("--ground");
     ctx.fillRect(0, 0, W, H);
 
     let size = 64;
     let lines;
     do {
-      ctx.font = `600 ${size}px "Bricolage Grotesque", system-ui, sans-serif`;
+      ctx.font = `400 ${size}px "Source Serif 4", Georgia, serif`;
       lines = wrapLines(ctx, `"${text}"`, W - 200);
       size -= 4;
     } while (lines.length * size * 1.3 > H - 520 && size > 30);
-    const lineH = (size + 4) * 1.32;
+    const lineH = (size + 4) * 1.4;
     let y = (H - lines.length * lineH) / 2;
     ctx.fillStyle = token("--text");
     ctx.textBaseline = "top";
@@ -897,7 +990,7 @@
       ctx.fillText(l, 100, y);
       y += lineH;
     }
-    ctx.font = `600 38px "Figtree", system-ui, sans-serif`;
+    ctx.font = `600 36px "Inter", system-ui, sans-serif`;
     ctx.fillStyle = token("--ember");
     ctx.fillText(`${ref} · ${tr}`, 100, y + 30);
 
@@ -909,20 +1002,19 @@
     ctx.bezierCurveTo(100, H - 190, 125, H - 220, 140, H - 220);
     ctx.bezierCurveTo(155, H - 220, 180, H - 190, 180, H - 100);
     ctx.stroke();
-    ctx.font = `700 40px "Bricolage Grotesque", system-ui, sans-serif`;
+    ctx.font = `600 38px "Inter", system-ui, sans-serif`;
     ctx.fillStyle = token("--text");
-    ctx.fillText("Adullum", 205, H - 152);
+    ctx.fillText("Adullum", 205, H - 150);
 
     const blob = await new Promise((resolve) => c.toBlob(resolve, "image/png"));
     const file = new File([blob], `${ref.replace(/[^\w]+/g, "-")}.png`, { type: "image/png" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ files: [file], title: ref });
-        return;
       } catch {
-        /* cancelled: fall through to nothing */
-        return;
+        /* cancelled */
       }
+      return;
     }
     const a = el("a", { href: URL.createObjectURL(blob), download: file.name });
     document.body.append(a);
@@ -933,18 +1025,27 @@
   }
 
   // ---------------------------------------------------------------------
-  // My cave
+  // The cave: Journal, Conversations and Plans, side by side as tabs
   // ---------------------------------------------------------------------
+  // Hash routes that open a tab directly, and the header button each tab shows.
+  const CAVE_ROUTES = { journal: "journal", notes: "notes", conversations: "sessions", plans: "plans" };
+  const CAVE_ACTIONS = {
+    journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
+    notes: ["Open the Bible", () => app().go("bible")],
+    sessions: ["New conversation", () => app().newConversation()],
+    plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
+  };
   let caveTab = "journal";
   let moodFilter = null;
 
   async function showCave(tab) {
     caveTab = tab || caveTab;
     $$("[data-cave-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.caveTab === caveTab)));
+    $("#caveAction").textContent = CAVE_ACTIONS[caveTab][0];
     const panel = $("#cavePanel");
-    panel.replaceChildren(el("div", { class: "empty", text: "Gathering..." }));
+    panel.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
-      await { journal: renderJournal, sessions: renderSessions, memories: renderMemories, plans: renderPlans }[caveTab](panel);
+      await { journal: renderJournal, notes: (p) => window.Reader.renderAllNotes(p), sessions: renderSessions, plans: renderPlans }[caveTab](panel);
     } catch (err) {
       panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Couldn't open this" }), err.message]));
     }
@@ -952,23 +1053,25 @@
 
   async function renderJournal(panel) {
     const entries = await api(`/me/journal${moodFilter ? `?mood=${moodFilter}` : ""}`);
-    const filters = el("div", { class: "moods" }, [null, ...MOODS].map((m) =>
+    if (!entries.length && !moodFilter) {
+      panel.replaceChildren(el("div", { class: "empty" }, [
+        el("strong", { text: "Nothing in your journal yet" }),
+        "Save an answer or a verse from Aquila, or write about today.",
+        el("div", {}, el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Write an entry", onclick: () => openJournal({}, () => showCave("journal")) })),
+      ]));
+      return;
+    }
+    const filters = el("div", { class: "moods", role: "group", "aria-label": "Filter by season" }, [null, ...MOODS].map((m) =>
       el("button", { class: "mood", type: "button", "aria-pressed": String(m === moodFilter), text: m || "All", onclick: () => { moodFilter = m; showCave("journal"); } })
     ));
-    const grid = el("div", { class: "entries" }, [
-      el("button", { class: "new-entry", type: "button", onclick: () => openJournal({}, () => showCave("journal")) }, [
-        el("span", { html: '<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#F4A14C" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>' }),
-        el("strong", { text: "Write about today" }),
-        el("span", { text: "A verse, a prayer, a sentence. It all counts." }),
-      ]),
-      ...entries.map(journalCard),
-    ]);
+    const grid = entries.length
+      ? el("div", { class: "entries" }, entries.map(journalCard))
+      : el("p", { class: "muted", text: `Nothing saved in a season of ${moodFilter} yet.` });
     panel.replaceChildren(filters, grid);
-    if (!entries.length && moodFilter) grid.append(el("p", { class: "faint", style: "align-self:center", text: `Nothing kept in a season of ${moodFilter} yet.` }));
   }
 
   function journalCard(e) {
-    const node = el("article", { class: "entry" });
+    const node = el("article", { class: "entry fade-in" });
     const meta = el("div", { class: "entry-meta" }, [el("span", { text: when(e.created_at) })]);
     if (e.mood) meta.append(el("span", { class: "badge", text: e.mood }));
     for (const t of e.tags || []) meta.append(el("span", { class: "tag", text: `#${t}` }));
@@ -996,7 +1099,7 @@
         : e.passage_ref
           ? el("button", { class: "act", type: "button", text: "Return to it", onclick: () => app().submitQuery(`I'd like to come back to ${e.passage_ref}.`) })
           : null,
-      refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Explore</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
+      refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
       editBtn,
       el("button", {
         class: "act danger", type: "button", text: "Delete",
@@ -1020,19 +1123,22 @@
   async function renderSessions(panel) {
     const rows = await api("/me/sessions");
     if (!rows.length) {
-      panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "No conversations yet" }), "Every conversation with Aquila is kept here, newest first, ready to pick back up."]));
+      panel.replaceChildren(el("div", { class: "empty" }, [
+        el("strong", { text: "No conversations yet" }),
+        "Every conversation with Aquila is kept here, newest first.",
+        el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "#aquila", text: "Ask Aquila" })),
+      ]));
       return;
     }
     panel.replaceChildren(
-      el("p", { class: "muted", style: "margin:0 0 18px", text: "Every conversation with Aquila, newest first, ready to pick back up." }),
       el("div", { class: "entries" }, rows.map((s) => {
-        const node = el("article", { class: "entry" }, [
+        const node = el("article", { class: "entry fade-in" }, [
           el("div", { class: "entry-meta" }, [el("span", { text: when(s.updated_at || s.created_at) })]),
           el("h3", { text: s.title || "Untitled" }),
         ]);
         node.append(
           el("div", { class: "entry-actions" }, [
-            el("button", { class: "act", type: "button", text: "Open conversation", onclick: () => openSession(s.id) }),
+            el("button", { class: "act", type: "button", text: "Open", onclick: () => openSession(s.id) }),
             el("button", {
               class: "act danger", type: "button", text: "Delete",
               onclick: async () => {
@@ -1052,8 +1158,43 @@
     );
   }
 
+  async function renderPlans(panel) {
+    const rows = await api(`/me/plans?today=${localToday()}`);
+    const rerender = () => showCave("plans");
+    panel.replaceChildren(
+      planBuilder({ onBuilt: rerender }),
+      rows.length
+        ? el("div", { class: "plan-list" }, [el("h2", { class: "section-title", text: "Your plans" }), ...rows.map((p) => planItem(p, { onChange: rerender }))])
+        : el("p", { class: "muted", style: "margin-top:20px", text: "No plans yet. Shape one with Aquila above, or read the whole Bible in a year." })
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Settings: profile, theme, and what Aquila remembers
+  // ---------------------------------------------------------------------
+  function renderThemeOptions() {
+    const box = $("#themeOptions");
+    if (box.children.length) return;
+    const current = document.documentElement.dataset.theme;
+    box.append(
+      ...Object.entries(THEME_NAMES).map(([key, name]) =>
+        el("button", { class: "theme-option", type: "button", "data-set-theme": key, "aria-pressed": String(key === current) }, [
+          el("span", { class: "swatch", "data-swatch": key, "aria-hidden": "true" }),
+          name,
+        ])
+      )
+    );
+  }
+
   async function renderMemories(panel) {
-    const rows = await api("/me/memories");
+    panel.replaceChildren(el("p", { class: "faint", text: "Opening..." }));
+    let rows;
+    try {
+      rows = await api("/me/memories");
+    } catch (err) {
+      panel.replaceChildren(el("p", { class: "form-msg bad", text: err.message }));
+      return;
+    }
     const toggle = el("input", { type: "checkbox", id: "memoryToggle" });
     toggle.checked = !profile || profile.memory_enabled !== false;
     toggle.onchange = async () => {
@@ -1067,37 +1208,39 @@
       }
     };
     const list = rows.length
-      ? el("div", { class: "entries" }, rows.map((m) => {
-          const node = el("article", { class: "entry" }, [
-            el("div", { class: "entry-meta" }, [el("span", { text: when(m.created_at) }), el("span", { class: m.kind === "journal" ? "badge" : "badge plain", text: m.kind === "journal" ? "from journal" : "noticed" })]),
-            el("p", { class: "refl", text: m.content }),
+      ? el("ul", { class: "memory-list" }, rows.map((m) => {
+          const item = el("li", {}, [
+            el("div", {}, [
+              el("p", { text: m.content }),
+              el("small", { text: `${when(m.created_at)} · ${m.kind === "journal" ? "from your journal" : "from a conversation"}` }),
+            ]),
           ]);
-          node.append(el("div", { class: "entry-actions" }, [el("button", {
-            class: "act danger", type: "button", text: "Forget this",
+          item.append(el("button", {
+            class: "act danger", type: "button", text: "Forget",
             onclick: async () => {
               try {
                 await api(`/me/memories/${m.id}`, { method: "DELETE" });
-                node.remove();
+                item.remove();
               } catch (err) {
                 toast(err.message);
               }
             },
-          })]));
-          return node;
+          }));
+          return item;
         }))
-      : el("div", { class: "empty" }, [el("strong", { text: "Nothing remembered yet" }), "As you share what you're studying or walking through, Aquila keeps a few quiet notes here."]);
+      : el("p", { class: "muted", text: "Nothing yet. As you share what you're studying or walking through, Aquila keeps a few short notes here." });
     panel.replaceChildren(
-      el("p", { class: "muted", style: "max-width:640px;margin:0 0 18px", text: "These are the notes Aquila keeps so she can know you over time. They are never treated as Scripture, and you can let any of them go." }),
+      el("p", { class: "section-sub", text: "Short notes Aquila keeps so she can know you over time. They are never treated as Scripture, and you can remove any of them." }),
       el("label", { class: "switch", for: "memoryToggle" }, [toggle, "Let Aquila remember me"]),
       list,
       rows.length
-        ? el("div", { class: "row", style: "justify-content:center;margin-top:24px" }, [el("button", {
-            class: "act danger", type: "button", text: "Forget everything",
+        ? el("div", { class: "row", style: "margin-top:16px" }, [el("button", {
+            class: "btn btn-ghost btn-sm", type: "button", text: "Forget everything",
             onclick: async () => {
               if (!confirm("Let Aquila forget everything she has noted about you? Your journal stays.")) return;
               try {
                 await api("/me/memories", { method: "DELETE" });
-                showCave("memories");
+                renderMemories(panel);
               } catch (err) {
                 toast(err.message);
               }
@@ -1107,39 +1250,30 @@
     );
   }
 
-  async function renderPlans(panel) {
-    const rows = await api("/me/plans");
-    const start = el("button", {
-      class: "btn btn-ember btn-sm", type: "button", text: "Start a one-year plan",
-      onclick: async () => {
-        start.disabled = true;
-        try {
-          await api("/plan", { method: "POST", body: { start_date: localToday(), days: 365, translation: translation() } });
-          toast("Your plan starts today.");
-          showCave("plans");
-        } catch (err) {
-          start.disabled = false;
-          toast(err.message);
-        }
-      },
+  async function showSettings(route) {
+    if (!profile) await loadProfile();
+    $("#settingsEmail").textContent = email() ? `Signed in as ${email()}` : "";
+    $("#settingsName").value = displayName();
+    renderThemeOptions();
+    renderMemories($("#memoryPanel"));
+    if (route === "remembers") setTimeout(() => $("#remembers").scrollIntoView({ behavior: "smooth", block: "start" }), 120);
+  }
+
+  function wireSettings() {
+    $("#nameForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = $("#settingsName").value.trim();
+      if (!name) return toast("Add a name first.");
+      try {
+        const p = await api("/me", { method: "PATCH", body: { display_name: name } });
+        profile = { ...profile, ...p };
+        updateChrome();
+        toast("Saved.");
+      } catch (err) {
+        toast(err.message);
+      }
     });
-    if (!rows.length) {
-      panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "No reading plans yet" }), el("p", { style: "margin:0 0 16px", text: "Read through the whole Bible at your own pace. Aquila keeps your place." }), start]));
-      return;
-    }
-    panel.replaceChildren(
-      el("div", { class: "entries" }, rows.map((p) =>
-        el("article", { class: "entry" }, [
-          el("div", { class: "entry-meta" }, [el("span", { text: `Started ${new Date(p.start_date + "T00:00:00").toLocaleDateString()}` }), el("span", { class: "badge plain", text: p.translation })]),
-          el("h3", { text: `Through the Bible in ${p.days} days` }),
-          el("div", { class: "entry-actions" }, [
-            el("a", { class: "act", href: "#home", text: "Today's reading" }),
-            el("a", { class: "act", href: `${apiBase()}/plan/${p.id}/pdf`, text: "Download PDF" }),
-          ]),
-        ])
-      )),
-      el("div", { class: "row", style: "margin-top:24px" }, [start])
-    );
+    $$("[data-sign-out]").forEach((b) => b.addEventListener("click", signOut));
   }
 
   // ---------------------------------------------------------------------
@@ -1168,18 +1302,24 @@
     if (view === "welcome") showWelcome();
     else if (view === "signin") showSignin(route);
     else if (view === "home") showHome();
-    else if (view === "ask") refreshRail();
-    else if (view === "cave") showCave(route === "remembers" ? "memories" : caveTab === "memories" ? "journal" : caveTab);
+    else if (view === "aquila") refreshRail();
+    else if (view === "cave") showCave(CAVE_ROUTES[route]);
+    else if (view === "settings") showSettings(route);
     else if (view === "signedout") showSignedOut();
   }
 
   window.Cave = {
     authHeaders,
     api,
+    el,
+    overlay,
+    formMessage,
+    when,
     signedIn,
     signOut,
     onView,
     openJournal,
+    openConversations,
     decorateAnswer,
     markMemory,
     refreshRail,
@@ -1191,8 +1331,9 @@
   document.addEventListener("DOMContentLoaded", () => {
     setTheme(document.documentElement.dataset.theme);
     wireAuth();
+    wireSettings();
     $$("[data-cave-tab]").forEach((b) => b.addEventListener("click", () => showCave(b.dataset.caveTab)));
-    $$("[data-new-entry]").forEach((b) => b.addEventListener("click", () => openJournal({}, () => showCave("journal"))));
+    $("#caveAction").addEventListener("click", () => CAVE_ACTIONS[caveTab][1]());
     if (signedIn()) loadProfile();
     else updateChrome();
   });

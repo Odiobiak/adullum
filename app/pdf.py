@@ -6,6 +6,7 @@ schedule itself is generated.
 """
 
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import LETTER
@@ -13,13 +14,15 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from app.plan import plan_title
+
 _BRASS = colors.HexColor("#8a6d3f")
 _LINE = colors.HexColor("#ddd3bf")
 _PAPER = colors.HexColor("#f6f2e9")
 
 
 def render_plan_pdf(plan: dict) -> bytes:
-    """`plan` is a reading_plans row: start_date, days, translation, overview, schedule."""
+    """`plan` is a reading_plans row: start_date, days, translation, overview, schedule, and title if it has one."""
     buffer = BytesIO()
     doc = SimpleDocTemplate(
         buffer, pagesize=LETTER, topMargin=0.75 * inch, bottomMargin=0.75 * inch
@@ -29,13 +32,14 @@ def render_plan_pdf(plan: dict) -> bytes:
     cell_style = ParagraphStyle("PlanCell", parent=styles["BodyText"], fontSize=9, leading=11)
 
     story = [
-        Paragraph(f"{plan['days']}-Day Bible Reading Plan", title_style),
+        # Paragraph reads its text as markup, so a title the model wrote is escaped.
+        Paragraph(escape(plan_title(plan)), title_style),
         Paragraph(
             f"Starting {plan['start_date']}, {plan['translation']} translation",
             styles["BodyText"],
         ),
         Spacer(1, 12),
-        Paragraph(plan["overview"], styles["BodyText"]),
+        Paragraph(escape(plan["overview"]), styles["BodyText"]),
         Spacer(1, 18),
     ]
 

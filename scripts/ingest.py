@@ -4,14 +4,15 @@ in batches, upsert.
 Expects a JSON file that is a flat list of verse objects:
     [{"book": "Genesis", "chapter": 1, "verse": 1, "text": "In the beginning..."}, ...]
 
-Sources for public-domain translations (KJV, ASV, WEB, BSB) are widely available
-as JSON/CSV, e.g. https://github.com/scrollmapper/bible_databases or
-https://bereanbible.com/bsb.json — verify the license on whichever you pick
-before ingesting; a project going on GitHub should not bundle a copyrighted
-translation.
+scripts/fetch_translation.py downloads KJV, ASV, WEB, or BSB from a known
+public-domain source and writes exactly this shape. For any other source,
+verify the license before ingesting; a project going on GitHub should not
+bundle a copyrighted translation, and the reader only offers translations
+listed in app/bible.py::TRANSLATIONS.
 
 Usage:
-    python scripts/ingest.py --file data/bsb.json --translation BSB
+    python scripts/fetch_translation.py --translation KJV
+    python scripts/ingest.py --file data/kjv.json --translation KJV
 """
 
 import argparse
@@ -89,7 +90,9 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=200)
     args = parser.parse_args()
 
-    raw_verses = json.loads(args.file.read_text())
+    # An empty verse (some sources leave omitted verses blank) has nothing to
+    # read or embed, and the embeddings API rejects empty input outright.
+    raw_verses = [v for v in json.loads(args.file.read_text()) if v["text"].strip()]
     openai_client = OpenAI(api_key=settings.openai_api_key)
     supabase = get_supabase()
 
