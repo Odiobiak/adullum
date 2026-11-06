@@ -154,6 +154,19 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .act-icon span { display: none; }
 .act.is-done { border-color: var(--sage); color: var(--sage); background: var(--sage-bg); }
 .act.danger:hover { border-color: var(--danger); color: var(--danger); }
+/* A quiet action at the end of a row (Mark answered): no pill, muted text, pushed right. */
+.act-quiet { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px; background: none; border: 0; color: var(--faint); font-size: 13px; font-weight: 500; white-space: nowrap; }
+.act-quiet svg { width: 14px; height: 14px; }
+.act-quiet:hover { color: var(--sage); }
+/* One quiet line above a list: a count, and a small dropdown filter (web/cave.js::listBar). */
+.list-bar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 0 0 14px; }
+.list-count { font-size: 14px; color: var(--faint); }
+.filter-select { background: var(--surface); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 6px 12px; font-size: 14px; font-weight: 500; min-height: 36px; max-width: 60%; }
+.filter-select:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); }
+/* The prayer list is one readable column, so its bar matches that width. */
+.list-bar:has(+ .prayer-list) { max-width: 760px; }
+/* The reader bar's two page links sit together on the right, before the translation. */
+.reader-learn-link { margin-left: 0; }
 .iconbtn {
   width: 44px; height: 44px; flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--hover);
   display: inline-flex; align-items: center; justify-content: center; color: var(--ember);
@@ -223,7 +236,9 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .row-between .kicker { margin: 0; }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; padding: 6px 13px; border-radius: var(--pill); background: var(--raised); border: 1px solid var(--line); color: var(--text); }
-.avatar-a { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); display: inline-flex; align-items: center; justify-content: center; font: 700 14px/1 var(--body); flex: none; }
+/* Aquila's mark: the wing (AQUILA_MARK in index.html) on the ember gradient, lit softly from beneath. */
+.avatar-a { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); display: inline-flex; align-items: center; justify-content: center; flex: none; box-shadow: 0 6px 16px -6px var(--ember-glow); }
+.avatar-a svg { width: 64%; height: 64%; }
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
 .empty strong { display: block; color: var(--text); font-size: 17px; font-weight: 600; margin-bottom: 6px; }
 .empty .btn { margin-top: 16px; }
@@ -488,7 +503,11 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .reader-pick span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .reader-pick svg { width: 18px; height: 18px; flex: none; color: var(--muted); }
 .reader-pick:hover { background: var(--hover); }
-.reader-translation { margin-left: auto; background: var(--surface); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 7px 14px; font-size: 14px; font-weight: 500; min-height: 38px; }
+/* My notes sits on the right, just before the translation picker. */
+.reader-notes-link { margin-left: auto; }
+.reader-back { text-decoration: none; }
+.reader-back svg { color: var(--muted); }
+.reader-translation { background: var(--surface); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 7px 14px; font-size: 14px; font-weight: 500; min-height: 38px; }
 .reader-translation:disabled { opacity: 0.75; }
 .reader-arrows { display: inline-flex; }
 .reader { max-width: 760px; padding-bottom: 140px; }
@@ -810,6 +829,8 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
   .msg-me { max-width: 92%; }
   .quick-exit { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 12px; }
   .quick-exit kbd { display: none; }
+  .reader-notes-link span, .reader-learn-link span { display: none; }
+  .reader-notes-link, .reader-learn-link { padding-left: 10px; padding-right: 10px; }
   .refuge-doors, .kind-choices { grid-template-columns: 1fr; }
   .refuge-threshold { padding: 34px 18px 24px; }
   .kept { flex-wrap: wrap; }

@@ -35,6 +35,7 @@ One FastAPI process (`app/main.py`) serves three things off the same LangGraph a
 
 ```
 (mode="listen") --> listen --> END                      Refuge's Aquila, see below
+(mode="pray")   --> pray_with --> END                   Pray with Aquila, see below
 
 classify_intent --meta--> answer_meta --> END
        |
@@ -51,6 +52,12 @@ classify_intent --meta--> answer_meta --> END
 streamed to the client by then, so its extra LLM call costs no perceived latency.
 It is also non-fatal, returning an empty list on failure rather than sinking an
 answer that was otherwise complete and grounded.
+
+`pray_with` is "Pray with Aquila" on the prayer list (`web/prayers.js` sends
+`mode: "pray"` to `/chat/stream`): three parts under their own headings
+(`## Scripture to hold onto`, `## A prayer`, `## Keep praying`), no study and no
+follow-ups. It uses the same reference check as `listen` below, rewriting once
+and then praying without Scripture rather than quoting an unlisted verse.
 
 `listen` is the same Aquila in Refuge (`app/refuge.py` sets `mode="listen"` and the
 whole talk as `history`): no headings, no follow-ups, one gentle reply. It still
@@ -127,7 +134,7 @@ Anyone can read; notes, highlights and memorizing need an account. Run `supabase
 - **A translation is offered only once it's loaded.** `app/bible.py::TRANSLATIONS` lists the public-domain ones (BSB, KJV, WEB, ASV); `/bible/translations` returns the subset that has verses in the database, cached for five minutes, so after ingesting a new one the picker shows it within that window. To add one, fetch it with `scripts/fetch_translation.py` (which normalizes book names and the quirks of each source, listed in its docstring), ingest it, and it appears. It is stored as text only and borrows BSB's embeddings for vector search (see Retrieval above).
 - **One translation preference drives everything.** The hidden `#translation` input in `index.html` is the single value Aquila, the verse of the day, the map and the reader all read. `web/reader.js` sets it from the reader's picker and the one in Settings, remembers it on the device, and saves it to `profiles.preferred_translation` when signed in (applied on the next sign-in via the `adullum:profile` event `cave.js` dispatches).
 - **Notes are pinned to book, chapter and verse range, not to a translation**, so a note shows beside the same verse whichever translation is open. `translation` and `verse_text` record what the person was reading when they wrote it. Every `/me/notes` query filters by `user_id`, same rule as the cave.
-- **Highlights follow the same rule**, one colour per verse (gold, green, blue, rose), stored a row per verse so overlapping highlights never conflict. The server reads each verse's text from the verses table when it saves one, and `highlights.py::group_highlights` joins neighbouring verses of one colour back into a passage for the Notes tab. The colours are `--hl-*` tokens in all four themes.
+- **Highlights follow the same rule**, one colour per verse (gold, green, blue, rose), stored a row per verse so overlapping highlights never conflict. The server reads each verse's text from the verses table when it saves one, and `highlights.py::group_highlights` joins neighbouring verses of one colour back into a passage for My notes. The colours are `--hl-*` tokens in all four themes.
 - **Asking Aquila about a verse or note is an ordinary question** composed by `reader.js::askQuery` with the reference first (`On John 3:16-18: ...`), so `parse_reference` pulls exactly those verses and nothing in the graph changes. A note goes in quoted as the person's own words; the synthesize prompt still grounds only on retrieved verses, so a note can't become a citation.
 - Reader links are `#bible/<Book-with-hyphens>/<chapter>[/<verse>]`; `Reader.href("John 3:16")` builds one. "Read in context" under each answer and in the map's side panel uses it.
 
@@ -139,7 +146,7 @@ Anyone can read; notes, highlights and memorizing need an account. Run `supabase
 
 Vanilla JS, no build step. `index.html` holds every view (welcome, sign in, home, the Bible, Aquila, the cave, settings, the admin desk, signed out) as `<section data-view>` blocks, a small hash router, the chat stream and the voice call. `cave.js` owns everything personal (sessions, past conversations in the Aquila rail with rename and delete, the home, cave and settings screens, the plan builder, the journal sheet, the extras under each answer) and is reached as `window.Cave`; `index.html` exposes `window.AdullumApp` back to it.
 
-Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with six tabs side by side: Journal, Notes (highlights and notes), Prayers, Memorize, Refuge and Plans. `cave.js` draws the cave and hands each tab its panel; the Notes tab is drawn by `reader.js`, Prayers by `prayers.js` (`window.Prayers`), Memorize by `memorize.js` (`window.Memorize`) and Refuge by `refuge.js` (`window.Refuge`). Past conversations live with Aquila, in the rail (or the Conversations sheet on a phone), where they can be opened, renamed and deleted. "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#notes`, `#prayers`, `#memorize`, `#refuge` and `#plans` open the cave (all but the first on that tab); `#conversations` lands on Aquila; `#settings` and `#remembers` open Settings (the second scrolled to memory); `#desk` is the admin desk.
+Naming on screen: the conversation view is "Aquila" (route `#aquila`; the old `#ask` still lands there), and the reader is "Bible" (`#bible`). The personal space is "the cave" (nav label "Cave"), with four tabs side by side: Journal (filtered by the person's own tags; the old "season" picker is gone, and a season saved before shows as a tag), Prayers, Refuge and Plans. `cave.js` draws the cave and hands each tab its panel; Prayers by `prayers.js` (`window.Prayers`) and Refuge by `refuge.js` (`window.Refuge`). List filters are one compact line (`cave.js::listBar` with a `filterSelect` dropdown), never a row of pills. Notes, highlights and verses to learn live in the Bible: "My notes" and "Memorize" in the reader bar open `#bible/notes` and `#bible/memorize` (`reader.js::showMine`; the Memorize page is drawn by `memorize.js`, `window.Memorize`), each with a way back to the open chapter. Past conversations live with Aquila, in the rail (or the Conversations sheet on a phone), where they can be opened, renamed and deleted. "What Aquila remembers" lives in Settings, next to profile and theme. Routes: `#cave`, `#journal`, `#prayers`, `#refuge` and `#plans` open the cave (all but the first on that tab); `#notes` and `#memorize` land on those pages in the Bible; `#conversations` lands on Aquila; `#settings` and `#remembers` open Settings (the second scrolled to memory); `#desk` is the admin desk.
 
 Type: Inter for the interface and Source Serif 4 only for quoted Scripture (`.scripture`, `.scripture-lg`), so a verse always reads as the text rather than as UI. Labels are sentence case; keep shouted uppercase kickers out.
 

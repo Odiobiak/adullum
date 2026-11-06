@@ -450,3 +450,71 @@ def listen(state: AgentState, config: RunnableConfig) -> AgentState:
 
     cited = [v for v in verses if f"{v.book} {v.chapter}:{v.verse}" in answer]
     return {"answer": answer, "care": care, "verses": verses, "citations": cited, "translation": translation}
+
+
+# ---------------------------------------------------------------------------
+# pray_with: "Pray with Aquila" on the prayer list (web/prayers.js). Reached
+# straight from the entry point when the caller sets mode="pray". Not a study:
+# a couple of verses to hold onto, a real prayer for the request, and a word on
+# how to keep praying. The same rule as everywhere else holds: a verse is only
+# quoted if it was looked up, checked by reference with unlisted_references.
+# ---------------------------------------------------------------------------
+PRAY_SYSTEM_PROMPT = """You are Aquila, a warm and steadfast companion who loves God. \
+Someone has brought you a prayer request and asked you to pray with them. This is not a \
+Bible study. Don't explain or teach; pray.
+
+Write three short parts, each under its heading exactly as shown, hashes included:
+
+## Scripture to hold onto
+Two or three verses that genuinely speak to this request, quoted exactly from the verses \
+listed for you, each followed by its reference in brackets, like (Philippians 4:6). Never \
+quote or name a verse that isn't listed. If they named a passage, start with it.
+
+## A prayer
+A real prayer for this request, spoken to God, as if you were praying beside them. Name \
+what they asked for plainly and specifically. Let the verses above shape the words where \
+they fit naturally. Warm, honest, unhurried, a short paragraph or two. End with Amen.
+
+## Keep praying
+A few sentences of encouragement on how they could keep bringing this to God themselves: \
+one or two simple, concrete ideas, like praying one of the verses back in their own words, \
+or a moment in their day to return to it. Gentle, never homework.
+
+Write like a person who prays, not like an AI assistant. Never use an em dash. Skip the \
+hedging and the "it's not just X, it's Y" phrasing."""
+
+
+def pray_with(state: AgentState, config: RunnableConfig) -> AgentState:
+    """Prays over the request in `query`. A linked passage comes first in the
+    query (web/prayers.js), so parse_reference pulls exactly those verses.
+
+    A prayer that names an unlisted verse is written again once; if it still
+    does, it's written with no Scripture section at all, because a prayer
+    without a verse is better than one with an invented verse."""
+    translation = state.get("translation") or settings.default_translation
+    verses = hybrid_retrieve(state["query"], translation, k=6)
+
+    def write(listed: list[Verse], extra: str = "") -> str:
+        system = PRAY_SYSTEM_PROMPT
+        if listed:
+            block = "\n".join(f"- {v.book} {v.chapter}:{v.verse} ({v.translation}): {v.text}" for v in listed)
+            system += f"\n\nVerses you may quote, and no others:\n{block}"
+        else:
+            system += (
+                "\n\nNo verses are listed this time, so leave out the Scripture heading entirely "
+                "and don't name or quote any Bible verse. Write only the prayer and the encouragement."
+            )
+        if extra:
+            system += "\n\n" + extra
+        prompt = f"Their prayer request:\n{state['query']}{memory_block(state)}"
+        return _warm_llm.invoke([SystemMessage(system), HumanMessage(prompt)], config=config).content
+
+    answer = write(verses)
+    if unlisted_references(answer, verses):
+        answer = write(verses, "Your last draft named a verse that isn't listed. Only quote listed verses.")
+        if unlisted_references(answer, verses):
+            verses = []
+            answer = write([])
+
+    cited = [v for v in verses if f"{v.book} {v.chapter}:{v.verse}" in answer]
+    return {"answer": answer, "verses": verses, "citations": cited, "translation": translation}

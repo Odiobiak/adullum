@@ -1,7 +1,9 @@
 // The Bible reader: pick a book and chapter, read it in any translation that
 // has been loaded, and tap verses to keep a note, highlight them, learn them by
-// heart, ask Aquila about them, or follow them on the map. Notes and highlights
-// also appear in the cave's Notes tab, drawn by renderAllNotes below.
+// heart, ask Aquila about them, or follow them on the map. Every note and
+// highlight together is "My notes" (#bible/notes), and the verses being
+// learned are "Memorize" (#bible/memorize, drawn by web/memorize.js). Both open
+// from the reader bar through showMine below, so they live beside the text.
 //
 // This file also owns the translation preference. The hidden #translation
 // input in index.html stays the one place every script reads it from (Aquila's
@@ -187,7 +189,23 @@
   let loadToken = 0;
   let notesSignedIn = null; // whether this chapter's notes were fetched signed in
 
+  // "read" (a chapter), or one of the person's own pages kept beside the text:
+  // "notes" (My notes, #bible/notes) or "memorize" (#bible/memorize). The
+  // reader bar and page swap between them; the open chapter stays loaded
+  // underneath, so going back is instant.
+  let mode = "read";
+  function setMode(next) {
+    mode = next;
+    const reading = next === "read";
+    $("#readerPage").hidden = !reading;
+    $("#readerMine").hidden = reading;
+    $("#readerBack").hidden = reading;
+    ["#readerPick", "#readerNotesLink", "#readerLearnLink", "#readerTranslation", ".reader-arrows"].forEach((s) => ($(s).hidden = !reading));
+  }
+
   async function show(param) {
+    if (MINE[param]) return showMine(param);
+    setMode("read");
     const parts = (param || "").split("/").filter(Boolean).map((p) => decodeURIComponent(p).replace(/-/g, " "));
     try {
       await ensureBooks();
@@ -676,7 +694,7 @@
     });
   }
 
-  // One highlighted passage in the Notes tab.
+  // One highlighted passage in My notes.
   function highlightCard(h, onChange) {
     const node = el("article", { class: `entry highlight-card hl-edge-${h.color} fade-in` });
     const meta = el("div", { class: "entry-meta" }, [
@@ -709,8 +727,56 @@
     return node;
   }
 
-  // The cave's Notes tab: highlights first (a quick row of colour filters
-  // when there are several colours), then written notes.
+  // The person's own pages in the Bible, opened from the reader bar. Each has
+  // a heading, what a guest is told instead, and what draws it.
+  const MINE = {
+    notes: {
+      title: "My notes",
+      sub: "Everything you've highlighted and written as you read. They show beside the verse in every translation.",
+      guest: ["Keep notes as you read", "Create a free account to highlight verses and write down what they stir in you."],
+      draw: (box) => renderAllNotes(box),
+    },
+    memorize: {
+      title: "Verses to learn",
+      sub: "Learn a verse by heart, a few minutes a day. Tap any verse as you read and choose Memorize to add it here.",
+      guest: ["Learn verses by heart", "Create a free account to keep verses to learn and practise them a little each day."],
+      draw: (box) => window.Memorize.renderTab(box),
+    },
+  };
+
+  // Opens one of MINE, with the way back to the chapter that was open.
+  async function showMine(kind) {
+    const page = MINE[kind];
+    setMode(kind);
+    clearSelection();
+    document.title = `${page.title}, Adullum`;
+    window.scrollTo({ top: 0 });
+    $("#readerBack span").textContent = current ? `Back to ${current.book} ${current.chapter}` : "Back to reading";
+    $("#readerBack").href = current ? `#${hashFor(current.book, current.chapter)}` : "#bible";
+    const box = $("#readerMine");
+    const head = el("div", { class: "page-head" }, el("div", {}, [
+      el("h1", { class: "page-title", text: page.title }),
+      el("p", { class: "page-sub", text: page.sub }),
+    ]));
+    if (!cave().signedIn()) {
+      box.replaceChildren(head, el("div", { class: "empty" }, [
+        el("strong", { text: page.guest[0] }),
+        page.guest[1],
+        el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "#join", text: "Create an account" })),
+      ]));
+      return;
+    }
+    const list = el("div", {}, el("div", { class: "empty", text: "Opening..." }));
+    box.replaceChildren(head, list);
+    try {
+      await page.draw(list);
+    } catch (err) {
+      list.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Couldn't open this" }), err.message]));
+    }
+  }
+
+  // Highlights first (a quick row of colour filters when there are several
+  // colours), then written notes. Used by showAllNotes.
   async function renderAllNotes(panel, colorFilter = null) {
     const rerender = (c = colorFilter) => renderAllNotes(panel, c);
     const [rows, marks] = await Promise.all([
@@ -769,7 +835,7 @@
     $("#readerNext").addEventListener("click", () => current && current.next && app().go(hashFor(current.next.book, current.next.chapter)));
     $$("select[data-translation-picker]").forEach((s) => s.addEventListener("change", () => setTranslation(s.value)));
     document.addEventListener("keydown", (e) => {
-      if ($("[data-view='bible']").hidden || !current) return;
+      if ($("[data-view='bible']").hidden || !current || mode !== "read") return;
       if (e.target.closest("input, textarea, select, .sheet-overlay, .graph-overlay")) return;
       if (e.key === "Escape" && range) clearSelection();
       else if (e.key === "ArrowLeft" && current.prev && !e.metaKey && !e.altKey) app().go(hashFor(current.prev.book, current.prev.chapter));

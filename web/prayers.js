@@ -26,11 +26,13 @@
     return text.length > n ? `${text.slice(0, n - 3)}...` : text;
   }
 
-  // Asks Aquila to pray alongside the person. A linked passage goes first so
-  // retrieval (app/retrieval.py::parse_reference) grounds the answer in it.
+  // Asks Aquila to pray alongside the person. "pray" mode answers with a few
+  // verses, a prayer for the request and encouragement to keep praying, not a
+  // study (app/agent/nodes.py::pray_with). A linked passage goes first so
+  // retrieval (app/retrieval.py::parse_reference) starts from it.
   function prayWithAquila(p) {
-    const ask = `I'm praying about this: "${p.body}". Would you pray with me, and show me where Scripture speaks to it?`;
-    app().submitQuery(p.passage_ref ? `On ${p.passage_ref}: ${ask}` : ask);
+    const ask = `Would you pray with me about this? ${p.body}`;
+    app().submitQuery(p.passage_ref ? `On ${p.passage_ref}: ${ask}` : ask, { mode: "pray" });
   }
 
   // ---------------------------------------------------------------------
@@ -140,10 +142,12 @@
           remove,
         ]
       : [
-          el("button", { class: "act", type: "button", html: `${ICON.check}<span>Mark answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
           el("button", { class: "act", type: "button", html: `${ICON.aquila}<span>Pray with Aquila</span>`, onclick: () => prayWithAquila(p) }),
           act("Edit", () => openSheet({ existing: p }, rerender)),
           remove,
+          // Quiet on purpose, at the end of the row: there when it's time,
+          // without pressing the question every time the list is opened.
+          el("button", { class: "act-quiet", type: "button", html: `${ICON.check}<span>Mark answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
         ];
 
     // Optional parts are null; filtered out because DOM append would print them.
@@ -177,17 +181,18 @@
       return;
     }
     const list = showing === "answered" ? answered : open;
-    const filter = el("div", { class: "moods", role: "group", "aria-label": "Which prayers to show" }, [
-      ["open", `Open (${open.length})`],
-      ["answered", `Answered (${answered.length})`],
-    ].map(([key, label]) =>
-      el("button", { class: "mood", type: "button", "aria-pressed": String(key === showing), text: label, onclick: () => { showing = key; rerender(); } })
-    ));
+    const bar = cave().listBar(
+      showing === "answered" ? `${answered.length} answered` : `${open.length} open`,
+      cave().filterSelect("Which prayers to show", [
+        ["open", `Open (${open.length})`],
+        ["answered", `Answered (${answered.length})`],
+      ], showing, (value) => { showing = value; rerender(); })
+    );
     const empty = showing === "answered"
       ? "Nothing marked answered yet. When a prayer is answered, mark it on the Open list."
       : "No open prayers right now.";
     panel.replaceChildren(
-      filter,
+      bar,
       list.length ? el("div", { class: "entries prayer-list" }, list.map((p) => prayerCard(p, rerender))) : el("p", { class: "muted", text: empty })
     );
   }

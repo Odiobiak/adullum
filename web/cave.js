@@ -1,9 +1,9 @@
 // Everything personal: sign-in, the home screen, the cave (journal, reading
 // plans), past conversations with Aquila, settings (profile, theme, what
 // Aquila remembers), the signed-out page, and the extras under each answer.
-// The cave's Notes tab lives in web/reader.js, its Prayers tab in
-// web/prayers.js, its Memorize tab in web/memorize.js and its Refuge tab in
-// web/refuge.js; this file hands them their panel.
+// The cave's Prayers tab lives in web/prayers.js and its Refuge tab in
+// web/refuge.js; this file hands them their panel. Notes, highlights and
+// verses to learn live in the Bible (web/reader.js, web/memorize.js).
 //
 // Loaded before index.html's main script, so it only defines things here and
 // reaches back into that script (window.AdullumApp) at call time. All talk with
@@ -11,7 +11,6 @@
 // person's tokens and nothing else.
 (function () {
   const STORE_KEY = "adullumSession";
-  const MOODS = ["grief", "joy", "waiting", "decision", "gratitude", "doubt", "peace", "longing"];
   const THEME_NAMES = { dawn: "Dawn", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth" };
   // Starting points offered under the plan builder. Tapping one fills the box.
   const PLAN_IDEAS = ["The Gospels in a month", "Two weeks on anxiety", "Psalms for hard nights", "Romans, slowly"];
@@ -127,6 +126,22 @@
     const first = wrap.querySelector("textarea, input");
     if (first) setTimeout(() => first.focus(), 50);
     return close;
+  }
+
+  // A one-line bar above a list: a quiet count on the left, and an optional
+  // filter on the right. Takes far less room than a row of pills.
+  function listBar(count, filter) {
+    return el("div", { class: "list-bar" }, [el("span", { class: "list-count", text: count }), filter]);
+  }
+
+  // A small dropdown filter. `options` is [[value, label], ...]; `onPick`
+  // gets the chosen value.
+  function filterSelect(label, options, selected, onPick) {
+    const select = el("select", { class: "filter-select", "aria-label": label }, options.map(([value, text]) =>
+      el("option", { value, text, selected: value === selected })
+    ));
+    select.addEventListener("change", () => onPick(select.value));
+    return select;
   }
 
   function formMessage() {
@@ -847,18 +862,12 @@
   // ---------------------------------------------------------------------
   // Journal sheet: save an answer, a verse, or a free-written entry
   // ---------------------------------------------------------------------
-  function moodPicker() {
-    let selected = null;
-    const wrap = el("div", { class: "moods", role: "group", "aria-label": "The season you're in" });
-    for (const m of MOODS) {
-      const b = el("button", { class: "mood", type: "button", "aria-pressed": "false", text: m });
-      b.onclick = () => {
-        selected = selected === m ? null : m;
-        $$(".mood", wrap).forEach((x) => x.setAttribute("aria-pressed", String(x.textContent === selected)));
-      };
-      wrap.append(b);
-    }
-    return { node: wrap, value: () => selected };
+  // An entry's tags as the person sees them. Older entries may also carry a
+  // "season" from before tags replaced it; it shows as one more tag.
+  function entryTags(e) {
+    const tags = [...(e.tags || [])];
+    if (e.mood && !tags.includes(e.mood)) tags.push(e.mood);
+    return tags;
   }
 
   function openJournal(item = {}, onSaved) {
@@ -869,8 +878,7 @@
     }
     const reflection = el("textarea", { id: "journalReflection", placeholder: "What is this stirring in you? A sentence is plenty." });
     const passage = el("input", { id: "journalPassage", placeholder: "Psalm 23, or leave blank" });
-    const tags = el("input", { id: "journalTags", placeholder: "prayer, small group" });
-    const moods = moodPicker();
+    const tags = el("input", { id: "journalTags", placeholder: "prayer, family, small group" });
     const msg = formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Save" });
     const freeWrite = !item.passage_ref && !item.question;
@@ -886,9 +894,7 @@
       el("p", { class: "sheet-lede", text: "Only you can see this. Aquila may bring it up gently next time you talk." }),
       preview,
       el("label", { class: "field-wrap" }, ["Your reflection", reflection]),
-      el("span", { class: "field-label" }, "The season you're in"),
-      moods.node,
-      el("label", { class: "field-wrap" }, ["Tags", tags]),
+      el("label", { class: "field-wrap" }, ["Tags (separate with commas)", tags]),
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
     ]);
@@ -909,7 +915,6 @@
             verse_text: item.verse_text || null,
             citations: item.citations || [],
             reflection: reflection.value.trim(),
-            mood: moods.value(),
             tags: tags.value.split(",").map((t) => t.trim()).filter(Boolean),
             session_id: item.question ? app().getSessionId() : null,
           },
@@ -1099,23 +1104,21 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Notes, Prayers, Memorize, Refuge and Plans, side by
-  // side as tabs. Past conversations live with Aquila (the rail, or the
-  // Conversations sheet on a phone), where they can be opened, renamed and deleted.
+  // The cave: Journal, Prayers, Refuge and Plans, side by side as tabs. Past
+  // conversations live with Aquila (the rail, or the Conversations sheet on a
+  // phone), where they can be opened, renamed and deleted; notes, highlights
+  // and verses to learn live in the Bible (#bible/notes, #bible/memorize).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
-  const CAVE_ROUTES = { journal: "journal", notes: "notes", prayers: "prayers", memorize: "memorize", refuge: "refuge", plans: "plans" };
+  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", plans: "plans" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
-    notes: ["Open the Bible", () => app().go("bible")],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
-    // Practice has its own button inside the tab, beside the count of what's due.
-    memorize: ["Add from the Bible", () => app().go("bible")],
     plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
     // Refuge has no header button: its rooms are its own ways in.
   };
   let caveTab = "journal";
-  let moodFilter = null;
+  let tagFilter = null;
 
   async function showCave(tab) {
     caveTab = tab || caveTab;
@@ -1130,9 +1133,7 @@
     try {
       await {
         journal: renderJournal,
-        notes: (p) => window.Reader.renderAllNotes(p),
         prayers: (p) => window.Prayers.renderTab(p),
-        memorize: (p) => window.Memorize.renderTab(p),
         refuge: (p) => window.Refuge.renderTab(p),
         plans: renderPlans,
       }[caveTab](panel);
@@ -1142,8 +1143,8 @@
   }
 
   async function renderJournal(panel) {
-    const entries = await api(`/me/journal${moodFilter ? `?mood=${moodFilter}` : ""}`);
-    if (!entries.length && !moodFilter) {
+    const entries = await api("/me/journal");
+    if (!entries.length) {
       panel.replaceChildren(el("div", { class: "empty" }, [
         el("strong", { text: "Nothing in your journal yet" }),
         "Save an answer or a verse from Aquila, or write about today.",
@@ -1151,20 +1152,29 @@
       ]));
       return;
     }
-    const filters = el("div", { class: "moods", role: "group", "aria-label": "Filter by season" }, [null, ...MOODS].map((m) =>
-      el("button", { class: "mood", type: "button", "aria-pressed": String(m === moodFilter), text: m || "All", onclick: () => { moodFilter = m; showCave("journal"); } })
-    ));
-    const grid = entries.length
-      ? el("div", { class: "entries" }, entries.map(journalCard))
-      : el("p", { class: "muted", text: `Nothing saved in a season of ${moodFilter} yet.` });
-    panel.replaceChildren(filters, grid);
+    // Filter by the tags actually in use, most used first. Filtering happens
+    // here rather than on the server: a journal is at most a hundred entries.
+    const counts = new Map();
+    entries.forEach((e) => entryTags(e).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
+    const used = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || a.localeCompare(b));
+    if (tagFilter && !counts.has(tagFilter)) tagFilter = null;
+    const shown = tagFilter ? entries.filter((e) => entryTags(e).includes(tagFilter)) : entries;
+    const bar = listBar(
+      `${shown.length} ${shown.length === 1 ? "entry" : "entries"}`,
+      used.length
+        ? filterSelect("Filter by tag", [["", "All tags"], ...used.map((t) => [t, `#${t}`])], tagFilter || "", (value) => {
+            tagFilter = value || null;
+            showCave("journal");
+          })
+        : null
+    );
+    panel.replaceChildren(bar, el("div", { class: "entries" }, shown.map(journalCard)));
   }
 
   function journalCard(e) {
     const node = el("article", { class: "entry fade-in" });
     const meta = el("div", { class: "entry-meta" }, [el("span", { text: when(e.created_at) })]);
-    if (e.mood) meta.append(el("span", { class: "badge", text: e.mood }));
-    for (const t of e.tags || []) meta.append(el("span", { class: "tag", text: `#${t}` }));
+    for (const t of entryTags(e)) meta.append(el("span", { class: "tag", text: `#${t}` }));
     const refl = el("p", { class: "refl", text: e.reflection || "No reflection yet. Tap Edit to add one." });
     const editBtn = el("button", { class: "act", type: "button", text: "Edit" });
     editBtn.onclick = () => {
@@ -1371,6 +1381,8 @@
     el,
     overlay,
     formMessage,
+    listBar,
+    filterSelect,
     when,
     agoPhrase,
     localToday,

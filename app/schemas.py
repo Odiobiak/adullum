@@ -28,6 +28,9 @@ class ChatRequest(BaseModel):
     query: str
     translation: str | None = None  # falls back to settings.default_translation if omitted
     session_id: str | None = None  # reserved for chat_sessions/chat_messages once auth exists
+    # "pray" is Pray with Aquila on the prayer list (app/agent/nodes.py::pray_with):
+    # verses, a prayer and encouragement instead of a study.
+    mode: Literal["study", "pray"] = "study"
 
 
 class Citation(BaseModel):

@@ -40,6 +40,8 @@ class AgentState(TypedDict, total=False):
     # `history` ([{role: "user" | "aquila", content}]) rather than one study
     # question. graph.py sends it straight to listen(); the study path never
     # sees these keys. Left unset, the mode is "study".
-    mode: Literal["study", "listen"]
+    # "pray" is Pray with Aquila on the prayer list: pray_with() gives verses,
+    # a prayer and encouragement for the request in `query`, and nothing else.
+    mode: Literal["study", "listen", "pray"]
     history: list[dict]
     care: bool  # set by listen(): the person may not be safe, so the client shows helplines

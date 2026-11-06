@@ -78,7 +78,9 @@ def _initial_state(request: ChatRequest, memories: list[str]) -> dict:
     return {
         "query": request.query,
         "translation": request.translation,
-        "want_followups": True,
+        "mode": request.mode,
+        # Follow-ups carry a study further; a prayer doesn't need them.
+        "want_followups": request.mode == "study",
         "memories": memories,
     }
 
@@ -125,7 +127,7 @@ async def chat(
     return ChatResponse(
         answer=result["answer"],
         citations=citations,
-        intent=result["intent"],
+        intent=result.get("intent", request.mode),  # a prayer has no study intent
         followups=result.get("followups", []),
     )
 
@@ -170,6 +172,16 @@ async def chat_stream(request: ChatRequest, user: AuthUser | None = Depends(opti
                     if node_name == "synthesize":
                         answer = node_output["answer"]
                         yield {"event": "answer", "data": answer}
+                    elif node_name == "pray_with":
+                        # Praying for a request skips the study path (see graph.py)
+                        # and carries its answer and the verses it quoted at once.
+                        answer = node_output["answer"]
+                        yield {"event": "answer", "data": answer}
+                        citations = [
+                            {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
+                            for v in node_output["citations"]
+                        ]
+                        yield {"event": "citations", "data": json.dumps(citations)}
                     elif node_name == "answer_meta":
                         # Small-talk/identity questions skip synthesize/format_citations
                         # entirely (see graph.py) — this node carries both keys at once.

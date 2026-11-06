@@ -91,7 +91,7 @@
       <div class="hero-art">
         <div class="preview" aria-label="An example of how Aquila answers">
           <p class="preview-q">You asked <strong>"Where can I find rest when I'm worn out?"</strong></p>
-          <div class="msg-head"><span class="avatar-a">A</span>Aquila</div>
+          <div class="msg-head"><span class="avatar-a" aria-hidden="true" data-aquila-mark></span>Aquila</div>
           <p class="sec-h">The passage</p>
           <p class="scripture" id="previewPassage"></p>
           <p class="verse-ref" style="margin:6px 0 18px">Matthew 11:28-29</p>
@@ -248,10 +248,10 @@
         <div class="thread wrap">
           <div class="thread-inner" id="thread">
             <div class="ask-empty" id="askEmpty">
-              <span class="avatar-a" style="width:40px;height:40px;font-size:17px">A</span>
-              <h1 class="page-title">What would you like to study?</h1>
+              <span class="avatar-a" style="width:40px;height:40px" aria-hidden="true" data-aquila-mark></span>
+              <h1 class="page-title">What would you like to talk about?</h1>
               <p class="muted" style="max-width:540px">Ask about a passage, a question you can't shake, or a season you're in. Every answer is drawn from Scripture and cites chapter and verse.</p>
-              <div class="topics" data-topics data-submit></div>
+              <div class="topics" data-topics="Doubt,Anxiety,Forgiveness" data-submit></div>
             </div>
           </div>
         </div>
@@ -273,6 +273,10 @@
     <div class="reader-bar">
       <div class="wrap reader-bar-inner">
         <button type="button" class="reader-pick" id="readerPick" aria-label="Choose a book and chapter"><span id="readerPlace">The Bible</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></button>
+        <!-- Shown instead of the picker while "My notes" is open -->
+        <a class="reader-pick reader-back" id="readerBack" href="#bible" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Back to reading</span></a>
+        <a class="act reader-notes-link" id="readerNotesLink" href="#bible/notes" aria-label="My notes and highlights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span>My notes</span></a>
+        <a class="act reader-learn-link" id="readerLearnLink" href="#bible/memorize" aria-label="Verses to learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>Memorize</span></a>
         <label class="sr" for="readerTranslation">Translation</label>
         <select id="readerTranslation" class="reader-translation" data-translation-picker="short"></select>
         <span class="reader-arrows">
@@ -281,10 +285,13 @@
         </span>
       </div>
     </div>
-    <div class="wrap page reader">
+    <div class="wrap page reader" id="readerPage">
       <article class="reader-chapter" id="readerText" aria-live="polite"></article>
       <section class="reader-notes" id="readerNotes" aria-label="Your notes on this chapter"></section>
     </div>
+    <!-- The person's own pages beside the text: My notes (#bible/notes) and
+         Memorize (#bible/memorize), opened by web/reader.js::showMine -->
+    <div class="wrap page reader" id="readerMine" hidden></div>
     <div class="verse-bar" id="verseBar" role="toolbar" aria-label="Selected verses" hidden>
       <div class="hl-picker" id="highlightPicker" role="group" aria-label="Highlight colour" hidden></div>
       <strong class="verse-bar-ref" id="verseBarRef"></strong>
@@ -306,15 +313,13 @@
       <div class="page-head">
         <div>
           <h1 class="page-title">Your cave</h1>
-          <p class="page-sub">Your journal, notes, prayers, verses to learn and reading plans, and Refuge, a quiet place for every season. Only you can see them.</p>
+          <p class="page-sub">Your journal, prayers and reading plans, and Refuge, a quiet place for every season. Only you can see them.</p>
         </div>
         <button type="button" class="btn btn-ember btn-sm" id="caveAction">New entry</button>
       </div>
       <div class="tabs" role="tablist" aria-label="Your cave">
         <button type="button" role="tab" aria-selected="true" data-cave-tab="journal">Journal</button>
-        <button type="button" role="tab" aria-selected="false" data-cave-tab="notes">Notes</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="prayers">Prayers</button>
-        <button type="button" role="tab" aria-selected="false" data-cave-tab="memorize">Memorize</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="refuge">Refuge</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="plans">Plans</button>
       </div>
@@ -457,8 +462,13 @@ const translation = () => $("#translation").value.trim() || "BSB";
 $$("[data-logo]").forEach((el) => el.replaceWith($("#tpl-logo").content.cloneNode(true)));
 $$("[data-themes]").forEach((el) => el.replaceWith($("#tpl-themes").content.cloneNode(true)));
 $$("[data-mic]").forEach((el) => el.replaceWith($("#tpl-mic").content.cloneNode(true)));
+// Aquila's mark: three feathers fanning into a wing, since her name is Latin
+// for "eagle". Drawn in currentColor, so .avatar-a sets its colour per theme.
+const AQUILA_MARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 18C8 12.5 12 8 18 5.5"/><path d="M5 18c4-3.6 8.5-6 14-6.6"/><path d="M5 18c4.2-1.4 8.4-1.8 12.5-.9"/></svg>';
+$$("[data-aquila-mark]").forEach((el) => (el.innerHTML = AQUILA_MARK));
 
 // Starting questions offered under the ask boxes: a short label, the full question.
+// A box can name the labels it shows (data-topics="Doubt,Anxiety"); left empty, it shows them all.
 const TOPICS = [
   ["Rest", "Where can I find rest when I'm worn out?"],
   ["Doubt", "What does the Bible say about dealing with doubt?"],
@@ -467,7 +477,9 @@ const TOPICS = [
   ["Prayer", "How do I learn to pray?"],
 ];
 $$("[data-topics]").forEach((box) => {
+  const only = box.dataset.topics ? box.dataset.topics.split(",") : null;
   for (const [label, q] of TOPICS) {
+    if (only && !only.includes(label)) continue;
     const b = document.createElement("button");
     b.type = "button";
     b.className = "topic";
@@ -486,21 +498,23 @@ $$("[data-topics]").forEach((box) => {
 
 // =====================================================================
 // Routing. Routes are named in the hash (#home, #aquila, #cave...) and map to
-// the <section data-view> they show. #journal, #notes, #prayers, #memorize,
-// #refuge and #plans open the cave on that tab; #remembers opens Settings at that section.
+// the <section data-view> they show. #journal, #prayers, #refuge and #plans
+// open the cave on that tab; #remembers opens Settings at that section.
 // #conversations, the old cave tab, now lands on Aquila, where past conversations live.
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
-// #bible takes a place after it (#bible/John/3/16), handed to web/reader.js.
+// #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
+// #bible/notes is "My notes" and #bible/memorize the verses being learned, and
+// the old cave tabs #notes and #memorize land on them.
 // #ask is the old name for #aquila, kept so earlier links still land. Signed-in
 // people never see the guest welcome; guests sent to a signed-in view land
 // on sign-in instead.
 // =====================================================================
 const VIEWS = {
   welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
-  cave: "cave", journal: "cave", notes: "cave", prayers: "cave", memorize: "cave", refuge: "cave", plans: "cave",
+  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", prayers: "cave", refuge: "cave", plans: "cave",
   conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk",
 };
-const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "notes", "prayers", "memorize", "refuge", "plans", "settings", "remembers", "desk"]);
+const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "prayers", "refuge", "plans", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
 
 // "bible/John/3/16" -> ["bible", "John/3/16"]
@@ -537,7 +551,8 @@ function render() {
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.
-  if (view === "bible") window.Reader.show(routeParts()[1]);
+  // #notes and #memorize are pages inside the Bible; #bible/... carries its own place.
+  if (view === "bible") window.Reader.show(route === "bible" ? routeParts()[1] : route);
   else window.Reader.hide();
   if (view !== "aquila" && view !== "bible") window.scrollTo({ top: 0 });
 }
@@ -600,6 +615,7 @@ const STAGES = {
   synthesize: ["Drafting", "Drafted"],
   ground_check: ["Checking against the text", "Checked against the text"],
   answer_meta: ["Thinking", "Answered"],
+  pray_with: ["Praying with you", "Prayed"],
 };
 
 function escapeHtml(text) {
@@ -633,7 +649,7 @@ function addAquilaMessage() {
   const msg = document.createElement("article");
   msg.className = "msg-aquila";
   msg.innerHTML = `
-    <div class="msg-head"><span class="avatar-a">A</span>Aquila</div>
+    <div class="msg-head"><span class="avatar-a" aria-hidden="true">${AQUILA_MARK}</span>Aquila</div>
     <div class="stages" aria-label="How this answer was made" aria-live="polite"></div>
     <div class="thinking" aria-label="Aquila is thinking"><span></span><span></span><span></span></div>
     <div class="answer" hidden></div>
@@ -703,7 +719,9 @@ function renderCitations(el, citations) {
   }
 }
 
-async function ask(query) {
+// `mode` is "study" (an ordinary question) or "pray" (Pray with Aquila on the
+// prayer list, which answers with verses, a prayer and encouragement).
+async function ask(query, mode = "study") {
   const { msg, stagesEl, thinkingEl, answerEl, citationsEl, followupsEl } = addAquilaMessage();
   scrollToBottom();
 
@@ -713,7 +731,7 @@ async function ask(query) {
   const response = await fetch(`${apiBase()}/chat/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...authHeaders },
-    body: JSON.stringify({ query, translation: translation(), session_id: sessionId }),
+    body: JSON.stringify({ query, translation: translation(), session_id: sessionId, mode }),
   });
   if (!response.ok || !response.body) throw new Error(`Aquila couldn't be reached (${response.status})`);
 
@@ -783,7 +801,7 @@ queryEl.addEventListener("keydown", (e) => {
 });
 
 let busy = false;
-async function submitQuery(query) {
+async function submitQuery(query, { mode = "study" } = {}) {
   if (!query || busy) return;
   if (VIEWS[currentRoute()] !== "aquila") go("aquila");
   busy = true;
@@ -794,7 +812,7 @@ async function submitQuery(query) {
   queryEl.value = "";
   autoResize();
   try {
-    await ask(query);
+    await ask(query, mode);
   } catch (err) {
     errorEl.textContent = `${err.message}. Check your connection and try again.`;
   } finally {

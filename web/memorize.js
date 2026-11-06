@@ -1,4 +1,5 @@
-// Verses to learn by heart: the cave's Memorize tab, the practice sheet, the
+// Verses to learn by heart: the Bible's Memorize page (#bible/memorize, opened
+// by web/reader.js::showMine), the practice sheet, the
 // home card that appears when something is due, and `add`, which the reader
 // and the verse of the day call.
 //
@@ -200,8 +201,8 @@
     if (!data.total) {
       panel.replaceChildren(el("div", { class: "empty" }, [
         el("strong", { text: "No verses to learn yet" }),
-        "In the Bible, tap a verse and choose Memorize, or tap Learn it on the verse for today. A few minutes a day is enough.",
-        el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "#bible", text: "Open the Bible" })),
+        "As you read, tap a verse and choose Memorize, or tap Learn it on the verse for today. A few minutes a day is enough.",
+        el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "#bible", text: "Start reading" })),
       ]));
       return;
     }
@@ -229,7 +230,7 @@
       el("p", { class: "muted", style: "font-size:15px", text: "A couple of minutes keeps them fresh." }),
       el("div", { class: "card-actions-row" }, [
         el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Practise", onclick: () => practise(onChange) }),
-        el("a", { class: "act", href: "#memorize", text: "All verses" }),
+        el("a", { class: "act", href: "#bible/memorize", text: "All verses" }),
       ]),
     ]);
   }

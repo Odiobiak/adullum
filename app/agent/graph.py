@@ -7,7 +7,9 @@
                                          MAX_RETRIES times)              (text only)
 
 A run with mode="listen" (Refuge, app/refuge.py) skips all of that and goes
-straight to listen -> END: one gentle reply over the whole talk so far.
+straight to listen -> END: one gentle reply over the whole talk so far. A run
+with mode="pray" (Pray with Aquila on the prayer list) goes straight to
+pray_with -> END: verses, a prayer and encouragement, not a study.
 
 suggest_followups runs last on purpose: the answer and its citations have
 already streamed to the client by then, so the extra call costs the user no
@@ -27,6 +29,7 @@ from app.agent.nodes import (
     format_citations,
     ground_check,
     listen,
+    pray_with,
     retrieve,
     suggest_followups,
     synthesize,
@@ -35,9 +38,10 @@ from app.agent.state import AgentState
 
 
 def _entry(state: AgentState) -> str:
-    """Where a run starts: Refuge's listening mode has its own node, and
-    everything else (left unset, "study") is a study question."""
-    return "listen" if state.get("mode") == "listen" else "classify_intent"
+    """Where a run starts: Refuge's listening mode and praying for a request
+    each have their own node, and everything else (left unset, "study") is a
+    study question."""
+    return {"listen": "listen", "pray": "pray_with"}.get(state.get("mode"), "classify_intent")
 
 
 def _after_classify(state: AgentState) -> str:
@@ -81,9 +85,13 @@ def build_graph():
     graph.add_node("format_citations", format_citations)
     graph.add_node("suggest_followups", suggest_followups)
     graph.add_node("listen", listen)
+    graph.add_node("pray_with", pray_with)
 
-    graph.set_conditional_entry_point(_entry, {"listen": "listen", "classify_intent": "classify_intent"})
+    graph.set_conditional_entry_point(
+        _entry, {"listen": "listen", "pray_with": "pray_with", "classify_intent": "classify_intent"}
+    )
     graph.add_edge("listen", END)
+    graph.add_edge("pray_with", END)
     graph.add_conditional_edges(
         "classify_intent",
         _after_classify,

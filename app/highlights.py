@@ -4,7 +4,7 @@ One colour per verse, pinned to book, chapter and verse rather than to a
 translation (the same rule as app/notes.py), so a verse highlighted in the KJV
 is still highlighted when the BSB is open. Each row keeps the verse text of
 the translation it was made in, read from the verses table here on the
-server, so the Notes tab can list highlights without a lookup per verse.
+server, so My notes in the Bible can list highlights without a lookup per verse.
 
 Stored one row per verse so overlapping highlights never conflict: painting a
 range simply sets the colour of each verse in it. The list view joins runs of
@@ -114,7 +114,7 @@ def list_highlights(
 ) -> list[dict]:
     """With a book and chapter, that chapter's highlighted verses
     ([{verse, color}], what the reader paints). Without, every highlight
-    grouped into passages, for the Notes tab."""
+    grouped into passages, for My notes in the Bible."""
     db = get_supabase()
     if book and chapter:
         canonical = resolve_chapter(book, chapter)
