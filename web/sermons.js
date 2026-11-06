@@ -217,8 +217,7 @@
   function renderEmpty() {
     panel.replaceChildren(el("section", { class: "card sermon-empty fade-in" }, [
       el("span", { class: "sermon-empty-icon", html: ICON.verse }),
-      el("h2", { class: "section-title", text: "Keep every sermon in one place" }),
-      el("p", { class: "muted", text: "Take notes during the service: what you heard, the verses, a photo of the slides, a line worth keeping, and what you'll do about it this week. Every passage you write links to your Bible." }),
+      cave().titleInfo(el("h2", { class: "section-title", text: "Keep every sermon in one place" }), "Take notes during the service: what you heard, the verses, a photo of the slides, a line worth keeping, and what you'll do about it this week. Every passage you write links to your Bible."),
       el("button", { class: "btn btn-ember btn-sm", type: "button", text: "New sermon note", onclick: newNote }),
     ]));
   }
@@ -781,8 +780,9 @@
     const note = current;
     const body = el("div", { class: "sermon-share-body" });
     const close = cave().overlay(el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "shareTitle" }, [
-      el("h3", { id: "shareTitle", text: "Share with your small group" }),
-      el("p", { class: "sheet-lede", text: "Anyone with the link can read this note: its text, verses, photos and to-do list. They can't change it, and they can't see anything else in your cave." }),
+      cave().sheetTitle("shareTitle", "Share with your small group", "They'll see its text, verses, photos and to-do list. They can't change it, and they can't see anything else in your cave. Stop sharing and the link stops working."),
+      // What a link exposes stays on the sheet, not behind the info button.
+      el("p", { class: "sheet-lede", text: "Anyone with the link can read this note." }),
       body,
     ]));
 
@@ -878,8 +878,7 @@
     };
     const option = (format, name, line) => el("button", { class: "sermon-format", type: "button", onclick: run(format) }, [el("strong", { text: name }), el("span", { text: line })]);
     const close = cave().overlay(el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "exportTitle" }, [
-      el("h3", { id: "exportTitle", text: `Export "${note.title || "Untitled sermon"}"` }),
-      el("p", { class: "sheet-lede", text: `Verses are written out in ${translation()}, the translation you read in.` }),
+      cave().sheetTitle("exportTitle", `Export "${note.title || "Untitled sermon"}"`, `Verses are written out in ${translation()}, the translation you read in.`),
       el("div", { class: "sermon-formats" }, [
         option("pdf", "PDF", "With photos, ready to print or send"),
         option("docx", "Word", "To keep editing elsewhere"),

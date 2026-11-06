@@ -54,7 +54,7 @@ SETUP_HINT = (
 )
 
 MAX_POST_LENGTH = 280
-POSTS_PER_DAY = 3
+POSTS_PER_DAY = 5
 WALL_DAYS = 30  # how long an approved post stays on the wall
 WALL_SIZE = 40
 
@@ -338,7 +338,7 @@ def share(body: PostIn, user: AuthUser = Depends(require_user)) -> dict:
     since = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
     recent = _db(lambda: db.table("refuge_posts").select("id", count="exact").eq("user_id", user.id).gte("created_at", since).limit(1).execute().count or 0)
     if recent >= POSTS_PER_DAY:
-        raise HTTPException(status_code=429, detail="You've shared three things today. Come back tomorrow to share more.")
+        raise HTTPException(status_code=429, detail="You've shared five things today. Come back tomorrow to share more.")
 
     check = moderate(text)
     outcome = screen(text, check)

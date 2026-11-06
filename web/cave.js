@@ -1,9 +1,10 @@
-// Everything personal: sign-in, the home screen, the cave (journal, reading
-// plans), past conversations with Aquila, settings (profile, theme, what
-// Aquila remembers), the signed-out page, and the extras under each answer.
-// The cave's Prayers tab lives in web/prayers.js and its Refuge tab in
-// web/refuge.js; this file hands them their panel. Notes, highlights and
-// verses to learn live in the Bible (web/reader.js, web/memorize.js).
+// Everything personal: sign-in, the home screen, the cave (the journal),
+// reading plans, past conversations with Aquila, settings (profile, theme,
+// what Aquila remembers), the signed-out page, and the extras under each
+// answer. The cave's Prayers tab lives in web/prayers.js and its Refuge tab in
+// web/refuge.js; this file hands them their panel. Notes, highlights, verses
+// to learn and reading plans live in the Bible (web/reader.js, web/memorize.js),
+// which draws the plans page with renderPlans from here.
 //
 // Loaded before index.html's main script, so it only defines things here and
 // reaches back into that script (window.AdullumApp) at call time. All talk with
@@ -17,6 +18,7 @@
   // with a way to the Support page.
   const SUPPORTER_THEMES = new Set(["almond", "cedar"]);
   // Starting points offered under the plan builder. Tapping one fills the box.
+  const PLAN_ABOUT = "Tell Aquila what you'd like to read, or what you're walking through, and how long you have. She'll lay it out day by day.";
   const PLAN_IDEAS = ["The Gospels in a month", "Two weeks on anxiety", "Psalms for hard nights", "Romans, slowly"];
 
   const ICON = {
@@ -130,6 +132,99 @@
     const first = wrap.querySelector("textarea, input");
     if (first) setTimeout(() => first.focus(), 50);
     return close;
+  }
+
+  // ---------------------------------------------------------------------
+  // Info buttons. Explanations sit behind a small (i) beside a title instead
+  // of as paragraphs under it, so every screen stays light to read. Tapping
+  // it opens a small popover with the text and, when there's more to say, a
+  // "Learn more" link that opens the fuller explanation.
+  //
+  // Drawn content calls info() or titleInfo(). Static headings in index.html
+  // carry data-info="..." and upgradeInfo() adds the button on load.
+  // Keep anything that has to be seen straight away (safety, helplines,
+  // what sharing exposes) on the page, not in here.
+  // ---------------------------------------------------------------------
+  const INFO_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><path d="M12 7.6v.1"/></svg>';
+  const INFO_MARGIN = 12; // the closest the popover comes to the window's edge
+  const INFO_WIDTH = 300;
+  let openInfo = null; // { button, pop } while a popover is showing
+
+  function closeInfo() {
+    if (!openInfo) return;
+    openInfo.pop.remove();
+    openInfo.button.setAttribute("aria-expanded", "false");
+    openInfo = null;
+  }
+
+  // Below the button when it fits, above it when it doesn't, and always
+  // inside the window. The little arrow points back at the button.
+  function placeInfo(button, pop) {
+    const at = button.getBoundingClientRect();
+    const width = Math.min(INFO_WIDTH, window.innerWidth - INFO_MARGIN * 2);
+    pop.style.width = `${width}px`;
+    const left = Math.max(INFO_MARGIN, Math.min(at.left + at.width / 2 - width / 2, window.innerWidth - width - INFO_MARGIN));
+    const below = at.bottom + 8;
+    const fitsBelow = below + pop.offsetHeight <= window.innerHeight - INFO_MARGIN;
+    pop.style.left = `${left}px`;
+    pop.style.top = `${fitsBelow ? below : Math.max(INFO_MARGIN, at.top - 8 - pop.offsetHeight)}px`;
+    pop.style.setProperty("--arrow-x", `${at.left + at.width / 2 - left}px`);
+    pop.classList.toggle("is-above", !fitsBelow);
+  }
+
+  // `text` is a string or a list of short paragraphs. `more` opens the fuller
+  // explanation (a sheet, a page), under `moreLabel`.
+  function info(text, { label = "More about this", more = null, moreLabel = "Learn more" } = {}) {
+    const button = el("button", { class: "info-btn", type: "button", "aria-label": label, title: label, "aria-expanded": "false", html: INFO_ICON });
+    button.addEventListener("click", (e) => {
+      e.stopPropagation();
+      if (openInfo && openInfo.button === button) return closeInfo();
+      closeInfo();
+      const pop = el("div", { class: "info-pop", role: "dialog", "aria-label": label }, [
+        ...[].concat(text).map((t) => el("p", { text: t })),
+        more ? el("button", { class: "info-more", type: "button", text: moreLabel, onclick: () => { closeInfo(); more(); } }) : null,
+      ]);
+      document.body.append(pop);
+      placeInfo(button, pop);
+      button.setAttribute("aria-expanded", "true");
+      openInfo = { button, pop };
+    });
+    return button;
+  }
+
+  // A heading with its info button beside it.
+  function titleInfo(heading, text, options = {}) {
+    return el("div", { class: "title-info" }, [heading, info(text, { label: `About ${heading.textContent.trim()}`, ...options })]);
+  }
+
+  // The static headings in index.html that carry data-info.
+  function upgradeInfo(root = document) {
+    root.querySelectorAll("[data-info]").forEach((heading) => {
+      const row = el("div", { class: "title-info" });
+      heading.before(row); // take the heading's place, then move it in
+      row.append(heading, info(heading.dataset.info, { label: `About ${heading.textContent.trim()}` }));
+      heading.removeAttribute("data-info");
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    if (openInfo && !openInfo.pop.contains(e.target)) closeInfo();
+  });
+  // Capture, so Escape closes the popover before it reaches a sheet behind it.
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || !openInfo) return;
+    const { button } = openInfo;
+    closeInfo();
+    button.focus();
+    e.stopPropagation();
+  }, true);
+  window.addEventListener("resize", closeInfo);
+  window.addEventListener("hashchange", closeInfo);
+  document.addEventListener("scroll", closeInfo, true);
+
+  // A sheet's title with its explanation behind an info button.
+  function sheetTitle(id, title, text, options) {
+    return titleInfo(el("h3", { id, text: title }), text, options);
   }
 
   // A one-line bar above a list: a quiet count on the left, and an optional
@@ -257,7 +352,7 @@
       const sw = e.target.closest("[data-set-theme]");
       if (!sw) return;
       e.stopPropagation();
-      if (SUPPORTER_THEMES.has(sw.dataset.setTheme) && !supporterSince()) {
+      if (SUPPORTER_THEMES.has(sw.dataset.setTheme) && !isFriend()) {
         toast(`${THEME_NAMES[sw.dataset.setTheme]} is a thank-you for friends of the cave.`);
         location.hash = "support";
         return;
@@ -391,8 +486,8 @@
       if (session && !session.user) writeSession({ ...session, user: me.user });
       // web/reader.js listens for this to apply the saved translation.
       document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
-      // A supporter theme saved on this device stays only for supporters.
-      if (SUPPORTER_THEMES.has(document.documentElement.dataset.theme) && !supporterSince()) setTheme("dawn");
+      // A supporter theme saved on this device stays only for those it's unlocked for.
+      if (SUPPORTER_THEMES.has(document.documentElement.dataset.theme) && !isFriend()) setTheme("dawn");
     } catch {
       /* the header falls back to the email initial */
     }
@@ -416,6 +511,15 @@
   function supporterSince() {
     return (signedIn() && profile && profile.supporter_since) || null;
   }
+  // Whether this person is a friend of the cave: a monthly supporter, or one of
+  // the admins (ADMIN_EMAILS), who look after Adullum and count as friends
+  // without giving. Friends get the ember on their chip, "Friend of the cave"
+  // in the menu and the Almond and Cedar themes, and aren't asked to give.
+  // supporterSince() stays the giving date alone, so an admin is never told
+  // they've supported since a month they didn't.
+  function isFriend() {
+    return !!supporterSince() || !!(signedIn() && profile && profile.is_admin);
+  }
 
   // Up to two initials for the account chip: "Odiche Obiakarije" is "OO",
   // "Ruth" is "R", and with no name yet, the first letter of the email.
@@ -434,8 +538,8 @@
     if ($("#menuName")) $("#menuName").textContent = name || "Your account";
     if ($("#menuEmail")) $("#menuEmail").textContent = email();
     // Friends of the cave carry a small ember on their chip, and the menu says so.
-    if (me) me.classList.toggle("supporter", !!supporterSince());
-    if ($("#menuFriend")) $("#menuFriend").hidden = !supporterSince();
+    if (me) me.classList.toggle("supporter", isFriend());
+    if ($("#menuFriend")) $("#menuFriend").hidden = !isFriend();
     // The admin desk link is only there for the people in ADMIN_EMAILS.
     const desk = $("#menuDesk");
     if (desk) {
@@ -634,7 +738,8 @@
   }
 
   // The box where someone tells Aquila what they'd like to read. Used on the
-  // home screen (compact, inside a card) and at the top of the Plans tab.
+  // home screen (compact, inside a card) and at the top of Reading plans in
+  // the Bible (#bible/plans).
   function planBuilder({ onBuilt, compact = false }) {
     const id = compact ? "homePlanRequest" : "planRequest";
     const input = el("textarea", { id, rows: "2", maxlength: "500", placeholder: "For example: the Gospels in a month, or two weeks on anxiety" });
@@ -644,11 +749,8 @@
     whole.onclick = () => startWholeBiblePlan(whole, onBuilt);
 
     const form = el("form", { class: `plan-builder${compact ? "" : " card"}` }, [
-      compact ? null : el("h2", { class: "section-title", text: "Plan with Aquila" }),
-      el("p", {
-        class: "muted", style: "margin:0 0 12px;font-size:15px",
-        text: "Tell Aquila what you'd like to read, or what you're walking through, and how long you have. She'll lay it out day by day.",
-      }),
+      // On the home screen the card's own head carries this (homePlanCard).
+      compact ? null : titleInfo(el("h2", { class: "section-title", text: "Plan with Aquila" }), PLAN_ABOUT),
       el("label", { class: "sr", for: id, text: "What would you like to read?" }),
       input,
       el("div", { class: "topics" }, PLAN_IDEAS.map((idea) =>
@@ -719,7 +821,7 @@
       ]),
       el("div", { class: "card-actions-row" }, [
         doneBtn,
-        compact ? el("a", { class: "act", href: "#plans", text: "All plans" }) : null,
+        compact ? el("a", { class: "act", href: "#bible/plans", text: "All plans" }) : null,
         compact ? null : el("a", { class: "act", href: `${apiBase()}/plan/${plan.id}/pdf`, html: `${ICON.download}<span>PDF</span>` }),
         compact
           ? null
@@ -780,7 +882,7 @@
 
   function homePlanCard(plan) {
     if (plan) return planItem(plan, { compact: true, onChange: showHome });
-    return card("Reading plan", {}, [planBuilder({ compact: true, onBuilt: showHome })]);
+    return card(el("div", { class: "card-head" }, titleInfo(el("h2", { class: "kicker", text: "Reading plan" }), PLAN_ABOUT)), {}, [planBuilder({ compact: true, onBuilt: showHome })]);
   }
 
   function weekCard(e) {
@@ -1000,8 +1102,7 @@
           : [el("strong", { text: item.question || "" }), document.createTextNode((item.answer || "").replace(/^#+\s*/gm, "").slice(0, 400))]);
 
     const formEl = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "journalTitle" }, [
-      el("h3", { id: "journalTitle", text: freeWrite ? "New journal entry" : "Save to your journal" }),
-      el("p", { class: "sheet-lede", text: "Only you can see this. Aquila may bring it up gently next time you talk." }),
+      sheetTitle("journalTitle", freeWrite ? "New journal entry" : "Save to your journal", "Only you can see this. Aquila may bring it up gently next time you talk."),
       preview,
       el("label", { class: "field-wrap" }, ["Your reflection", reflection]),
       el("label", { class: "field-wrap" }, ["Tags (separate with commas)", tags]),
@@ -1214,19 +1315,19 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Sermons, Prayers, Refuge and Plans, side by side as tabs. Past
+  // The cave: Journal, Sermons, Refuge and Prayers, side by side as tabs. Past
   // conversations live with Aquila (the rail, or the Conversations sheet on a
-  // phone), where they can be opened, renamed and deleted; notes, highlights
-  // and verses to learn live in the Bible (#bible/notes, #bible/memorize).
+  // phone), where they can be opened, renamed and deleted; notes, highlights,
+  // verses to learn and reading plans live in the Bible (#bible/notes,
+  // #bible/memorize, #bible/plans).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
   // #amens opens Refuge already inside the Amens room.
-  const CAVE_ROUTES = { journal: "journal", sermons: "sermons", prayers: "prayers", refuge: "refuge", amens: "refuge", plans: "plans" };
+  const CAVE_ROUTES = { journal: "journal", sermons: "sermons", prayers: "prayers", refuge: "refuge", amens: "refuge" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
     sermons: ["New sermon note", () => window.Sermons.newNote()],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
-    plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
     // Refuge has no header button: its rooms are its own ways in.
   };
   let caveTab = "journal";
@@ -1252,7 +1353,6 @@
         sermons: (p) => window.Sermons.renderTab(p),
         prayers: (p) => window.Prayers.renderTab(p),
         refuge: (p) => window.Refuge.renderTab(p, route),
-        plans: renderPlans,
       }[caveTab](panel);
     } catch (err) {
       panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Couldn't open this" }), err.message]));
@@ -1337,9 +1437,11 @@
     return node;
   }
 
-  async function renderPlans(panel) {
+  // Reading plans: the builder, then every plan with today's reading. Drawn
+  // into the Bible's "Reading plans" page by web/reader.js, which passes
+  // `rerender` so a change redraws just this panel.
+  async function renderPlans(panel, rerender) {
     const rows = await api(`/me/plans?today=${localToday()}`);
-    const rerender = () => showCave("plans");
     panel.replaceChildren(
       planBuilder({ onBuilt: rerender }),
       rows.length
@@ -1356,7 +1458,7 @@
   function renderThemeOptions() {
     const box = $("#themeOptions");
     const current = document.documentElement.dataset.theme;
-    const unlocked = !!supporterSince();
+    const unlocked = isFriend();
     box.replaceChildren(
       ...Object.entries(THEME_NAMES).map(([key, name]) => {
         const locked = SUPPORTER_THEMES.has(key) && !unlocked;
@@ -1419,7 +1521,6 @@
         }))
       : el("p", { class: "muted", text: "Nothing yet. As you share what you're studying or walking through, Aquila keeps a few short notes here." });
     panel.replaceChildren(
-      el("p", { class: "section-sub", text: "Short notes Aquila keeps so she can know you over time. They are never treated as Scripture, and you can remove any of them." }),
       el("label", { class: "switch", for: "memoryToggle" }, [toggle, "Let Aquila remember me"]),
       list,
       rows.length
@@ -1507,6 +1608,9 @@
     api,
     el,
     overlay,
+    info,
+    titleInfo,
+    sheetTitle,
     formMessage,
     listBar,
     filterSelect,
@@ -1519,10 +1623,12 @@
     card,
     cardHead,
     showCave,
+    renderPlans,
     signedIn,
     signOut,
     account,
     supporterSince,
+    isFriend,
     onView,
     openJournal,
     openConversations,
@@ -1536,6 +1642,7 @@
 
   consumeRedirect();
   document.addEventListener("DOMContentLoaded", () => {
+    upgradeInfo();
     setTheme(document.documentElement.dataset.theme);
     wireAuth();
     wireSettings();

@@ -4,6 +4,8 @@
 // highlight together is "My notes" (#bible/notes), and the verses being
 // learned are "Memorize" (#bible/memorize, drawn by web/memorize.js). Both open
 // from the reader bar through showMine below, so they live beside the text.
+// Reading plans (#bible/plans, drawn by web/cave.js::renderPlans) open from
+// the front page the same way.
 //
 // This file also owns the translation preference. The hidden #translation
 // input in index.html stays the one place every script reads it from (Aquila's
@@ -25,6 +27,7 @@
     aquila: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
     graph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.3 7l7.3.7M7 8.3l2.2 7.4M16.4 10l-4.8 6"/></svg>',
     copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>',
+    plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M8.5 14.5l2 2 4-4"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>',
     prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
     next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
@@ -192,7 +195,8 @@
 
   // "hub" (the Bible tab's front page, #bible), "read" (a chapter), or one of
   // the person's own pages kept beside the text: "notes" (My notes,
-  // #bible/notes) or "memorize" (#bible/memorize). The reader bar and page
+  // #bible/notes), "memorize" (#bible/memorize) or "plans" (Reading plans,
+  // #bible/plans). The reader bar and page
   // swap between them; the open chapter stays loaded underneath, so going
   // back is instant.
   let mode = "read";
@@ -637,8 +641,7 @@
     const msg = cave().formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: existing ? "Save changes" : "Save note" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "noteTitle" }, [
-      el("h3", { id: "noteTitle", text: existing ? `Your note on ${s.ref}` : `A note on ${s.ref}` }),
-      el("p", { class: "sheet-lede", text: "Only you can see your notes." }),
+      cave().sheetTitle("noteTitle", existing ? `Your note on ${s.ref}` : `A note on ${s.ref}`, "Only you can see your notes. They show beside this verse in every translation."),
       s.text ? el("div", { class: "journal-preview" }, [el("strong", { text: s.ref }), document.createTextNode(s.text)]) : null,
       el("label", { class: "field-wrap" }, ["Your note", ta]),
       msg.node,
@@ -755,16 +758,28 @@
       guest: ["Learn verses by heart", "Create a free account to keep verses to learn and practise them a little each day."],
       draw: (box) => window.Memorize.renderTab(box),
     },
+    plans: {
+      title: "Reading plans",
+      sub: "Tell Aquila what you'd like to read and she lays it out day by day, or read the whole Bible in a year.",
+      guest: ["Read with a plan", "Create a free account to shape a reading plan with Aquila and keep your place day by day."],
+      // A change to a plan (a day marked read, a plan built or removed)
+      // redraws only this page's list, not the whole page.
+      draw: (box) => {
+        const redraw = () => cave().renderPlans(box, redraw);
+        return redraw();
+      },
+    },
   };
 
   // ---------------------------------------------------------------------
   // The front page (#bible)
   // ---------------------------------------------------------------------
   // The Bible tab opens here rather than straight into a chapter, so it's
-  // plain that notes and memorizing live in this tab too. "Bible" carries
-  // on where the person left off; the other two open MINE. For someone
-  // signed in, small counts arrive afterwards (notes kept, verses due), each
-  // left off quietly if its request fails.
+  // plain that notes, memorizing and reading plans live in this tab too.
+  // "Bible" carries on where the person left off; the others open MINE. For
+  // someone signed in, small counts arrive afterwards (notes kept, verses
+  // due, plans with a reading still to do today), each left off quietly if
+  // its request fails.
   function door({ href, icon, title, text, primary = false }) {
     const count = el("span", { class: "bible-door-count", hidden: true });
     const link = el("a", { class: `bible-door${primary ? " is-primary" : ""}`, href }, [
@@ -792,28 +807,29 @@
     });
     const mine = door({ href: "#bible/notes", icon: ICON.note, title: MINE.notes.title, text: "Your highlights and notes, kept beside the verses" });
     const learn = door({ href: "#bible/memorize", icon: ICON.heart, title: "Memorize", text: "Learn verses by heart, a few minutes a day" });
+    const plans = door({ href: "#bible/plans", icon: ICON.plan, title: MINE.plans.title, text: "Read a little each day, shaped with Aquila" });
 
     $("#readerMine").replaceChildren(
       el("div", { class: "page-head" }, el("div", {}, [
-        el("h1", { class: "page-title", text: "The Bible" }),
-        el("p", { class: "page-sub", text: "Read, keep notes as you go, and learn the verses you want to carry with you." }),
+        cave().titleInfo(el("h1", { class: "page-title", text: "The Bible" }), "Read, follow a plan, keep notes as you go, and learn the verses you want to carry with you."),
       ])),
-      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, mine.link, learn.link]),
+      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, plans.link, mine.link, learn.link]),
     );
-    if (cave().signedIn()) fillHubCounts(mine, learn);
+    if (cave().signedIn()) fillHubCounts(mine, learn, plans);
   }
 
-  async function fillHubCounts(mine, learn) {
+  async function fillHubCounts(mine, learn, plans) {
     const setCount = ({ count, link }, n, label) => {
       if (!n) return;
       count.textContent = String(n);
       count.hidden = false;
       link.setAttribute("aria-label", `${link.querySelector("strong").textContent}, ${label}`);
     };
-    const [notesRows, marks, verses] = await Promise.allSettled([
+    const [notesRows, marks, verses, planRows] = await Promise.allSettled([
       cave().api("/me/notes"),
       cave().api("/me/highlights"),
       cave().api(`/me/memorize?today=${cave().localToday()}`),
+      cave().api(`/me/plans?today=${cave().localToday()}`),
     ]);
     const kept = (notesRows.status === "fulfilled" ? notesRows.value.length : 0) + (marks.status === "fulfilled" ? marks.value.length : 0);
     setCount(mine, kept, `${kept} kept`);
@@ -821,6 +837,12 @@
       const due = verses.value.due;
       setCount(learn, due, `${due} due today`);
       if (due) learn.count.classList.add("is-due");
+    }
+    if (planRows.status === "fulfilled") {
+      // A finished plan has nothing left to read, so it isn't counted.
+      const toRead = planRows.value.filter((p) => !p.done_today && p.completed < p.days).length;
+      setCount(plans, toRead, `${toRead} to read today`);
+      if (toRead) plans.count.classList.add("is-due");
     }
   }
 
@@ -835,8 +857,7 @@
     $("#readerBack").href = current ? `#${hashFor(current.book, current.chapter)}` : "#bible";
     const box = $("#readerMine");
     const head = el("div", { class: "page-head" }, el("div", {}, [
-      el("h1", { class: "page-title", text: page.title }),
-      el("p", { class: "page-sub", text: page.sub }),
+      cave().titleInfo(el("h1", { class: "page-title", text: page.title }), page.sub),
     ]));
     if (!cave().signedIn()) {
       box.replaceChildren(head, el("div", { class: "empty" }, [

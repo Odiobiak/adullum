@@ -31,6 +31,7 @@
 
   const svg = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
   const ICON = {
+    clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>'),
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
     talk: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
@@ -135,11 +136,16 @@
     ]));
   }
 
-  function room(title, lede, ...rest) {
+  // A room: the way back, its title, and what's in it. `about` explains the
+  // room behind an info button beside the title rather than under it: a
+  // string, or { text, more, moreLabel } when there's a fuller explanation.
+  function room(title, about, ...rest) {
+    const heading = el("h2", { text: title });
+    const spec = typeof about === "string" ? { text: about } : about;
     return el("div", { class: "room fade-in" }, [
       el("div", {}, [
         el("button", { class: "back", type: "button", html: `${ICON.back}<span>Refuge</span>`, onclick: threshold }),
-        el("div", { class: "room-head" }, el("div", {}, [el("h2", { text: title }), lede ? el("p", { class: "muted", text: lede }) : null])),
+        el("div", { class: "room-head" }, spec ? cave().titleInfo(heading, spec.text, { more: spec.more, moreLabel: spec.moreLabel }) : heading),
       ]),
       ...rest,
     ]);
@@ -634,8 +640,7 @@
     const msg = cave().formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: editing ? "Save" : kind === "goal" ? "Set goal" : "Start habit" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "plantTitle" }, [
-      el("h3", { id: "plantTitle", text: editing ? `Edit ${PEBBLE[kind].name.toLowerCase()}` : "New pebble" }),
-      el("p", { class: "sheet-lede", text: "Only you can see your pebbles." }),
+      cave().sheetTitle("plantTitle", editing ? `Edit ${PEBBLE[kind].name.toLowerCase()}` : "New pebble", "Only you can see your pebbles."),
       editing ? null : segChoice("Goal or habit", [["goal", "Goal"], ["habit", "Habit"]], kind, (key) => {
         kind = key;
         save.textContent = key === "goal" ? "Set goal" : "Start habit";
@@ -1243,8 +1248,7 @@
     show(el("div", { class: "fade-in" }, [
       el("button", { class: "back", type: "button", html: `${ICON.back}<span>Refuge</span>`, onclick: threshold }),
       el("section", { class: "still" }, [
-        el("h2", { text: "Be still" }),
-        el("p", { class: "muted still-lede", text: "A few quiet minutes with God. Breathe with the light, and if you'd like, pray a line of Scripture as you do." }),
+        cave().titleInfo(el("h2", { text: "Be still" }), "A few quiet minutes with God. Breathe with the light, and if you'd like, pray a line of Scripture as you do."),
         orb,
         el("p", { class: "still-hint", text: "Tap the light when you're ready. Find somewhere you can sit for a moment." }),
         el("div", { class: "card still-options" }, [
@@ -1504,14 +1508,18 @@
     return el("span", { class: "amen-faces", "aria-hidden": "true" },
       Array.from({ length: Math.min(n, 3) }, (_, i) => el("span", { class: `amen-face amen-face-${i + 1}` })));
   }
-  // The share box's prompt, the same for a burden or good news. It stands in
-  // for a description under the room's title.
+  // The share box's prompts. Closed, it's one short line; open, the fuller
+  // invitation stands in for a description under the room's title.
+  const SHARE_TEASER = "Share a burden or a joy, anonymously";
   const SHARE_PROMPT = "Share your burdens or joys anonymously. Let people pray and rejoice with you, and send a few kind words.";
+  // `choose` names the kind in the share box, on the admin desk and at the top
+  // of each bubble, as the ask it is: the same words as the buttons others
+  // answer with ("Say a prayer", "Rejoice with them").
   const POST_KINDS = {
-    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", placeholder: SHARE_PROMPT },
-    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", placeholder: SHARE_PROMPT },
+    burden: { choose: "Pray for me", who: "Someone asked for prayer", mineWho: "Your prayer request" },
+    rejoice: { choose: "Rejoice with me", who: "Someone has good news", mineWho: "Your good news" },
   };
-  const MINE_STATUS = { waiting: ["Waiting to be read", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
+  const MINE_STATUS = { waiting: ["Waiting for approval", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
 
   function kindWordNode(w) {
     return el("div", { class: "encouragement" }, w.ref
@@ -1533,8 +1541,7 @@
     ]));
     const send = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Send" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "kindTitle" }, [
-      el("h3", { id: "kindTitle", text: "Send a few kind words" }),
-      el("p", { class: "sheet-lede", text: "Choose one. They'll see it, but never who sent it, and they can't write back." }),
+      cave().sheetTitle("kindTitle", "Send a few kind words", "They'll see the one you choose, but never who sent it, and they can't write back."),
       el("div", { class: "choice-list" }, options),
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), send]),
@@ -1562,8 +1569,7 @@
     const msg = cave().formMessage();
     const send = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Report" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "reportTitle" }, [
-      el("h3", { id: "reportTitle", text: "Report this" }),
-      el("p", { class: "sheet-lede", text: "It comes off the wall straight away, and a person looks at it again." }),
+      cave().sheetTitle("reportTitle", "Report this", "It comes off the wall straight away, and a person looks at it again."),
       el("label", { class: "field-wrap" }, ["Reason", reason]),
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), send]),
@@ -1651,7 +1657,7 @@
       style: `--drift-delay:${-((index * 1.7) % 7).toFixed(1)}s;--drift-time:${6 + (index % 4)}s`,
       "aria-label": `${spec.who}: ${post.body}`,
     }, [
-      el("span", { class: "bubble-who", text: post.kind === "rejoice" ? "Good news" : "Carrying this" }),
+      el("span", { class: "bubble-who", text: spec.choose }),
       el("span", { class: "bubble-text", text: post.body }),
       count,
     ]);
@@ -1682,10 +1688,58 @@
   }
 
   // What this person has shared, as small bubbles in one row that scrolls
-  // sideways, so it never pushes the wall down the page. Each shows how far
-  // the post has got (waiting, or what came back once it's on the wall), and
-  // tapping it opens the whole post, the kind words and "Take it down".
+  // sideways, so it never pushes the wall down the page. Each shows what came
+  // back once it's on the wall (or that it wasn't shared), and tapping it
+  // opens the whole post, the kind words and "Take it down". Posts still
+  // waiting for approval sit apart, in waitingZone.
   const MINE_BUBBLE_STATUS = { waiting: "Waiting", not_shared: "Not shared" };
+
+  // One of this person's own posts, opened in a sheet.
+  function openMine(post, rerender) {
+    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].mineWho }, [
+      // Taking it down redraws the room, so the sheet goes first.
+      mineCard(post, () => { close(); rerender(); }),
+      el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
+    ]));
+  }
+
+  // Posts waiting for a person to approve them, just under the share box.
+  // Folded, it's one slim line, like a notification ("2 waiting for
+  // approval", with a dot per post in its colour), so it never pushes the
+  // wall down however many are waiting. Opened, it's a compact list: a dot
+  // for the kind, the words, and when. Tapping a post opens it, where it can
+  // still be taken down. Whether it's open survives the room redrawing.
+  let waitingOpen = false;
+
+  function waitingZone(posts, rerender) {
+    const n = posts.length;
+    const zone = el("details", { class: "waiting fade-in" }, [
+      el("summary", { class: "waiting-bar" }, [
+        el("span", { class: "waiting-icon", html: ICON.clock }),
+        el("span", { class: "waiting-label" }, [
+          el("strong", { text: String(n) }),
+          ` ${n === 1 ? "post" : "posts"} waiting for approval`,
+        ]),
+        el("span", { class: "waiting-dots", "aria-hidden": "true" },
+          posts.slice(0, 5).map((post) => el("span", { class: `waiting-dot waiting-dot-${post.kind}` }))),
+        el("span", { class: "waiting-chevron", "aria-hidden": "true", html: ICON.forward }),
+      ]),
+      el("div", { class: "waiting-body" }, [
+        el("p", { class: "waiting-note", text: "Each post is approved before it goes on the wall, usually within a day. Then it moves to \"What you've shared\"." }),
+        el("ul", { class: "waiting-list" }, posts.map((post) => el("li", {}, el("button", {
+          class: "waiting-item", type: "button", "aria-label": `${POST_KINDS[post.kind].choose}, waiting for approval: ${post.body}`,
+          onclick: () => openMine(post, rerender),
+        }, [
+          el("span", { class: `waiting-dot waiting-dot-${post.kind}`, title: POST_KINDS[post.kind].choose }),
+          el("span", { class: "waiting-text", text: post.body }),
+          el("span", { class: "waiting-when", text: shortDate(post.created_at) }),
+        ])))),
+      ]),
+    ]);
+    zone.open = waitingOpen;
+    zone.addEventListener("toggle", () => { waitingOpen = zone.open; });
+    return zone;
+  }
 
   function mineBubble(post, index, rerender) {
     const r = REACTIONS[post.kind];
@@ -1693,7 +1747,7 @@
     const words = post.kind_words.length;
     const shared = post.status === "shared";
     // On the wall it reads like the wall's own bubbles; before that, its status.
-    const who = shared ? (post.kind === "rejoice" ? "Good news" : "Carrying this") : MINE_BUBBLE_STATUS[post.status];
+    const who = shared ? POST_KINDS[post.kind].choose : MINE_BUBBLE_STATUS[post.status];
     const count = el("span", { class: "bubble-count" });
     if (shared) {
       count.innerHTML = `${r.icon}<span></span>${words ? `${ICON.talk}<span></span>` : ""}`;
@@ -1714,13 +1768,7 @@
       el("span", { class: "bubble-text", text: post.body }),
       shared ? count : null,
     ]);
-    node.onclick = () => {
-      const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].mineWho }, [
-        // Taking it down redraws the room, so the sheet goes first.
-        mineCard(post, () => { close(); rerender(); }),
-        el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
-      ]));
-    };
+    node.onclick = () => openMine(post, rerender);
     return node;
   }
 
@@ -1757,23 +1805,54 @@
     ].filter(Boolean));
   }
 
+  // The share box, as a compact composer: one line until it's tapped, then
+  // the two kinds, the fine print and the share button open beneath it. It
+  // grows with what's written and folds away again once something is shared.
+  const SHARE_MAX = 280;
+
   function shareBox(rerender) {
     let kind = "burden";
-    const box = el("textarea", { class: "field", maxlength: "280", placeholder: POST_KINDS.burden.placeholder, "aria-label": "What you want to share" });
-    const count = el("span", { text: "280 left" });
-    box.addEventListener("input", () => { count.textContent = `${280 - box.value.length} left`; });
-    const kinds = el("div", { class: "moods", role: "group", "aria-label": "What you're sharing", style: "margin:0 0 12px" }, Object.entries(POST_KINDS).map(([key, spec]) => {
-      const b = el("button", { class: "mood", type: "button", style: "text-transform:none", "aria-pressed": String(key === kind), text: spec.choose });
+    const box = el("textarea", { class: "amens-composer-text", rows: "1", maxlength: String(SHARE_MAX), placeholder: SHARE_TEASER, "aria-label": "What you want to share" });
+    const count = el("span", { class: "amens-composer-count", text: String(SHARE_MAX) });
+    const fit = () => {
+      box.style.height = "auto";
+      box.style.height = `${box.scrollHeight}px`;
+    };
+    const kinds = el("div", { class: "seg amens-composer-kinds", role: "group", "aria-label": "What you're sharing" }, Object.entries(POST_KINDS).map(([key, spec]) => {
+      const b = el("button", { type: "button", "aria-pressed": String(key === kind) }, [
+        el("span", { html: REACTIONS[key].icon }),
+        el("span", { text: spec.choose }),
+      ]);
       b.onclick = () => {
         kind = key;
-        box.placeholder = spec.placeholder;
-        kinds.querySelectorAll(".mood").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        kinds.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+        box.focus();
       };
       return b;
     }));
     const msg = cave().formMessage();
     const care = el("div", { hidden: true });
-    const send = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Share anonymously" });
+    const send = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Share" });
+
+    const composer = el("section", { class: "amens-composer" });
+    const open = () => {
+      if (composer.classList.contains("is-open")) return;
+      composer.classList.add("is-open");
+      box.placeholder = SHARE_PROMPT;
+      fit();
+    };
+    const fold = () => {
+      composer.classList.remove("is-open");
+      box.placeholder = SHARE_TEASER;
+      box.style.height = "";
+    };
+    box.addEventListener("focus", open);
+    box.addEventListener("input", () => {
+      count.textContent = String(SHARE_MAX - box.value.length);
+      count.classList.toggle("is-low", SHARE_MAX - box.value.length <= 20);
+      fit();
+    });
+
     send.onclick = async () => {
       const body = box.value.trim();
       if (!body) return msg.say("Write a little first.", true);
@@ -1795,7 +1874,8 @@
           return;
         }
         box.value = "";
-        count.textContent = "280 left";
+        count.textContent = String(SHARE_MAX);
+        fold();
         toast("Thank you. Once it's approved, people can pray and rejoice with you.");
         rerender();
       } catch (err) {
@@ -1804,15 +1884,36 @@
         send.disabled = false;
       }
     };
-    return el("section", { class: "card share-box" }, [
-      el("h3", { class: "section-title", text: "Share something" }),
-      kinds, box, msg.node,
-      el("div", { class: "share-foot" }, [
-        el("span", { text: "This is approved before it's shared publicly. You can take it down any time." }),
-        el("span", { class: "share-send" }, [count, send]),
+
+    composer.append(
+      el("div", { class: "amens-composer-row" }, [el("span", { class: "amens-composer-icon", html: ICON.pen }), box]),
+      el("div", { class: "amens-composer-more" }, [
+        el("div", { class: "amens-composer-bar" }, [kinds, el("span", { class: "amens-composer-send" }, [count, send])]),
+        msg.node,
+        el("p", { class: "amens-composer-note", text: "This is approved before it's shared publicly. You can take it down any time." }),
       ]),
-      care,
-    ]);
+      care
+    );
+    return composer;
+  }
+
+  // "How Amens works", opened from the info button beside the room's title.
+  const HOW_AMENS_WORKS = [
+    ["Share anonymously", "Choose \"Pray for me\" for something you're carrying, or \"Rejoice with me\" for good news. Share as much or as little as you like. Names and places are up to you, but links and contact details can't be posted."],
+    ["An admin approves each post", "Every post is approved before it goes on the wall. Nobody, not even the people who approve it, is shown who wrote it."],
+    ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
+    ["See what came back", "Your posts sit under \"What you've shared\" with how many prayed or rejoiced, and any kind words. You can take one down any time."],
+    ["If you're not safe", "If what you write sounds like you might be in danger, it isn't posted. You're shown people you can talk to right away instead."],
+  ];
+
+  function howAmensWorks() {
+    const close = cave().overlay(el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "amensHowTitle" }, [
+      el("h3", { id: "amensHowTitle", text: "How Amens works" }),
+      el("p", { class: "sheet-lede", text: "A quiet wall where people carry each other's burdens and share each other's joy." }),
+      el("ol", { class: "how-steps" }, HOW_AMENS_WORKS.map(([title, text]) =>
+        el("li", {}, [el("strong", { text: title }), el("span", { text })]))),
+      el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Got it", onclick: () => close() })),
+    ]));
   }
 
   async function amensRoom() {
@@ -1823,11 +1924,19 @@
       return failed(err);
     }
     const rerender = () => amensRoom();
-    show(room("Amens", null,
+    // Waiting posts get their own zone; the rest are what's been through review.
+    const waiting = data.mine.filter((p) => p.status === "waiting");
+    const reviewed = data.mine.filter((p) => p.status !== "waiting");
+    show(room("Amens", {
+        text: "Share a burden or a joy without your name. Others can pray or rejoice with you, and send a few kind words.",
+        more: howAmensWorks,
+        moreLabel: "How Amens works",
+      },
       shareBox(rerender),
-      data.mine.length ? el("section", { class: "wall-section" }, [
+      waiting.length ? waitingZone(waiting, rerender) : null,
+      reviewed.length ? el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "What you've shared" }),
-        el("div", { class: "mine-row" }, data.mine.map((p, i) => mineBubble(p, i, rerender))),
+        el("div", { class: "mine-row" }, reviewed.map((p, i) => mineBubble(p, i, rerender))),
       ]) : null,
       el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "On the wall" }),

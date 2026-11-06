@@ -66,7 +66,10 @@
     return el("a", { class: className, href: checkoutHref(url), target: "_blank", rel: "noopener", text: label });
   }
 
+  // The thank-you line for a friend of the cave. An admin counts as a friend
+  // without a giving date, so they get the line without one.
   function sinceLine(since) {
+    if (!since) return "You're a friend of the cave. Thank you for looking after it.";
     const date = new Date(since);
     return Number.isNaN(date.getTime())
       ? "You're a friend of the cave. Thank you."
@@ -81,6 +84,7 @@
     const data = await links();
     const signedIn = window.Cave.signedIn();
     const since = window.Cave.supporterSince();
+    const friend = window.Cave.isFriend();
     const amount = data.monthly_amount || "";
 
     const once = el("section", { class: "card support-option" }, [
@@ -89,7 +93,7 @@
       el("div", { class: "support-option-foot" }, [giveButton(data.once_url, "Give once", "btn btn-ghost")]),
     ]);
 
-    const monthlyFoot = since
+    const monthlyFoot = friend
       ? [el("p", { class: "support-thanks", text: sinceLine(since) })]
       : [
           giveButton(data.monthly_url, amount ? `Give ${amount} a month` : "Give monthly", "btn btn-ember"),
@@ -160,7 +164,7 @@
   }
 
   function homeCard() {
-    if (window.Cave.supporterSince() || snoozed()) return null;
+    if (window.Cave.isFriend() || snoozed()) return null;
     const node = card("Keep the fire lit", { warm: true }, [
       el("p", { class: "muted", style: "margin:0;font-size:15px", text: "Adullum is free, with no ads. If it helps you, you can help keep it going." }),
       el("div", { class: "card-actions-row" }, [
@@ -185,9 +189,10 @@
     const box = $("#supportSettings");
     if (!box) return;
     const since = window.Cave.supporterSince();
+    const friend = window.Cave.isFriend();
     box.replaceChildren(
-      el("p", { class: "section-sub", text: since ? sinceLine(since) : "Adullum is free, with no ads. Giving keeps it that way, and friends of the cave get two extra themes as a thank-you." }),
-      el("a", { class: since ? "btn btn-ghost" : "btn btn-ember", href: "#support", text: since ? "Give a little more" : "Support Adullum" })
+      el("p", { class: "section-sub", text: friend ? sinceLine(since) : "Free, with no ads. Giving keeps it that way." }),
+      el("a", { class: friend ? "btn btn-ghost" : "btn btn-ember", href: "#support", text: friend ? "Give a little more" : "Support Adullum" })
     );
   }
 

@@ -263,8 +263,7 @@
           <div class="thread-inner" id="thread">
             <div class="ask-empty" id="askEmpty">
               <span class="avatar-a" style="width:40px;height:40px" aria-hidden="true" data-aquila-mark></span>
-              <h1 class="page-title">What would you like to talk about?</h1>
-              <p class="muted" style="max-width:540px">Ask about a passage, a question you can't shake, or a season you're in. Every answer is drawn from Scripture and cites chapter and verse.</p>
+              <h1 class="page-title" data-info="Ask about a passage, a question you can't shake, or a season you're in. Every answer is drawn from Scripture and cites chapter and verse.">What would you like to talk about?</h1>
               <div class="topics" data-topics="Doubt,Anxiety,Forgiveness" data-submit></div>
             </div>
           </div>
@@ -327,8 +326,7 @@
     <div class="wrap page">
       <div class="page-head">
         <div>
-          <h1 class="page-title">Your cave</h1>
-          <p class="page-sub">Your journal, sermon notes, prayers and reading plans, and Refuge, a quiet place for every season. Only you can see them, unless you share a sermon note.</p>
+          <h1 class="page-title" data-info="Your journal, sermon notes and prayers, and Refuge, a quiet place for every season. Only you can see them, unless you share a sermon note.">Your cave</h1>
         </div>
         <button type="button" class="btn btn-ember btn-sm" id="caveAction">New entry</button>
       </div>
@@ -337,7 +335,6 @@
         <button type="button" role="tab" aria-selected="false" data-cave-tab="sermons">Sermons</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="refuge">Refuge</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="prayers">Prayers</button>
-        <button type="button" role="tab" aria-selected="false" data-cave-tab="plans">Plans</button>
       </div>
       <div id="cavePanel"></div>
     </div>
@@ -359,13 +356,11 @@
         </form>
       </section>
       <section class="card">
-        <h2 class="section-title">Appearance</h2>
-        <p class="section-sub">Choose the light you read by.</p>
+        <h2 class="section-title" data-info="Choose the light you read by. It's kept on this device.">Appearance</h2>
         <div class="theme-options" id="themeOptions"></div>
       </section>
       <section class="card">
-        <h2 class="section-title">Translation</h2>
-        <p class="section-sub">The Bible you read here, and the one Aquila quotes from.</p>
+        <h2 class="section-title" data-info="The Bible you read here, and the one Aquila quotes from.">Translation</h2>
         <label class="field-label" for="settingsTranslation">Translation</label>
         <select class="field" id="settingsTranslation" data-translation-picker style="max-width:420px;margin-bottom:8px"></select>
         <p class="muted" id="settingsTranslationAbout" style="margin:0;font-size:15px"></p>
@@ -375,12 +370,11 @@
         <div id="supportSettings"></div>
       </section>
       <section class="card" id="remembers">
-        <h2 class="section-title">What Aquila remembers</h2>
+        <h2 class="section-title" data-info="Short notes Aquila keeps so she can know you over time. They are never treated as Scripture, and you can remove any of them.">What Aquila remembers</h2>
         <div id="memoryPanel"></div>
       </section>
       <section class="card">
-        <h2 class="section-title">Account</h2>
-        <p class="section-sub">Signing out keeps everything safe until you come back.</p>
+        <h2 class="section-title" data-info="Signing out keeps everything safe until you come back.">Account</h2>
         <button type="button" class="btn btn-ghost" data-sign-out>Sign out</button>
       </section>
     </div>
@@ -405,8 +399,7 @@
     <div class="wrap page">
       <div class="page-head">
         <div>
-          <h1 class="page-title">Admin desk</h1>
-          <p class="page-sub">Posts to Refuge's Amens wall wait here until someone reads them. You never see who wrote them.</p>
+          <h1 class="page-title" data-info="Posts to Refuge's Amens wall wait here until someone reads them. You never see who wrote them.">Admin desk</h1>
         </div>
       </div>
       <div id="deskPanel"></div>
@@ -533,7 +526,7 @@ $$("[data-topics]").forEach((box) => {
 
 // =====================================================================
 // Routing. Routes are named in the hash (#home, #aquila, #cave...) and map to
-// the <section data-view> they show. #journal, #prayers, #refuge and #plans
+// the <section data-view> they show. #journal, #prayers and #refuge
 // open the cave on that tab, and #amens opens Refuge inside the Amens room; #remembers opens Settings at that section.
 // #conversations, the old cave tab, now lands on Aquila, where past conversations live.
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
@@ -541,18 +534,19 @@ $$("[data-topics]").forEach((box) => {
 // shared (web/sermons.js): read-only, and open to guests.
 // #support is the Support page (web/support.js), open to guests too.
 // #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
-// #bible/notes is "My notes" and #bible/memorize the verses being learned, and
-// the old cave tabs #notes and #memorize land on them.
+// #bible/notes is "My notes", #bible/memorize the verses being learned and
+// #bible/plans the reading plans, and the old cave tabs #notes, #memorize and
+// #plans land on them.
 // #ask is the old name for #aquila, kept so earlier links still land. Signed-in
 // people never see the guest welcome; guests sent to a signed-in view land
 // on sign-in instead.
 // =====================================================================
 const VIEWS = {
   welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
-  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", sermons: "cave", prayers: "cave", refuge: "cave", amens: "cave", plans: "cave", sermon: "sermon",
+  notes: "bible", memorize: "bible", plans: "bible", cave: "cave", journal: "cave", sermons: "cave", prayers: "cave", refuge: "cave", amens: "cave", sermon: "sermon",
   conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk", support: "support",
 };
-const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "sermons", "prayers", "refuge", "amens", "plans", "settings", "remembers", "desk"]);
+const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "sermons", "prayers", "refuge", "amens", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
 
 // "bible/John/3/16" -> ["bible", "John/3/16"]
@@ -589,7 +583,7 @@ function render() {
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.
-  // #notes and #memorize are pages inside the Bible; #bible/... carries its own place.
+  // #notes, #memorize and #plans are pages inside the Bible; #bible/... carries its own place.
   if (view === "bible") window.Reader.show(route === "bible" ? routeParts()[1] : route);
   else window.Reader.hide();
   if (view !== "aquila" && view !== "bible") window.scrollTo({ top: 0 });

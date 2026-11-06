@@ -74,8 +74,7 @@
     const msg = cave().formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: existing ? "Save changes" : "Add to my list" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "prayerTitle" }, [
-      el("h3", { id: "prayerTitle", text: existing ? "Edit prayer" : "A new prayer" }),
-      el("p", { class: "sheet-lede", text: "Only you can see your prayer list. If Aquila's memory is on, she'll keep it in mind when you talk." }),
+      cave().sheetTitle("prayerTitle", existing ? "Edit prayer" : "A new prayer", "Only you can see your prayer list. If Aquila's memory is on, she'll keep it in mind when you talk."),
       el("label", { class: "field-wrap" }, ["What you're praying for", body]),
       el("label", { class: "field-wrap" }, ["A verse to hold onto (optional)", passage]),
       msg.node,
@@ -231,8 +230,9 @@
     const msg = cave().formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: existing ? "Save" : "Start fast" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "fastTitle" }, [
-      el("h3", { id: "fastTitle", text: existing ? "Edit fast" : "Start a fast" }),
-      el("p", { class: "sheet-lede", text: "Only you can see this. Fast as you're able, and check with a doctor before a long fast." }),
+      cave().sheetTitle("fastTitle", existing ? "Edit fast" : "Start a fast", "Only you can see this. Fast as you're able, whether that's a meal, a day or longer."),
+      // Health comes first, so this one stays on the sheet rather than behind the info button.
+      el("p", { class: "sheet-lede", text: "Check with a doctor before a long fast." }),
       el("div", { class: "seg seg-sheet", role: "group", "aria-label": "Kind of fast" }, kinds),
       hint,
       detailWrap,

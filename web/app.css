@@ -10,6 +10,36 @@
    on <html data-theme="..."> by the early script in index.html (and changed in
    Settings by web/cave.js), defaulting to Dawn, or Twilight in dark mode. */
 
+/* The signature layer. These defaults leave every free theme exactly as it
+   was; a supporter theme overrides them in its own block below
+   (so this block must stay above the themes, since they tie on specificity).
+   --aura         a fixed background painted behind the whole app
+   --ember-grad   the primary button and Aquila's avatar
+   --title-ink    a gradient through page titles (with --title-fill: transparent)
+   --card-tint    a faint sheen over every card
+   --lift         the shadow that lifts cards off the page
+   --sheen        a highlight along a primary button's top edge
+   --bar-glass    how much of the ground shows in the frosted top bar
+   --ornament     a still picture fixed behind the app (Almond's branch, Cedar's sky),
+                  with --ornament-fade to soften it
+   --aura-motion  the animation that lets --aura drift (always still for reduced motion)
+   --edge         the border of feature cards (verse of the day, the fast, the Bible door)
+   --nav-active   the lit nav item
+   --grad-size    how wide --ember-grad is laid, so hovering a button slides along it
+   --select       text selection, with --select-ink for its text */
+:root {
+  --aura: none;
+  --ember-grad: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%);
+  --title-ink: none; --title-fill: currentColor;
+  --card-tint: none; --lift: none; --sheen: 0 0 #0000;
+  --bar-glass: 92%;
+  --ornament: none; --aura-motion: none;
+  --edge: linear-gradient(var(--ember-line), var(--ember-line));
+  --nav-active: var(--ember-bg);
+  --grad-size: 100%;
+  --select: Highlight; --select-ink: HighlightText;
+}
+
 :root, [data-theme="dawn"] {
   --ground: #FBF6EE; --surface: #FFFDF9; --raised: #F3EADC; --line: #E6D9C6; --line-2: #D6C4AA;
   --text: #2B2018; --soft: #4A3B2E; --muted: #6B5A49; --faint: #7A6755;
@@ -72,35 +102,76 @@
   color-scheme: dark;
 }
 /* The supporter themes, for friends of the cave (app/support.py). Almond is
-   light, after Aaron's rod that budded (Numbers 17:8); Cedar is dark, after
-   the cedars of Lebanon (Psalm 92:12). web/cave.js::SUPPORTER_THEMES offers
-   them only to supporters. */
+   light, after Aaron's rod that budded (Numbers 17:8): porcelain white with
+   blossom rose running into plum. Cedar is dark, after the cedars of Lebanon
+   (Psalm 92:12): a forest at night lit with champagne gold.
+   web/cave.js::SUPPORTER_THEMES offers them only to supporters. Besides their
+   colours they switch on the signature layer below (--aura, --ember-grad,
+   --title-ink and the rest), which the four free themes leave off. */
 [data-theme="almond"] {
-  --ground: #FBF4F3; --surface: #FFFCFB; --raised: #F3E6E4; --line: #E8D5D2; --line-2: #D9BDB8;
-  --text: #2A1C1E; --soft: #4A3336; --muted: #6D5256; --faint: #7A5E62;
-  --ember: #9E3B52; --ember-hi: #7D2A3F; --ember-ink: #FFFFFF; --ember-bg: #F8E1E6; --ember-line: #EDC3CD;
-  --sage: #3D6B4F; --sage-bg: #E3F0E7; --sage-line: #BCD9C6;
-  --glow: #F7DCE1; --glow-strong: #F0C7CF; --well: #F6ECEA; --hover: #F2E4E2; --card-warm: #FDF0F1; --divider: #EDDEDB;
-  --danger: #B3261E; --shadow: rgba(80, 30, 40, 0.16); --ember-glow: rgba(158, 59, 82, 0.32); --ring: rgba(158, 59, 82, 0.18);
-  --art-dim: #D8AEB6;
+  --ground: #FAF7F8; --surface: #FFFFFF; --raised: #F3ECEF; --line: #ECE2E6; --line-2: #DCCBD2;
+  --text: #1F1720; --soft: #3F3240; --muted: #645465; --faint: #736274;
+  --ember: #B02F62; --ember-hi: #6C2E92; --ember-ink: #FFFFFF; --ember-bg: #FBE6EF; --ember-line: #EFC6D7;
+  --sage: #2D6B57; --sage-bg: #E2F1EB; --sage-line: #B8DACB;
+  --glow: #F9DDE8; --glow-strong: #F0C4D8; --well: #F6F1F4; --hover: #F4EBF0; --card-warm: #FFF4F8; --divider: #EFE6EA;
+  --danger: #B3261E; --shadow: rgba(70, 30, 70, 0.14); --ember-glow: rgba(176, 47, 98, 0.4); --ring: rgba(176, 47, 98, 0.18);
+  --art-dim: #D9AEC4;
   --shine: rgba(255, 255, 255, 0.9);
   --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
   --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
   --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
+  /* Signature: a blossom, lilac and apricot dawn behind everything. */
+  --aura:
+    radial-gradient(42rem 30rem at 6% -8%, rgba(244, 168, 200, 0.42), transparent 70%),
+    radial-gradient(38rem 28rem at 98% 2%, rgba(186, 166, 245, 0.34), transparent 70%),
+    radial-gradient(52rem 30rem at 50% 110%, rgba(255, 200, 172, 0.3), transparent 70%);
+  --ember-grad: linear-gradient(135deg, #C4356C 0%, #9C2F80 55%, #6C2E92 100%);
+  --title-ink: linear-gradient(105deg, #2A1530 0%, #9C2F6E 62%, #6C2E92 100%);
+  --title-fill: transparent;
+  --lift: 0 1px 2px rgba(70, 30, 70, 0.05), 0 16px 36px -24px rgba(108, 46, 146, 0.32);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  --bar-glass: 70%;
+  --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='240' viewBox='0 0 560 240'%3E %3Cdefs%3E%3Cg id='b'%3E%3Cg fill='%23F5B8CE' fill-opacity='.6'%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(288)'/%3E%3C/g%3E%3Cg fill='%23FFF' fill-opacity='.55' transform='scale(.55)'%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(288)'/%3E%3C/g%3E%3Ccircle r='3.2' fill='%23B02F62' fill-opacity='.55'/%3E%3Cg fill='%239C2F6E' fill-opacity='.45'%3E%3Ccircle cx='4' cy='-5' r='1.1'/%3E%3Ccircle cx='-5' cy='-3' r='1.1'/%3E%3Ccircle cx='1' cy='6' r='1.1'/%3E%3Ccircle cx='6' cy='3' r='1'/%3E%3C/g%3E%3C/g%3E%3Cg id='u'%3E%3Cellipse rx='4' ry='6.5' fill='%23E68FB2' fill-opacity='.55'/%3E%3Cpath d='M0 6 L0 11' stroke='%239C6B7C' stroke-opacity='.35' stroke-width='1.5'/%3E%3C/g%3E%3C/defs%3E %3Cg fill='none' stroke='%238E5A6C' stroke-opacity='.28' stroke-linecap='round'%3E %3Cpath d='M575 30 C 500 50, 440 70, 380 100 S 250 110, 140 80' stroke-width='3.2'/%3E %3Cpath d='M440 72 C 455 100, 470 115, 500 112' stroke-width='2'/%3E %3Cpath d='M330 104 C 320 130, 330 150, 360 160' stroke-width='1.8'/%3E %3Cpath d='M250 104 C 240 120, 255 140, 280 148' stroke-width='1.5'/%3E%3C/g%3E %3Cuse href='%23b' transform='translate(468 52) scale(1.25) rotate(10)'/%3E%3Cuse href='%23b' transform='translate(404 92) scale(1.0) rotate(-20)'/%3E%3Cuse href='%23b' transform='translate(330 112) scale(1.15) rotate(35)'/%3E%3Cuse href='%23b' transform='translate(250 104) scale(0.85) rotate(5)'/%3E%3Cuse href='%23b' transform='translate(518 104) scale(0.8) rotate(50)'/%3E%3Cuse href='%23b' transform='translate(372 150) scale(0.7) rotate(15)'/%3E%3Cuse href='%23b' transform='translate(196 78) scale(0.75) rotate(-30)'/%3E%3Cuse href='%23b' transform='translate(286 150) scale(0.6) rotate(60)'/%3E %3Cuse href='%23u' transform='translate(430 60) rotate(-35)'/%3E%3Cuse href='%23u' transform='translate(300 92) rotate(20)'/%3E%3Cuse href='%23u' transform='translate(220 120) rotate(40)'/%3E%3Cuse href='%23u' transform='translate(150 82) rotate(-50)'/%3E  %3C/svg%3E") right -40px top 56px / min(480px, 40vw) auto no-repeat;
+  --aura-motion: aura-drift 26s ease-in-out infinite alternate;
+  --edge: linear-gradient(135deg, #F2A9C4 0%, #FFFFFF 38%, #FFFFFF 58%, #C9B6F2 100%);
+  --nav-active: linear-gradient(135deg, #FBE3EE 0%, #EEE5FB 100%);
+  --grad-size: 180%;
+  --select: #F7CADB; --select-ink: #1F1720;
   color-scheme: light;
 }
 [data-theme="cedar"] {
-  --ground: #131E19; --surface: #1A2822; --raised: #22332B; --line: #2E443A; --line-2: #3B5649;
-  --text: #EEF2EA; --soft: #D0DACF; --muted: #A9BBAE; --faint: #8A9D90;
-  --ember: #E3B867; --ember-hi: #F5D394; --ember-ink: #1A1408; --ember-bg: #2A3322; --ember-line: #4A5232;
-  --sage: #9DC9B0; --sage-bg: #1D2E27; --sage-line: #2F4A3E;
-  --glow: #2E3A22; --glow-strong: #3A4526; --well: #0F1814; --hover: #20302A; --card-warm: #1F2B21; --divider: #26372F;
-  --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.45); --ember-glow: rgba(227, 184, 103, 0.4); --ring: rgba(227, 184, 103, 0.2);
-  --art-dim: #5E7A5A;
+  --ground: #08110E; --surface: #0F1B17; --raised: #16251F; --line: #20332B; --line-2: #2C463B;
+  --text: #EDF3EE; --soft: #CAD7CE; --muted: #A0B4A8; --faint: #829689;
+  --ember: #EBC57E; --ember-hi: #FFE4AA; --ember-ink: #16110A; --ember-bg: #1E291D; --ember-line: #45482B;
+  --sage: #8CD3B1; --sage-bg: #10261E; --sage-line: #21453A;
+  --glow: #1E3326; --glow-strong: #2A4130; --well: #0A1512; --hover: #172720; --card-warm: #12201A; --divider: #1A2B24;
+  --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.55); --ember-glow: rgba(235, 197, 126, 0.38); --ring: rgba(235, 197, 126, 0.2);
+  --art-dim: #4F6E5C;
   --shine: rgba(255, 255, 255, 0.14);
   --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
   --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
+  /* Signature: deep green light through the trees, and a little gold. */
+  --aura:
+    radial-gradient(44rem 32rem at 4% -10%, rgba(38, 140, 104, 0.3), transparent 70%),
+    radial-gradient(36rem 26rem at 100% 0%, rgba(235, 197, 126, 0.13), transparent 70%),
+    radial-gradient(56rem 32rem at 50% 114%, rgba(20, 100, 84, 0.28), transparent 70%);
+  --ember-grad: linear-gradient(135deg, #FFE9B5 0%, #EBC57E 48%, #C9974A 100%);
+  --title-ink: linear-gradient(105deg, #F5F1E4 0%, #F3D79A 65%, #E2B86E 100%);
+  --title-fill: transparent;
+  --card-tint: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, rgba(255, 255, 255, 0) 45%);
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 22px 46px -28px rgba(0, 0, 0, 0.8);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  --bar-glass: 66%;
+  --ornament:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='240' viewBox='0 0 1200 240'%3E%3Ccircle cx='862' cy='132' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='193' cy='145' r='1.4' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='159' cy='146' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='53' cy='164' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='321' cy='186' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='243' cy='172' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='887' cy='92' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='336' cy='176' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='466' cy='155' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='778' cy='167' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='202' cy='210' r='1.4' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='705' cy='96' r='0.8' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='669' cy='180' r='0.6' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='1002' cy='39' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='751' cy='56' r='1.4' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='439' cy='47' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='150' cy='35' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='996' cy='174' r='0.6' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='1039' cy='85' r='1.4' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='1074' cy='26' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='455' cy='93' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='351' cy='184' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='801' cy='204' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='138' cy='195' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='379' cy='83' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='77' cy='201' r='0.6' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='817' cy='0' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1150' cy='33' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='141' cy='209' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='323' cy='98' r='1.1' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='77' cy='130' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='1044' cy='140' r='0.6' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='1104' cy='163' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='585' cy='206' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='681' cy='1' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='866' cy='78' r='1.1' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='441' cy='202' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='201' cy='6' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='487' cy='218' r='1.1' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='946' cy='65' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='125' cy='108' r='1.4' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='164' cy='207' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='875' cy='8' r='1.4' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='458' cy='15' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='708' cy='91' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='50' cy='46' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='509' cy='184' r='0.6' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='798' cy='146' r='0.6' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='942' cy='2' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1021' cy='52' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='44' cy='166' r='1.4' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='819' cy='167' r='1.4' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='775' cy='115' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1078' cy='175' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='915' cy='210' r='1.1' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='1191' cy='166' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='77' cy='179' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='446' cy='96' r='0.8' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='826' cy='77' r='1.1' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='823' cy='196' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='362' cy='77' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='1098' cy='204' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='1096' cy='180' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='16' cy='220' r='1.4' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='638' cy='64' r='0.8' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='1155' cy='110' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='1137' cy='87' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='767' cy='115' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='930' cy='180' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='543' cy='174' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3C/svg%3E") center top 40px / 1200px auto repeat-x,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='190' viewBox='0 0 1200 190'%3E %3Cpath d='M0 150 C 200 120, 380 160, 600 138 S 1000 120, 1200 146 V190 H0Z' fill='%230B1713'/%3E%3Cg fill='%230C1A15'%3E%3Crect x='37.9' y='138.5' width='4.2' height='31.5'/%3E%3Cellipse cx='39.2' cy='147.6' rx='33.2' ry='4.9'/%3E%3Cellipse cx='40.4' cy='135.0' rx='27.3' ry='4.9'/%3E%3Cellipse cx='41.1' cy='123.8' rx='21.7' ry='4.9'/%3E%3Cellipse cx='39.6' cy='114.0' rx='15.4' ry='4.9'/%3E%3Cellipse cx='37.7' cy='105.6' rx='9.1' ry='4.9'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='167.2' y='127.2' width='5.7' height='42.8'/%3E%3Cellipse cx='173.0' cy='139.6' rx='45.1' ry='6.7'/%3E%3Cellipse cx='166.4' cy='122.5' rx='37.1' ry='6.7'/%3E%3Cellipse cx='169.3' cy='107.3' rx='29.4' ry='6.7'/%3E%3Cellipse cx='167.2' cy='94.0' rx='20.9' ry='6.7'/%3E%3Cellipse cx='171.0' cy='82.6' rx='12.3' ry='6.7'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='297.0' y='124.5' width='6.1' height='45.5'/%3E%3Cellipse cx='297.3' cy='137.7' rx='48.0' ry='7.1'/%3E%3Cellipse cx='298.3' cy='119.5' rx='39.4' ry='7.1'/%3E%3Cellipse cx='301.1' cy='103.3' rx='31.3' ry='7.1'/%3E%3Cellipse cx='298.0' cy='89.2' rx='22.2' ry='7.1'/%3E%3Cellipse cx='299.3' cy='77.1' rx='13.1' ry='7.1'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='427.4' y='130.4' width='5.3' height='39.6'/%3E%3Cellipse cx='428.9' cy='141.8' rx='41.8' ry='6.2'/%3E%3Cellipse cx='428.6' cy='126.0' rx='34.3' ry='6.2'/%3E%3Cellipse cx='430.6' cy='111.9' rx='27.3' ry='6.2'/%3E%3Cellipse cx='429.6' cy='99.6' rx='19.4' ry='6.2'/%3E%3Cellipse cx='432.8' cy='89.0' rx='11.4' ry='6.2'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='557.3' y='129.9' width='5.3' height='40.1'/%3E%3Cellipse cx='557.0' cy='141.5' rx='42.3' ry='6.2'/%3E%3Cellipse cx='556.7' cy='125.5' rx='34.7' ry='6.2'/%3E%3Cellipse cx='559.9' cy='111.3' rx='27.6' ry='6.2'/%3E%3Cellipse cx='562.9' cy='98.8' rx='19.6' ry='6.2'/%3E%3Cellipse cx='558.4' cy='88.1' rx='11.6' ry='6.2'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='687.2' y='128.2' width='5.6' height='41.9'/%3E%3Cellipse cx='692.3' cy='140.2' rx='44.2' ry='6.5'/%3E%3Cellipse cx='686.9' cy='123.5' rx='36.3' ry='6.5'/%3E%3Cellipse cx='688.1' cy='108.6' rx='28.8' ry='6.5'/%3E%3Cellipse cx='686.7' cy='95.6' rx='20.5' ry='6.5'/%3E%3Cellipse cx='689.2' cy='84.4' rx='12.1' ry='6.5'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='817.9' y='138.5' width='4.2' height='31.5'/%3E%3Cellipse cx='819.4' cy='147.6' rx='33.2' ry='4.9'/%3E%3Cellipse cx='820.3' cy='135.0' rx='27.3' ry='4.9'/%3E%3Cellipse cx='822.1' cy='123.8' rx='21.7' ry='4.9'/%3E%3Cellipse cx='819.0' cy='114.0' rx='15.4' ry='4.9'/%3E%3Cellipse cx='819.2' cy='105.6' rx='9.1' ry='4.9'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='947.6' y='134.4' width='4.7' height='35.6'/%3E%3Cellipse cx='951.4' cy='144.7' rx='37.5' ry='5.5'/%3E%3Cellipse cx='951.9' cy='130.5' rx='30.8' ry='5.5'/%3E%3Cellipse cx='952.1' cy='117.9' rx='24.5' ry='5.5'/%3E%3Cellipse cx='951.2' cy='106.8' rx='17.4' ry='5.5'/%3E%3Cellipse cx='950.5' cy='97.3' rx='10.3' ry='5.5'/%3E%3C/g%3E%3Cg fill='%230C1A15'%3E%3Crect x='1077.5' y='132.7' width='5.0' height='37.4'/%3E%3Cellipse cx='1083.0' cy='143.4' rx='39.4' ry='5.8'/%3E%3Cellipse cx='1081.3' cy='128.5' rx='32.4' ry='5.8'/%3E%3Cellipse cx='1082.5' cy='115.2' rx='25.7' ry='5.8'/%3E%3Cellipse cx='1080.0' cy='103.6' rx='18.3' ry='5.8'/%3E%3Cellipse cx='1076.9' cy='93.6' rx='10.8' ry='5.8'/%3E%3C/g%3E %3Cpath d='M0 172 C 260 150, 520 180, 760 162 S 1080 160, 1200 170 V190 H0Z' fill='%230E1D17'/%3E%3Cg fill='%230F2019'%3E%3Crect x='96.5' y='130.2' width='6.9' height='51.8'/%3E%3Cellipse cx='99.0' cy='145.2' rx='54.6' ry='8.1'/%3E%3Cellipse cx='96.7' cy='124.5' rx='44.9' ry='8.1'/%3E%3Cellipse cx='102.1' cy='106.1' rx='35.6' ry='8.1'/%3E%3Cellipse cx='104.3' cy='90.0' rx='25.3' ry='8.1'/%3E%3Cellipse cx='99.3' cy='76.2' rx='15.0' ry='8.1'/%3E%3C/g%3E%3Cg fill='%230F2019'%3E%3Crect x='306.2' y='125.3' width='7.6' height='56.7'/%3E%3Cellipse cx='309.5' cy='141.7' rx='59.8' ry='8.8'/%3E%3Cellipse cx='309.7' cy='119.0' rx='49.1' ry='8.8'/%3E%3Cellipse cx='310.0' cy='98.8' rx='39.1' ry='8.8'/%3E%3Cellipse cx='307.7' cy='81.2' rx='27.7' ry='8.8'/%3E%3Cellipse cx='306.8' cy='66.1' rx='16.4' ry='8.8'/%3E%3C/g%3E%3Cg fill='%230F2019'%3E%3Crect x='516.5' y='128.9' width='7.1' height='53.1'/%3E%3Cellipse cx='522.6' cy='144.2' rx='56.0' ry='8.3'/%3E%3Cellipse cx='523.0' cy='123.0' rx='46.0' ry='8.3'/%3E%3Cellipse cx='517.1' cy='104.1' rx='36.6' ry='8.3'/%3E%3Cellipse cx='518.6' cy='87.6' rx='26.0' ry='8.3'/%3E%3Cellipse cx='517.0' cy='73.4' rx='15.3' ry='8.3'/%3E%3C/g%3E%3Cg fill='%230F2019'%3E%3Crect x='725.8' y='119.0' width='8.4' height='63.0'/%3E%3Cellipse cx='726.6' cy='137.2' rx='66.5' ry='9.8'/%3E%3Cellipse cx='732.1' cy='112.0' rx='54.6' ry='9.8'/%3E%3Cellipse cx='732.9' cy='89.6' rx='43.4' ry='9.8'/%3E%3Cellipse cx='733.4' cy='70.0' rx='30.8' ry='9.8'/%3E%3Cellipse cx='724.6' cy='53.2' rx='18.2' ry='9.8'/%3E%3C/g%3E%3Cg fill='%230F2019'%3E%3Crect x='936.4' y='128.0' width='7.2' height='54.0'/%3E%3Cellipse cx='942.8' cy='143.6' rx='57.0' ry='8.4'/%3E%3Cellipse cx='936.3' cy='122.0' rx='46.8' ry='8.4'/%3E%3Cellipse cx='936.4' cy='102.8' rx='37.2' ry='8.4'/%3E%3Cellipse cx='940.2' cy='86.0' rx='26.4' ry='8.4'/%3E%3Cellipse cx='937.9' cy='71.6' rx='15.6' ry='8.4'/%3E%3C/g%3E%3Cg fill='%230F2019'%3E%3Crect x='1146.4' y='128.0' width='7.2' height='54.0'/%3E%3Cellipse cx='1148.0' cy='143.6' rx='57.0' ry='8.4'/%3E%3Cellipse cx='1148.3' cy='122.0' rx='46.8' ry='8.4'/%3E%3Cellipse cx='1152.5' cy='102.8' rx='37.2' ry='8.4'/%3E%3Cellipse cx='1151.9' cy='86.0' rx='26.4' ry='8.4'/%3E%3Cellipse cx='1147.6' cy='71.6' rx='15.6' ry='8.4'/%3E%3C/g%3E %3Crect y='182' width='1200' height='8' fill='%230F2019'/%3E%3C/svg%3E") center bottom / 1200px auto repeat-x;
+  --aura-motion: aura-drift 32s ease-in-out infinite alternate;
+  --edge: linear-gradient(135deg, #F3D79A 0%, rgba(235, 197, 126, 0.18) 30%, #2C463B 62%, #EBC57E 100%);
+  --nav-active: linear-gradient(135deg, rgba(235, 197, 126, 0.2) 0%, rgba(140, 211, 177, 0.12) 100%);
+  --grad-size: 180%;
+  --select: rgba(235, 197, 126, 0.38); --select-ink: #FFFFFF;
   color-scheme: dark;
 }
 
@@ -122,6 +193,19 @@ body {
   margin: 0; min-height: 100vh; background: var(--ground); color: var(--text);
   font: 400 16px/1.6 var(--body); -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
 }
+/* On a phone the composer and tab bar cover the bottom of the screen, so
+   Cedar's ridge of trees would only peek out in pieces: keep the sky and grain. */
+@media (max-width: 720px) { [data-theme="cedar"] { --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1200' height='240' viewBox='0 0 1200 240'%3E%3Ccircle cx='862' cy='132' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='193' cy='145' r='1.4' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='159' cy='146' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='53' cy='164' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='321' cy='186' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='243' cy='172' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='887' cy='92' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='336' cy='176' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='466' cy='155' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='778' cy='167' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='202' cy='210' r='1.4' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='705' cy='96' r='0.8' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='669' cy='180' r='0.6' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='1002' cy='39' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='751' cy='56' r='1.4' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='439' cy='47' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='150' cy='35' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='996' cy='174' r='0.6' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='1039' cy='85' r='1.4' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='1074' cy='26' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='455' cy='93' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='351' cy='184' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='801' cy='204' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='138' cy='195' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='379' cy='83' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='77' cy='201' r='0.6' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='817' cy='0' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1150' cy='33' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='141' cy='209' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='323' cy='98' r='1.1' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='77' cy='130' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='1044' cy='140' r='0.6' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='1104' cy='163' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='585' cy='206' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='681' cy='1' r='0.8' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='866' cy='78' r='1.1' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='441' cy='202' r='1.1' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='201' cy='6' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='487' cy='218' r='1.1' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='946' cy='65' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='125' cy='108' r='1.4' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='164' cy='207' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='875' cy='8' r='1.4' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='458' cy='15' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='708' cy='91' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='50' cy='46' r='0.8' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='509' cy='184' r='0.6' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='798' cy='146' r='0.6' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='942' cy='2' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1021' cy='52' r='0.8' fill='%23F3D79A' fill-opacity='0.7'/%3E%3Ccircle cx='44' cy='166' r='1.4' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='819' cy='167' r='1.4' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='775' cy='115' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='1078' cy='175' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='915' cy='210' r='1.1' fill='%23FFF' fill-opacity='0.25'/%3E%3Ccircle cx='1191' cy='166' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='77' cy='179' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='446' cy='96' r='0.8' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='826' cy='77' r='1.1' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='823' cy='196' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='362' cy='77' r='0.8' fill='%23FFF' fill-opacity='0.5'/%3E%3Ccircle cx='1098' cy='204' r='1.4' fill='%23F3D79A' fill-opacity='0.5'/%3E%3Ccircle cx='1096' cy='180' r='0.8' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='16' cy='220' r='1.4' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='638' cy='64' r='0.8' fill='%23F3D79A' fill-opacity='0.25'/%3E%3Ccircle cx='1155' cy='110' r='1.1' fill='%23FFF' fill-opacity='0.35'/%3E%3Ccircle cx='1137' cy='87' r='0.8' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='767' cy='115' r='1.1' fill='%23F3D79A' fill-opacity='0.35'/%3E%3Ccircle cx='930' cy='180' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3Ccircle cx='543' cy='174' r='1.4' fill='%23FFF' fill-opacity='0.7'/%3E%3C/svg%3E") center top 40px / 1200px auto repeat-x; } }
+/* On a phone Almond's branch shrinks to a sprig in the corner and fades, so
+   the page title and text that pass over it stay clean. */
+@media (max-width: 720px) { [data-theme="almond"] { --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='560' height='240' viewBox='0 0 560 240'%3E %3Cdefs%3E%3Cg id='b'%3E%3Cg fill='%23F5B8CE' fill-opacity='.6'%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(288)'/%3E%3C/g%3E%3Cg fill='%23FFF' fill-opacity='.55' transform='scale(.55)'%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(0)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(72)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(144)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(216)'/%3E%3Cellipse cx='0' cy='-11' rx='7.5' ry='11' transform='rotate(288)'/%3E%3C/g%3E%3Ccircle r='3.2' fill='%23B02F62' fill-opacity='.55'/%3E%3Cg fill='%239C2F6E' fill-opacity='.45'%3E%3Ccircle cx='4' cy='-5' r='1.1'/%3E%3Ccircle cx='-5' cy='-3' r='1.1'/%3E%3Ccircle cx='1' cy='6' r='1.1'/%3E%3Ccircle cx='6' cy='3' r='1'/%3E%3C/g%3E%3C/g%3E%3Cg id='u'%3E%3Cellipse rx='4' ry='6.5' fill='%23E68FB2' fill-opacity='.55'/%3E%3Cpath d='M0 6 L0 11' stroke='%239C6B7C' stroke-opacity='.35' stroke-width='1.5'/%3E%3C/g%3E%3C/defs%3E %3Cg fill='none' stroke='%238E5A6C' stroke-opacity='.28' stroke-linecap='round'%3E %3Cpath d='M575 30 C 500 50, 440 70, 380 100 S 250 110, 140 80' stroke-width='3.2'/%3E %3Cpath d='M440 72 C 455 100, 470 115, 500 112' stroke-width='2'/%3E %3Cpath d='M330 104 C 320 130, 330 150, 360 160' stroke-width='1.8'/%3E %3Cpath d='M250 104 C 240 120, 255 140, 280 148' stroke-width='1.5'/%3E%3C/g%3E %3Cuse href='%23b' transform='translate(468 52) scale(1.25) rotate(10)'/%3E%3Cuse href='%23b' transform='translate(404 92) scale(1.0) rotate(-20)'/%3E%3Cuse href='%23b' transform='translate(330 112) scale(1.15) rotate(35)'/%3E%3Cuse href='%23b' transform='translate(250 104) scale(0.85) rotate(5)'/%3E%3Cuse href='%23b' transform='translate(518 104) scale(0.8) rotate(50)'/%3E%3Cuse href='%23b' transform='translate(372 150) scale(0.7) rotate(15)'/%3E%3Cuse href='%23b' transform='translate(196 78) scale(0.75) rotate(-30)'/%3E%3Cuse href='%23b' transform='translate(286 150) scale(0.6) rotate(60)'/%3E %3Cuse href='%23u' transform='translate(430 60) rotate(-35)'/%3E%3Cuse href='%23u' transform='translate(300 92) rotate(20)'/%3E%3Cuse href='%23u' transform='translate(220 120) rotate(40)'/%3E%3Cuse href='%23u' transform='translate(150 82) rotate(-50)'/%3E  %3C/svg%3E") right -36px top 52px / 230px auto no-repeat; --ornament-fade: 0.55; } }
+/* The signature layer's two fixed pictures: --aura drifting slowly behind
+   everything, and --ornament still above it. Both are "none" in the free themes. */
+body::before { content: ""; position: fixed; inset: -6%; z-index: -1; pointer-events: none; background: var(--aura); animation: var(--aura-motion); will-change: transform; }
+body::after { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--ornament); opacity: var(--ornament-fade, 1); }
+@keyframes aura-drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(-2.5%, 2%, 0) scale(1.07); } }
+@media (prefers-reduced-motion: reduce) { body::before { animation: none; } }
+::selection { background: var(--select); color: var(--select-ink); }
 a { color: var(--ember); }
 h1, h2, h3, h4 { margin: 0; font-weight: 600; text-wrap: balance; }
 p { margin: 0; }
@@ -153,6 +237,9 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 
 /* ---------- Type ---------- */
 .page-title { font: 600 clamp(26px, 3.4vw, 34px)/1.2 var(--body); letter-spacing: -0.02em; }
+/* Supporter themes run --title-ink through the big headings. fit-content keeps
+   the gradient across the words rather than across the empty line after them. */
+.page-title, .h-hero, .h-form { width: fit-content; max-width: 100%; background-image: var(--title-ink); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: var(--title-fill); }
 .page-sub { color: var(--muted); font-size: 16px; margin-top: 6px; max-width: 620px; }
 .eyebrow { color: var(--muted); font-size: 14px; font-weight: 500; margin: 0 0 4px; }
 /* Card and section labels: sentence case, never shouted. */
@@ -168,14 +255,15 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: var(--h-btn); padding: 7px 18px;
   border-radius: var(--pill); font-size: 14px; font-weight: 600; line-height: 1.3; text-decoration: none; border: 1px solid transparent; white-space: nowrap;
-  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: transform 0.12s ease, filter 0.15s ease, box-shadow 0.15s ease, background-color 0.15s ease, background-position 0.5s ease, border-color 0.15s ease, color 0.15s ease;
 }
 .btn:active:not(:disabled) { transform: scale(0.97); }
 .btn:disabled { opacity: 0.55; cursor: default; }
 /* The one gradient button: ember into its deeper (light themes) or brighter
    (dark themes) partner, lit from beneath by --ember-glow. */
-.btn-ember { background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); box-shadow: 0 6px 16px -8px var(--ember-glow); }
-.btn-ember:hover:not(:disabled) { filter: brightness(1.06); color: var(--ember-ink); box-shadow: 0 8px 20px -8px var(--ember-glow); }
+.btn-ember { background: var(--ember-grad); background-size: var(--grad-size) 100%; background-position: 0% 50%; color: var(--ember-ink); box-shadow: var(--sheen), 0 6px 16px -8px var(--ember-glow); }
+.btn-ember:hover:not(:disabled) { background-position: 100% 50%; }
+.btn-ember:hover:not(:disabled) { filter: brightness(1.06); color: var(--ember-ink); box-shadow: var(--sheen), 0 8px 20px -8px var(--ember-glow); }
 .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--line-2); }
 .btn-ghost:hover:not(:disabled) { border-color: var(--ember); color: var(--ember-hi); }
 .btn-quiet { background: transparent; color: var(--text); }
@@ -225,14 +313,14 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .chip-btn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; padding: 5px 12px; min-height: var(--h-chip); border-radius: var(--pill); border: 1px solid var(--line-2); background: transparent; color: var(--soft); }
 .chip-btn:hover { border-color: var(--ember); color: var(--ember-hi); }
 .chip-btn.is-done { border-color: var(--sage); color: var(--sage); background: var(--sage-bg); }
-.btn-primary { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--pill); min-height: var(--h-btn); padding: 7px 18px; font-size: 14px; font-weight: 600; background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); box-shadow: 0 6px 16px -8px var(--ember-glow); }
+.btn-primary { display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: var(--pill); min-height: var(--h-btn); padding: 7px 18px; font-size: 14px; font-weight: 600; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen), 0 6px 16px -8px var(--ember-glow); }
 .btn-primary:disabled { opacity: 0.55; cursor: default; }
 .icon-btn { width: var(--h-icon); height: var(--h-icon); flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--surface); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; }
 .icon-btn:hover { border-color: var(--ember); color: var(--ember); }
 .icon-btn svg { width: 17px; height: 17px; }
 
 /* ---------- Top bar ---------- */
-.topbar { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--ground) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--divider); }
+.topbar { position: sticky; top: 0; z-index: 30; background: color-mix(in srgb, var(--ground) var(--bar-glass), transparent); backdrop-filter: blur(16px) saturate(1.3); -webkit-backdrop-filter: blur(16px) saturate(1.3); border-bottom: 1px solid var(--divider); }
 /* The bar spans the whole window (logo at the far left, account at the far
    right), so it lines up with the Aquila rail, which also starts at the edge. */
 .topbar-inner { display: flex; align-items: center; gap: 20px; height: 60px; max-width: none; padding-left: max(20px, env(safe-area-inset-left, 0px)); padding-right: max(20px, env(safe-area-inset-right, 0px)); }
@@ -241,7 +329,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .appnav { display: flex; gap: 2px; }
 .appnav a, .appnav button { text-decoration: none; color: var(--muted); font-size: 14px; font-weight: 500; padding: 6px 13px; border-radius: var(--pill); background: none; border: 0; }
 .appnav a:hover, .appnav button:hover { color: var(--text); background: var(--hover); }
-.appnav a[aria-current="page"] { color: var(--ember-hi); background: var(--ember-bg); font-weight: 600; }
+.appnav a[aria-current="page"] { color: var(--ember-hi); background: var(--nav-active); font-weight: 600; }
 .head-right { margin-left: auto; display: flex; align-items: center; gap: 8px; position: relative; }
 /* The account chip: a soft avatar with initials and a chevron, in a quiet
    outlined pill that warms on hover and while its menu is open. */
@@ -267,8 +355,8 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .swatch[data-set-theme="olive"], .swatch[data-swatch="olive"] { --sw-bg: #F3F5EC; --sw-accent: #556B2F; --sw-line: #D6DDC6; }
 .swatch[data-set-theme="twilight"], .swatch[data-swatch="twilight"] { --sw-bg: #23233A; --sw-accent: #F2B35E; --sw-line: #44466B; }
 .swatch[data-set-theme="hearth"], .swatch[data-swatch="hearth"] { --sw-bg: #1B1511; --sw-accent: #F4A14C; --sw-line: #3F3227; }
-.swatch[data-set-theme="almond"], .swatch[data-swatch="almond"] { --sw-bg: #FBF4F3; --sw-accent: #9E3B52; --sw-line: #E8D5D2; }
-.swatch[data-set-theme="cedar"], .swatch[data-swatch="cedar"] { --sw-bg: #131E19; --sw-accent: #E3B867; --sw-line: #2E443A; }
+.swatch[data-set-theme="almond"], .swatch[data-swatch="almond"] { --sw-bg: #FAF7F8; --sw-accent: linear-gradient(135deg, #C4356C, #6C2E92); --sw-line: #EFC6D7; }
+.swatch[data-set-theme="cedar"], .swatch[data-swatch="cedar"] { --sw-bg: #08110E; --sw-accent: linear-gradient(135deg, #FFE9B5, #C9974A); --sw-line: #2C463B; }
 /* The labelled version in Settings */
 .theme-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .theme-option { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 7px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); text-align: left; font-size: 14px; font-weight: 500; }
@@ -281,9 +369,9 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 /* ---------- Shared surfaces ---------- */
 .page { padding-top: 32px; padding-bottom: 64px; }
 .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+.card { background: var(--card-tint), var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; box-shadow: var(--lift); }
 /* A warm card glows from its top corner, the way the hero panels glow from below. */
-.card.warm { background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--card-warm) 55%); border-color: var(--ember-line); }
+.card.warm { background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--card-warm) 55%) padding-box, var(--edge) border-box; border-color: transparent; }
 .card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
 .card-head .kicker { margin: 0; }
 .card-actions-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 16px; }
@@ -292,7 +380,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 11px; border-radius: var(--pill); background: var(--raised); border: 1px solid var(--line); color: var(--text); }
 /* Aquila's mark: the wing (AQUILA_MARK in index.html) on the ember gradient, lit softly from beneath. */
-.avatar-a { width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); display: inline-flex; align-items: center; justify-content: center; flex: none; box-shadow: 0 6px 16px -6px var(--ember-glow); }
+.avatar-a { width: 30px; height: 30px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); display: inline-flex; align-items: center; justify-content: center; flex: none; box-shadow: 0 6px 16px -6px var(--ember-glow); }
 .avatar-a svg { width: 64%; height: 64%; }
 .empty { text-align: center; color: var(--muted); padding: 40px 16px; }
 .empty strong { display: block; color: var(--text); font-size: 17px; font-weight: 600; margin-bottom: 6px; }
@@ -378,7 +466,7 @@ button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
 .day-label.today { color: var(--text); font-weight: 600; }
 .big-q { font-size: 18px; font-weight: 600; line-height: 1.4; margin: 0 0 6px; }
 
-/* Shaping a plan with Aquila (home card and the Plans tab) */
+/* Shaping a plan with Aquila (home card and Reading plans in the Bible) */
 .plan-builder textarea { display: block; width: 100%; min-height: 4.5rem; background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 11px 14px; font-size: 16px; line-height: 1.45; resize: vertical; }
 .plan-builder textarea:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); }
 .plan-builder .topics { margin: 10px 0 14px; }
@@ -450,7 +538,7 @@ button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
 /* The cave's tabs, as a segmented control (the same look as .seg): a sunken
    track sized to its tabs, the open one raised. On a phone it fills the width
    and all five tabs share it (see the 720px block), so none hide off screen. */
-.tabs { display: flex; width: fit-content; max-width: 100%; gap: 2px; margin: 0 0 24px; padding: 3px; overflow-x: auto; scrollbar-width: none; background: var(--raised); border: 1px solid var(--line); border-radius: var(--pill); }
+.tabs { display: flex; width: fit-content; max-width: 100%; gap: 2px; margin: 0 0 24px; padding: 3px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scrollbar-width: none; background: var(--raised); border: 1px solid var(--line); border-radius: var(--pill); }
 .tabs::-webkit-scrollbar { display: none; }
 .tabs button { flex: none; min-height: var(--h-btn-sm); background: transparent; border: 0; border-radius: var(--pill); color: var(--muted); font-size: 14px; font-weight: 600; padding: 5px 16px; transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
 .tabs button:hover { color: var(--text); }
@@ -611,7 +699,7 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .bible-door:hover { border-color: var(--ember-line); color: var(--text); }
 .bible-door:active { transform: scale(0.99); }
 .bible-door:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.bible-door.is-primary { padding: 20px 18px; border-color: var(--ember-line); background: radial-gradient(120% 160% at 100% 0%, var(--glow) 0%, var(--card-warm) 60%); }
+.bible-door.is-primary { padding: 20px 18px; border-color: transparent; background: radial-gradient(120% 160% at 100% 0%, var(--glow) 0%, var(--card-warm) 60%) padding-box, var(--edge) border-box; }
 .bible-door-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember); }
 .bible-door-icon svg { width: 20px; height: 20px; display: block; }
 .bible-door-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
@@ -619,7 +707,7 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .bible-door.is-primary .bible-door-text strong { font-size: 18px; }
 .bible-door-text small { font-size: 14px; color: var(--muted); }
 .bible-door-count { flex: none; min-width: 26px; padding: 2px 9px; border-radius: var(--pill); background: var(--raised); color: var(--muted); font-size: 13px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; }
-.bible-door-count.is-due { background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); }
+.bible-door-count.is-due { background: var(--ember-grad); color: var(--ember-ink); }
 .bible-door-go { flex: none; color: var(--faint); }
 .bible-door-go svg { width: 18px; height: 18px; display: block; }
 .reader-bar { position: sticky; top: 60px; z-index: 20; background: color-mix(in srgb, var(--ground) 94%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid var(--divider); }
@@ -732,7 +820,7 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .practice-foot .faint { font-size: 12.5px; flex: 1 1 140px; }
 .practice-link { font-size: 13px; padding: 0; }
 .practice-card .week-dots { justify-content: space-between; }
-.practice-card.is-fasting { border-color: var(--ember-line); background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--surface) 60%); }
+.practice-card.is-fasting { border-color: transparent; background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--surface) 60%) padding-box, var(--edge) border-box; }
 .fast { display: grid; gap: 10px; }
 .fast + .fast { padding-top: 12px; border-top: 1px solid var(--divider); }
 .fast-head { display: flex; align-items: flex-start; gap: 8px; }
@@ -988,7 +1076,6 @@ button.habit-check:active { transform: scale(0.92); }
    seconds of each part, set from the script as a transition duration. */
 .still { display: grid; gap: 16px; justify-items: center; text-align: center; padding: 8px 0 40px; }
 .still h2 { font-size: 26px; margin: 0; }
-.still-lede { max-width: 460px; margin: 0; }
 .still-hint { font-size: 13px; color: var(--faint); margin: 0; }
 .still .mood, .still-session .mood { text-transform: none; }
 .still-orb { position: relative; width: 208px; height: 208px; margin: 12px auto 0; border: 0; border-radius: 50%; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; }
@@ -1086,7 +1173,7 @@ body.still-open { overflow: hidden; }
 .burden.is-mine { background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--card-warm) 55%); border-color: var(--ember-line); }
 /* Saying amen (refuge.js::REACTIONS): "Say a prayer" or "Rejoice with them",
    which turns to Amen once said, with the people who said it underneath. */
-.amen-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border: 0; border-radius: var(--pill); background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); font: 600 14px/1.2 var(--body); cursor: pointer; box-shadow: 0 8px 22px -10px var(--ember-glow); transition: transform 0.15s ease, filter 0.15s ease, background 0.3s ease, color 0.3s ease; }
+.amen-btn { display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border: 0; border-radius: var(--pill); background: var(--ember-grad); color: var(--ember-ink); font: 600 14px/1.2 var(--body); cursor: pointer; box-shadow: 0 8px 22px -10px var(--ember-glow); transition: transform 0.15s ease, filter 0.15s ease, background 0.3s ease, color 0.3s ease; }
 .amen-btn:hover:not(:disabled) { filter: brightness(1.06); }
 .amen-btn:active:not(:disabled) { transform: scale(0.96); }
 .amen-btn:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
@@ -1101,7 +1188,7 @@ body.still-open { overflow: hidden; }
 .amen-faces:empty { display: none; }
 .amen-face { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--surface); margin-left: -7px; background: var(--ember-bg); }
 .amen-face:first-child { margin-left: 0; }
-.amen-face-1 { background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); }
+.amen-face-1 { background: var(--ember-grad); }
 .amen-face-2 { background: var(--sage); }
 .amen-face-3 { background: var(--ember-line); }
 /* What the person who shared sees come back. */
@@ -1118,7 +1205,6 @@ body.still-open { overflow: hidden; }
 .encouragements { display: grid; gap: 6px; }
 .encouragement { font-size: 15px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .encouragement .scripture { font-size: 16px; }
-.share-box textarea { min-height: 110px; margin: 0; }
 /* The home screen's Amens notice: one tappable line, like a notification,
    with the count of posts waiting sitting on the icon. */
 .amens-note { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--ember-line); background: radial-gradient(120% 220% at 0% 0%, var(--glow) 0%, var(--surface) 70%); color: var(--text); text-decoration: none; transition: border-color 0.15s ease, transform 0.15s ease; }
@@ -1127,14 +1213,61 @@ body.still-open { overflow: hidden; }
 .amens-note:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
 .amens-note-icon { position: relative; display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember); }
 .amens-note-icon svg { width: 20px; height: 20px; display: block; }
-.amens-note-count { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--pill); background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
+.amens-note-count { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--pill); background: var(--ember-grad); color: var(--ember-ink); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
 .amens-note-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
 .amens-note-text strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .amens-note-text small { font-size: 13px; color: var(--muted); }
 .amens-note-go { flex: none; color: var(--faint); }
 .amens-note-go svg { width: 18px; height: 18px; display: block; }
-.share-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--faint); }
-.share-send { display: inline-flex; gap: 12px; align-items: center; margin-left: auto; }
+/* The Amens share box (web/refuge.js::shareBox): a compact composer, one
+   line until it's tapped, then the two kinds and the share button open
+   beneath what's written. */
+.amens-composer { background: var(--surface); border: 1px solid var(--line); border-radius: 22px; padding: 4px 10px 4px 14px; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.amens-composer:hover { border-color: var(--line-2); }
+.amens-composer:focus-within { border-color: var(--ember-line); box-shadow: 0 0 0 3px var(--ring); }
+.amens-composer-row { display: flex; align-items: flex-start; gap: 10px; }
+.amens-composer-icon { flex: none; color: var(--ember); padding-top: 11px; }
+.amens-composer-icon svg { width: 18px; height: 18px; display: block; }
+.amens-composer-text { flex: 1; min-width: 0; min-height: 42px; border: 0; background: transparent; resize: none; overflow: hidden; color: var(--text); font: 16px/1.5 var(--body); padding: 9px 0; outline: none; }
+.amens-composer-text::placeholder { color: var(--faint); }
+.amens-composer.is-open .amens-composer-text { min-height: 76px; }
+.amens-composer-more { display: none; padding: 0 0 8px; }
+.amens-composer.is-open .amens-composer-more { display: block; animation: rise 0.18s ease both; }
+.amens-composer-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--divider); padding-top: 10px; }
+.amens-composer-kinds { margin: 0; }
+.amens-composer-kinds button { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; padding: 4px 12px; }
+.amens-composer-kinds svg { width: 15px; height: 15px; flex: none; }
+.amens-composer-send { display: inline-flex; align-items: center; gap: 12px; margin-left: auto; }
+.amens-composer-count { font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.amens-composer-count.is-low { color: var(--danger); }
+.amens-composer-note { margin: 8px 0 0; font-size: 12.5px; color: var(--faint); }
+.amens-composer .form-msg:empty { display: none; }
+
+/* Info buttons (web/cave.js::info): a small (i) beside a title, and the
+   popover it opens, so explanations are there to find rather than to wade
+   through. --arrow-x points the popover's arrow back at its button. */
+/* The heading runs inline so the button sits just after its last word, even
+   when a long title wraps. */
+.title-info { margin: 0 0 10px; }
+.title-info > h1, .title-info > h2, .title-info > h3 { display: inline; margin: 0; }
+.page-head .title-info, .room-head .title-info, .card-head .title-info, .ask-empty .title-info, .still .title-info { margin: 0; }
+.info-btn { display: inline-grid; place-items: center; vertical-align: middle; width: var(--h-icon); height: var(--h-icon); margin: -8px 0 -6px 2px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--faint); transition: color 0.15s ease, background 0.15s ease; }
+.info-btn:hover, .info-btn[aria-expanded="true"] { color: var(--ember); background: var(--hover); }
+.info-btn svg { width: 18px; height: 18px; display: block; }
+.page-title + .info-btn { margin-top: -6px; }
+.page-title + .info-btn svg { width: 20px; height: 20px; }
+.info-pop { position: fixed; z-index: 70; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); color: var(--soft); font-size: 14px; line-height: 1.5; box-shadow: 0 16px 36px -8px var(--shadow); animation: rise 0.15s ease both; }
+.info-pop p { margin: 0; }
+.info-pop p + p { margin-top: 8px; }
+.info-pop::before { content: ""; position: absolute; top: -6px; left: var(--arrow-x, 50%); width: 10px; height: 10px; background: var(--surface); border-left: 1px solid var(--line); border-top: 1px solid var(--line); transform: translateX(-50%) rotate(45deg); }
+.info-pop.is-above::before { top: auto; bottom: -6px; border: 0; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.info-more { display: inline-block; margin-top: 10px; padding: 0; border: 0; background: none; color: var(--ember); font-size: 14px; font-weight: 600; }
+.info-more:hover { color: var(--ember-hi); }
+.how-steps { list-style: none; counter-reset: how; padding: 0; margin: 0 0 8px; display: grid; gap: 14px; }
+.how-steps li { counter-increment: how; display: grid; grid-template-columns: 26px minmax(0, 1fr); column-gap: 12px; row-gap: 2px; }
+.how-steps li::before { content: counter(how); grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--ember-bg); color: var(--ember-hi); font-size: 13px; font-weight: 700; }
+.how-steps strong { font-size: 15px; font-weight: 600; }
+.how-steps span { font-size: 14px; color: var(--muted); }
 /* The wall as bubbles (web/refuge.js::bubble): each post a small sphere lit
    from the top left, ember for a burden and sage for good news, sized by the
    post's length and drifting on its own rhythm. Drift moves `translate` and
@@ -1175,7 +1308,11 @@ body.still-open { overflow: hidden; }
 /* What you've shared (refuge.js::mineBubble): the same bubbles, smaller, in
    one row that scrolls sideways. The auto margins centre a short row without
    hiding the start of a long one, as plain `justify-content: center` would. */
-.mine-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding: 10px 4px 12px; scrollbar-width: none; }
+/* Scrolls sideways only. Left to itself the browser would let it scroll up and
+   down too, by the few pixels a drifting or popping bubble pokes out, and a
+   vertical swipe on a phone would then move the row instead of the page.
+   The padding leaves room for that drift and pop, so nothing is clipped. */
+.mine-row { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 18px 4px 22px; scrollbar-width: none; }
 .mine-row::-webkit-scrollbar { display: none; }
 .mine-row > :first-child { margin-left: auto; }
 .mine-row > :last-child { margin-right: auto; }
@@ -1278,8 +1415,11 @@ body.still-open { overflow: hidden; }
   /* Each icon sits in a pill that fills in for the tab you're on. */
   .tabbar svg { width: 52px; height: 28px; padding: 4px 15px; border-radius: var(--pill); transition: background-color 0.2s ease, color 0.2s ease; }
   .tabbar [aria-current="page"] { color: var(--ember-hi); font-weight: 600; }
-  .tabbar [aria-current="page"] svg { background: var(--ember-bg); color: var(--ember); }
+  .tabbar [aria-current="page"] svg { background: var(--nav-active); color: var(--ember); }
   .composer { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); padding-bottom: 10px; }
+  /* Aquila fills exactly the space between the 57px top bar and the tab bar,
+     so an empty conversation doesn't scroll into blank space. */
+  .ask-layout { min-height: calc(100dvh - 57px - 60px - env(safe-area-inset-bottom, 0px)); }
   .callbar { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
   .call-transcript { bottom: calc(196px + env(safe-area-inset-bottom, 0px)); }
   .reader-bar { top: 56px; }
@@ -1454,7 +1594,7 @@ body.still-open { overflow: hidden; }
   .sermon-list { position: static; max-height: none; }
   /* On a phone an open note takes the list's place; All sermons goes back. */
   .sermons:not(.is-list) .sermon-list { display: none; }
-  .sermon-items { grid-auto-flow: column; grid-auto-columns: minmax(200px, 75%); overflow-x: auto; padding-bottom: 4px; }
+  .sermon-items { grid-auto-flow: column; grid-auto-columns: minmax(200px, 75%); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding-bottom: 4px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1505,3 +1645,42 @@ body.still-open { overflow: hidden; }
   .support-options { grid-template-columns: minmax(0, 1fr); }
   .support-band { padding: 22px; }
 }
+
+/* Amens posts waiting for approval (web/refuge.js::waitingZone): their own
+   zone under the share box, dashed like something not yet settled, with a
+   slow pulse on the clock while a person reads them. */
+/* Posts waiting for approval (web/refuge.js::waitingZone): folded, one slim
+   pill like a notification; opened, a compact list inside the same rounded box. */
+.waiting { min-width: 0; border: 1px solid var(--ember-line); border-radius: calc(var(--h-btn) / 2 + 4px); background: color-mix(in srgb, var(--card-warm) 70%, var(--surface)); transition: border-radius 0.2s ease; }
+.waiting[open] { border-radius: var(--radius); }
+.waiting-bar { display: flex; align-items: center; gap: 10px; min-height: var(--h-btn); padding: 4px 12px 4px 5px; cursor: pointer; list-style: none; font-size: 14px; color: var(--soft); border-radius: inherit; }
+.waiting-bar::-webkit-details-marker { display: none; }
+.waiting-bar:hover { color: var(--text); }
+.waiting-bar:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.waiting-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); animation: waiting-pulse 2.4s ease-in-out infinite; }
+.waiting-icon svg { width: 16px; height: 16px; display: block; }
+.waiting-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waiting-label strong { color: var(--ember-hi); font-weight: 700; font-variant-numeric: tabular-nums; }
+.waiting-dots { flex: none; display: inline-flex; }
+.waiting-dots .waiting-dot + .waiting-dot { margin-left: -3px; }
+.waiting-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
+.waiting-dot-burden { background: var(--ember); }
+.waiting-dot-rejoice { background: var(--sage); }
+.waiting-chevron { flex: none; display: grid; place-items: center; color: var(--faint); transition: transform 0.2s ease; }
+.waiting-chevron svg { width: 16px; height: 16px; display: block; }
+.waiting[open] .waiting-chevron { transform: rotate(90deg); }
+.waiting-body { display: grid; gap: 8px; padding: 0 8px 8px; animation: rise 0.2s ease both; }
+.waiting-note { margin: 0 6px; font-size: 12.5px; color: var(--muted); }
+.waiting-list { list-style: none; margin: 0; padding: 0; display: grid; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.waiting-list > li { min-width: 0; }
+.waiting-list > li + li { border-top: 1px solid var(--divider); }
+.waiting-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--h-chip); padding: 7px 12px; border: 0; background: none; color: var(--text); text-align: left; font-size: 14px; transition: background-color 0.15s ease; }
+.waiting-item:hover { background: var(--hover); }
+.waiting-item .waiting-dot { box-shadow: none; width: 8px; height: 8px; }
+.waiting-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.waiting-when { flex: none; font-size: 12px; color: var(--faint); }
+@keyframes waiting-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--ring); } 50% { box-shadow: 0 0 0 5px var(--ring); } }
+@media (prefers-reduced-motion: reduce) { .waiting-icon { animation: none; } .waiting-body { animation: none; } }
+
+/* A post's status reads in sentence case, like every other label. */
+.burden.is-mine .badge { text-transform: none; }

@@ -33,7 +33,7 @@ _MISSING_COLUMN_CODES = ("42703", "PGRST204")
 
 
 def _plan_summary(row: dict, today) -> dict:
-    """A plan as the Plans tab shows it: where it stands today plus the
+    """A plan as the Bible's Reading plans page shows it: where it stands today plus the
     details the list needs."""
     return {
         **plan_today(row, today),
