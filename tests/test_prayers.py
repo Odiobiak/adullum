@@ -146,3 +146,40 @@ def test_remember_respects_memory_switched_off(monkeypatch):
 
 def test_prayers_require_sign_in():
     assert client.get("/me/prayers").status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# The week of prayer
+# ---------------------------------------------------------------------------
+class TestWeekOfPrayer:
+    TODAY = date(2026, 11, 5)  # a Thursday
+
+    def test_any_prayer_lights_the_day_and_requests_are_counted_on_their_own(self):
+        marks = [
+            {"day": "2026-11-02", "prayer_id": "p1"},
+            {"day": "2026-11-05", "prayer_id": None},
+            {"day": "2026-11-05", "prayer_id": "p1"},
+            {"day": "2026-11-01", "prayer_id": "p1"},  # last Sunday: not this week
+        ]
+        week = prayers.prayer_week(marks, self.TODAY)
+        assert [d["done"] for d in week["week"]] == [True, False, False, True, False, False, False]
+        assert week["days_this_week"] == 2 and week["prayed_today"] is True
+        assert week["by_prayer"] == {"p1": {"today": True, "this_week": 2}}
+
+    def test_praying_for_a_request_is_not_the_same_as_i_prayed_today(self):
+        week = prayers.prayer_week([{"day": "2026-11-05", "prayer_id": "p1"}], self.TODAY)
+        assert week["prayed_today"] is False and week["week"][3]["done"] is True
+
+    def test_marking_a_request_checks_it_is_theirs(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+        monkeypatch.setattr(prayers, "get_supabase", lambda: FakeDb([]))
+        resp = client.post("/me/prayers/log", json={"prayer_id": "22222222-2222-2222-2222-222222222222"}, headers={"Authorization": "Bearer t"})
+        assert resp.status_code == 404
+
+    def test_taking_back_i_prayed_today_touches_only_the_general_mark(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+        db = FakeDb([])
+        monkeypatch.setattr(prayers, "get_supabase", lambda: db)
+        resp = client.post("/me/prayers/log", json={"prayed": False}, headers={"Authorization": "Bearer t"})
+        assert resp.status_code == 200
+        assert ("is_", ("prayer_id", "null")) in db.calls and ("eq", ("user_id", USER.id)) in db.calls

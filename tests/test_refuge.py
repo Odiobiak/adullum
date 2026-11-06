@@ -85,10 +85,67 @@ class TestHelpers:
         ]
         assert len(refuge.clean_steps([f"step {n}" for n in range(30)])) == refuge.MAX_STEPS
 
-    def test_rhythm_is_the_last_week_ending_today(self):
-        today = date(2026, 11, 5)
-        days = ["2026-11-05", "2026-11-03", "2026-10-20"]
-        assert refuge.rhythm(days, today) == [False, False, False, False, True, False, True]
+    def test_a_goal_is_measured_by_its_number_or_its_steps(self):
+        assert refuge.goal_measure({"target": 12, "progress": 3}) == {"by": "number", "done": 3.0, "of": 12.0, "fraction": 0.25}
+        # Going past the number still fills the bar, and no further.
+        assert refuge.goal_measure({"target": 10, "progress": 14})["fraction"] == 1.0
+        steps = [{"text": "Call Mum", "done": True}, {"text": "Book it", "done": False}]
+        assert refuge.goal_measure({"target": None, "steps": steps}) == {"by": "steps", "done": 1, "of": 2, "fraction": 0.5}
+        assert refuge.goal_measure({"target": None, "steps": []}) is None
+
+    def test_a_goal_is_tracked_one_way_and_a_number_wins(self):
+        assert refuge.goal_tracking(["Read Ruth"], 12) == ([], 12)
+        assert refuge.goal_tracking(["Read Ruth", " "], None) == ([{"text": "Read Ruth", "done": False}], None)
+        assert refuge.goal_tracking([], None) == ([], None)
+
+
+# ---------------------------------------------------------------------------
+# Pebbles: goals and habits
+# ---------------------------------------------------------------------------
+SEED_ID = "44444444-4444-4444-4444-444444444444"
+
+
+class TestPebbles:
+    def test_a_habit_comes_with_this_week_and_a_goal_with_its_progress(self, monkeypatch, signed_in):
+        habit = {"id": "h", "kind": "habit", "title": "Walk", "per_week": 5, "status": "growing", "steps": [], "target": None, "due_on": None}
+        goal = {"id": "g", "kind": "goal", "title": "Read 12 books", "status": "growing", "steps": [], "target": 12, "progress": 3, "due_on": "2026-11-10"}
+        db = use_db(monkeypatch, FakeDb({
+            "refuge_seeds": [habit, goal],
+            # Thursday 5 November: Monday and today are done, last Sunday doesn't count this week.
+            "refuge_checkins": [{"seed_id": "h", "day": "2026-11-02"}, {"seed_id": "h", "day": "2026-11-05"}, {"seed_id": "h", "day": "2026-11-01"}],
+        }))
+        monkeypatch.setattr(refuge, "parse_today", lambda today: date(2026, 11, 5))
+        rows = {r["id"]: r for r in client.get("/me/refuge/seeds", headers=HEADERS).json()}
+        assert rows["h"]["week_done"] == 2 and rows["h"]["tended_today"] is True
+        assert [m["done"] for m in rows["h"]["week"]] == [True, False, False, True, False, False, False]
+        assert rows["g"]["measure"]["fraction"] == 0.25 and rows["g"]["due_in"] == 5
+        assert db.filtered("refuge_seeds", "user_id", USER.id)
+
+    def test_only_habits_are_marked_day_by_day(self, monkeypatch, signed_in):
+        use_db(monkeypatch, FakeDb({"refuge_seeds": [{"id": SEED_ID, "kind": "goal"}]}))
+        resp = client.post(f"/me/refuge/seeds/{SEED_ID}/tend", json={"tended": True}, headers=HEADERS)
+        assert resp.status_code == 422
+
+    def test_a_past_day_this_week_can_be_marked_but_not_tomorrow(self, monkeypatch, signed_in):
+        db = use_db(monkeypatch, FakeDb({"refuge_seeds": [{"id": SEED_ID, "kind": "habit"}]}))
+        monkeypatch.setattr(refuge, "parse_today", lambda today: date(2026, 11, 5))
+        ok = client.post(f"/me/refuge/seeds/{SEED_ID}/tend", json={"day": "2026-11-03"}, headers=HEADERS)
+        assert ok.status_code == 200 and ok.json()["day"] == "2026-11-03"
+        assert ("refuge_checkins", "upsert", {"seed_id": SEED_ID, "user_id": USER.id, "day": "2026-11-03"}) in db.written
+        later = client.post(f"/me/refuge/seeds/{SEED_ID}/tend", json={"day": "2026-11-06"}, headers=HEADERS)
+        assert later.status_code == 422
+
+    def test_a_number_goal_keeps_no_steps(self, monkeypatch, signed_in):
+        db = use_db(monkeypatch, FakeDb())
+        body = {"kind": "goal", "title": "Read 12 books", "target": 12, "unit": "  books ", "steps": ["one"], "due_on": "2026-12-31"}
+        assert client.post("/me/refuge/seeds", json=body, headers=HEADERS).status_code == 200
+        row = next(w[2] for w in db.written if w[0] == "refuge_seeds")
+        assert row["steps"] == [] and row["target"] == 12 and row["unit"] == "books" and row["due_on"] == "2026-12-31"
+
+    def test_hopes_and_prayers_are_no_longer_pebbles(self, monkeypatch, signed_in):
+        use_db(monkeypatch, FakeDb())
+        for kind in ("hope", "prayer"):
+            assert client.post("/me/refuge/seeds", json={"kind": kind, "title": "x"}, headers=HEADERS).status_code == 422
 
 
 # ---------------------------------------------------------------------------

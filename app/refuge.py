@@ -7,8 +7,11 @@ Five ways in, each with its routes here or in app/one_another.py:
   listen). A talk vanishes by default; it's stored (`refuge_talks`) only when
   the person presses Keep. These runs are never traced to Langfuse, and
   nothing said here reaches Aquila's memory.
-- Pebbles (once "Grow"): hopes, goals, habits and prayers (`refuge_seeds`), with
-  the days a habit or prayer was tended (`refuge_checkins`).
+- Pebbles (once "Grow"): goals and habits (`refuge_seeds`, so the code still
+  says seeds). A goal is reached through steps, a number (12 books), or simply
+  marked reached, optionally by a date; a habit is meant for some days a week
+  and its days done are `refuge_checkins`. Praying and fasting live on the
+  prayer list instead (app/prayers.py, app/fasting.py).
 - Be still: entirely in the browser.
 - Amens: the wall, app/one_another.py.
 
@@ -26,8 +29,8 @@ from pydantic import BaseModel, Field
 
 from app.agent.graph import agent
 from app.auth import AuthUser, require_user
-from app.cave import _now
-from app.days import parse_today
+from app.cave import _db_call, _now
+from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import get_supabase
 from app.one_another import _db, carried_summary
 from app.prayers import normalize_passage
@@ -37,14 +40,23 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 Shape = Literal["blank", "lament", "thanks", "dream"]
-SeedKind = Literal["hope", "goal", "habit", "prayer"]
+SeedKind = Literal["goal", "habit"]
 SeedStatus = Literal["growing", "fulfilled", "set_aside"]
 
-# Kinds that are tended day by day rather than worked through in steps.
-TENDED_KINDS = ("habit", "prayer")
-RHYTHM_DAYS = 7  # how many days of check-ins a seed card shows
 MAX_STEPS = 12
+MAX_TARGET = 1_000_000_000
 TITLE_LENGTH = 60
+
+# Pebbles read columns added by a later migration than the rest of Refuge, so
+# their setup message names that one.
+_PEBBLES_HINT = (
+    "Pebbles needs a database update. Run supabase/migrations/20261112_pebbles_and_prayer_practice.sql "
+    "in the Supabase SQL editor."
+)
+
+
+def _pebbles_db(fn):
+    return _db_call(fn, _PEBBLES_HINT)
 
 
 # ---------------------------------------------------------------------------
@@ -69,11 +81,27 @@ def clean_steps(steps: list) -> list[dict]:
     return out[:MAX_STEPS]
 
 
-def rhythm(days: list[str], today: date) -> list[bool]:
-    """Whether each of the last RHYTHM_DAYS days was tended, oldest first,
-    ending today. Shown as dots; never as a streak count."""
-    tended = set(days)
-    return [(today - timedelta(days=n)).isoformat() in tended for n in range(RHYTHM_DAYS - 1, -1, -1)]
+def goal_measure(seed: dict) -> dict | None:
+    """How far along a goal is, for its progress bar: steps done of steps, or
+    the number reached of the number set. None for a goal that is simply
+    marked reached one day, which has nothing to count."""
+    if seed.get("target"):
+        target = float(seed["target"])
+        done = float(seed.get("progress") or 0)
+        return {"by": "number", "done": done, "of": target, "fraction": min(done / target, 1.0)}
+    steps = seed.get("steps") or []
+    if steps:
+        done = sum(1 for s in steps if s.get("done"))
+        return {"by": "steps", "done": done, "of": len(steps), "fraction": done / len(steps)}
+    return None
+
+
+def goal_tracking(steps: list | None, target: float | None) -> tuple[list[dict], float | None]:
+    """A goal is tracked one way: by a number, or by steps, or neither. A
+    number wins if both are sent, so a goal never shows two progress bars."""
+    if target:
+        return [], target
+    return clean_steps(steps or []), None
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +136,13 @@ class SeedIn(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     note: str | None = Field(default=None, max_length=2000)
     passage_ref: str | None = Field(default=None, max_length=120)
+    # Goals: steps, or a number to reach (target and its unit), and a date.
     steps: list[str] = Field(default_factory=list, max_length=MAX_STEPS)
+    target: float | None = Field(default=None, gt=0, le=MAX_TARGET)
+    unit: str | None = Field(default=None, max_length=30)
+    due_on: date | None = None
+    # Habits: how many days a week it's meant for.
+    per_week: int = Field(default=7, ge=1, le=7)
 
 
 class SeedPatch(BaseModel):
@@ -116,12 +150,19 @@ class SeedPatch(BaseModel):
     note: str | None = Field(default=None, max_length=2000)
     passage_ref: str | None = Field(default=None, max_length=120)
     steps: list[Step] | None = Field(default=None, max_length=MAX_STEPS)
+    target: float | None = Field(default=None, gt=0, le=MAX_TARGET)
+    progress: float | None = Field(default=None, ge=0, le=MAX_TARGET)
+    unit: str | None = Field(default=None, max_length=30)
+    due_on: date | None = None
+    per_week: int | None = Field(default=None, ge=1, le=7)
     status: SeedStatus | None = None
     outcome_note: str | None = Field(default=None, max_length=2000)
 
 
 class TendIn(BaseModel):
     today: str | None = None
+    # Which day to mark: today when left out, or one of the last seven.
+    day: str | None = None
     tended: bool = True
 
 
@@ -233,21 +274,35 @@ def erase_talk(talk_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> di
 # ---------------------------------------------------------------------------
 # Pebbles (once "Grow"): hopes, goals, habits and prayers
 # ---------------------------------------------------------------------------
-_SEED_FIELDS = "id, kind, title, note, passage_ref, steps, status, outcome_note, fulfilled_at, created_at, updated_at"
+_SEED_FIELDS = (
+    "id, kind, title, note, passage_ref, steps, target, progress, unit, due_on, per_week, "
+    "status, outcome_note, fulfilled_at, created_at, updated_at"
+)
+
+
+def _clean_unit(unit: str | None) -> str | None:
+    return " ".join((unit or "").split()) or None
 
 
 @router.get("/me/refuge/seeds")
 def list_seeds(today: str | None = None, user: AuthUser = Depends(require_user)) -> list[dict]:
-    """Every seed, growing ones first, each tended kind with its last week of days."""
+    """Every pebble, active ones first. A goal comes with how far along it is
+    (`measure`) and how many days are left (`due_in`); a habit with this week
+    as seven marks and how many of them are done."""
     day = parse_today(today)
     db = get_supabase()
-    seeds = _db(lambda: db.table("refuge_seeds").select(_SEED_FIELDS).eq("user_id", user.id).order("created_at", desc=True).execute().data)
-    since = (day - timedelta(days=RHYTHM_DAYS - 1)).isoformat()
+    seeds = _pebbles_db(lambda: db.table("refuge_seeds").select(_SEED_FIELDS).eq("user_id", user.id).order("created_at", desc=True).execute().data)
+    since = (day - timedelta(days=MARKABLE_DAYS - 1)).isoformat()
     checkins = _db(lambda: db.table("refuge_checkins").select("seed_id, day").eq("user_id", user.id).gte("day", since).execute().data)
     for s in seeds:
-        days = [c["day"] for c in checkins if c["seed_id"] == s["id"]]
-        s["rhythm"] = rhythm(days, day) if s["kind"] in TENDED_KINDS else None
-        s["tended_today"] = day.isoformat() in days
+        if s["kind"] == "habit":
+            done = {date.fromisoformat(c["day"]) for c in checkins if c["seed_id"] == s["id"]}
+            s["week"] = week_marks(done, day)
+            s["week_done"] = sum(1 for m in s["week"] if m["done"])
+            s["tended_today"] = day in done
+        else:
+            s["measure"] = goal_measure(s)
+            s["due_in"] = (date.fromisoformat(s["due_on"]) - day).days if s.get("due_on") else None
     order = {"growing": 0, "fulfilled": 1, "set_aside": 2}
     return sorted(seeds, key=lambda s: order[s["status"]])
 
@@ -260,18 +315,35 @@ def plant(body: SeedIn, user: AuthUser = Depends(require_user)) -> dict:
         "title": body.title.strip(),
         "note": (body.note or "").strip() or None,
         "passage_ref": normalize_passage(body.passage_ref),
-        "steps": clean_steps(body.steps) if body.kind == "goal" else [],
     }
-    return _db(lambda: get_supabase().table("refuge_seeds").insert(row).execute().data[0])
+    if body.kind == "goal":
+        steps, target = goal_tracking(body.steps, body.target)
+        row.update(steps=steps, target=target, unit=_clean_unit(body.unit) if target else None,
+                   due_on=body.due_on.isoformat() if body.due_on else None)
+    else:
+        row.update(steps=[], per_week=body.per_week)
+    return _pebbles_db(lambda: get_supabase().table("refuge_seeds").insert(row).execute().data[0])
 
 
 @router.patch("/me/refuge/seeds/{seed_id}")
 def tend_seed(seed_id: uuid.UUID, body: SeedPatch, user: AuthUser = Depends(require_user)) -> dict:
+    """Edit a pebble, move a goal along (steps ticked, a new number), or
+    change its status. Switching a goal to a number clears its steps, and
+    the other way round."""
     patch = body.model_dump(exclude_unset=True)
     if "passage_ref" in patch:
         patch["passage_ref"] = normalize_passage(patch["passage_ref"])
-    if "steps" in patch:
+    # Same rule as goal_tracking: a number wins, so there's one progress bar.
+    if patch.get("target"):
+        patch["steps"] = []
+    elif "steps" in patch:
         patch["steps"] = clean_steps(patch["steps"] or [])
+        if patch["steps"]:
+            patch["target"] = None
+    if "unit" in patch:
+        patch["unit"] = _clean_unit(patch["unit"])
+    if "due_on" in patch:
+        patch["due_on"] = patch["due_on"].isoformat() if patch["due_on"] else None
     if "note" in patch:
         patch["note"] = (patch["note"] or "").strip() or None
     if "outcome_note" in patch:
@@ -282,7 +354,7 @@ def tend_seed(seed_id: uuid.UUID, body: SeedPatch, user: AuthUser = Depends(requ
         patch["fulfilled_at"] = None
         patch.setdefault("outcome_note", None)
     patch["updated_at"] = _now()
-    rows = _db(lambda: get_supabase().table("refuge_seeds").update(patch).eq("id", str(seed_id)).eq("user_id", user.id).execute().data)
+    rows = _pebbles_db(lambda: get_supabase().table("refuge_seeds").update(patch).eq("id", str(seed_id)).eq("user_id", user.id).execute().data)
     if not rows:
         raise HTTPException(status_code=404, detail="That isn't here anymore.")
     return rows[0]
@@ -290,20 +362,22 @@ def tend_seed(seed_id: uuid.UUID, body: SeedPatch, user: AuthUser = Depends(requ
 
 @router.post("/me/refuge/seeds/{seed_id}/tend")
 def tend_today(seed_id: uuid.UUID, body: TendIn, user: AuthUser = Depends(require_user)) -> dict:
-    """Marks a habit or prayer as tended today, or takes that back."""
-    day = parse_today(body.today).isoformat()
+    """Marks a habit done on a day (today, or one of the last seven), or takes
+    that back."""
+    today = parse_today(body.today)
+    day = parse_markable_day(body.day, today).isoformat()
     db = get_supabase()
     owned = _db(lambda: db.table("refuge_seeds").select("id, kind").eq("id", str(seed_id)).eq("user_id", user.id).limit(1).execute().data)
     if not owned:
         raise HTTPException(status_code=404, detail="That isn't here anymore.")
-    if owned[0]["kind"] not in TENDED_KINDS:
-        raise HTTPException(status_code=422, detail="Only habits and prayers are tended day by day.")
+    if owned[0]["kind"] != "habit":
+        raise HTTPException(status_code=422, detail="Only habits are marked day by day.")
     if body.tended:
         row = {"seed_id": str(seed_id), "user_id": user.id, "day": day}
         db.table("refuge_checkins").upsert(row, on_conflict="seed_id,day", ignore_duplicates=True).execute()
     else:
         db.table("refuge_checkins").delete().eq("seed_id", str(seed_id)).eq("user_id", user.id).eq("day", day).execute()
-    return {"tended_today": body.tended}
+    return {"day": day, "tended": body.tended}
 
 
 @router.delete("/me/refuge/seeds/{seed_id}")

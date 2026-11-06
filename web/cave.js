@@ -11,7 +11,11 @@
 // person's tokens and nothing else.
 (function () {
   const STORE_KEY = "adullumSession";
-  const THEME_NAMES = { dawn: "Dawn", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth" };
+  const THEME_NAMES = { dawn: "Dawn", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar" };
+  // Thank-you themes for friends of the cave, people who give monthly
+  // (web/support.js, app/support.py). Everyone else sees them in Settings
+  // with a way to the Support page.
+  const SUPPORTER_THEMES = new Set(["almond", "cedar"]);
   // Starting points offered under the plan builder. Tapping one fills the box.
   const PLAN_IDEAS = ["The Gospels in a month", "Two weeks on anxiety", "Psalms for hard nights", "Romans, slowly"];
 
@@ -144,6 +148,84 @@
     return select;
   }
 
+  // A "⋯" button that opens a small menu of a card's less common actions
+  // (Edit, Set aside, Delete), so a card shows one or two actions instead of
+  // a row of pills. `items` is [{ label, onClick, danger }]; falsy items are
+  // skipped. The menu closes on a pick, Escape, or a click anywhere else, and
+  // the arrow keys move between its items.
+  function moreMenu(label, items) {
+    const wrap = el("div", { class: "more" });
+    const button = el("button", {
+      class: "more-btn", type: "button", "aria-label": label, "aria-haspopup": "menu", "aria-expanded": "false",
+      html: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/></svg>',
+    });
+    let menu = null;
+
+    function close() {
+      if (!menu) return;
+      menu.remove();
+      menu = null;
+      button.setAttribute("aria-expanded", "false");
+      document.removeEventListener("click", onOutside, true);
+      document.removeEventListener("keydown", onKey);
+    }
+    function onOutside(e) {
+      if (!wrap.contains(e.target)) close();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        close();
+        button.focus();
+        return;
+      }
+      if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+      e.preventDefault();
+      const options = [...menu.querySelectorAll("button")];
+      const at = options.indexOf(document.activeElement);
+      const next = e.key === "ArrowDown" ? at + 1 : at - 1;
+      options[(next + options.length) % options.length].focus();
+    }
+
+    button.addEventListener("click", () => {
+      if (menu) return close();
+      menu = el("div", { class: "more-menu", role: "menu" }, items.filter(Boolean).map((item) =>
+        el("button", {
+          class: `more-item${item.danger ? " danger" : ""}`, type: "button", role: "menuitem", text: item.label,
+          onclick: () => { close(); item.onClick(); },
+        })
+      ));
+      wrap.append(menu);
+      button.setAttribute("aria-expanded", "true");
+      document.addEventListener("click", onOutside, true);
+      document.addEventListener("keydown", onKey);
+      menu.querySelector("button").focus();
+    });
+    wrap.append(button);
+    return wrap;
+  }
+
+  // A local date ("2026-11-05") as a Date at midday, so no timezone can tip
+  // it into the day before when it's formatted.
+  function localDate(iso) {
+    return new Date(`${iso}T12:00:00`);
+  }
+
+  // This week as seven small dots over their day letters, from the server's
+  // marks (app/days.py::week_marks). A week is counted ("3 of 5 this week"),
+  // never shown as a streak. With `onToggle`, today and the days before it are
+  // buttons that mark or unmark that day; days still to come never are.
+  function weekDots(marks, { label = "This week", onToggle } = {}) {
+    return el("div", { class: "week-dots", role: "group", "aria-label": label }, marks.map((m) => {
+      const name = localDate(m.day).toLocaleDateString(undefined, { weekday: "long" });
+      const state = m.future ? "still to come" : m.done ? "done" : "not done";
+      const cls = `wd${m.done ? " done" : ""}${m.today ? " today" : ""}${m.future ? " future" : ""}`;
+      const dot = onToggle && !m.future
+        ? el("button", { class: cls, type: "button", title: `${name}: ${state}`, "aria-label": `${name}${m.today ? ", today" : ""}`, "aria-pressed": String(m.done), onclick: () => onToggle(m) })
+        : el("span", { class: cls, role: "img", title: `${name}: ${state}`, "aria-label": `${name}: ${state}` });
+      return el("span", { class: "wd-col" }, [dot, el("span", { class: "wd-label", "aria-hidden": "true", text: m.label })]);
+    }));
+  }
+
   function formMessage() {
     const node = el("p", { class: "form-msg", role: "alert" });
     return {
@@ -175,6 +257,11 @@
       const sw = e.target.closest("[data-set-theme]");
       if (!sw) return;
       e.stopPropagation();
+      if (SUPPORTER_THEMES.has(sw.dataset.setTheme) && !supporterSince()) {
+        toast(`${THEME_NAMES[sw.dataset.setTheme]} is a thank-you for friends of the cave.`);
+        location.hash = "support";
+        return;
+      }
       setTheme(sw.dataset.setTheme);
     },
     true
@@ -304,6 +391,8 @@
       if (session && !session.user) writeSession({ ...session, user: me.user });
       // web/reader.js listens for this to apply the saved translation.
       document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
+      // A supporter theme saved on this device stays only for supporters.
+      if (SUPPORTER_THEMES.has(document.documentElement.dataset.theme) && !supporterSince()) setTheme("dawn");
     } catch {
       /* the header falls back to the email initial */
     }
@@ -316,6 +405,16 @@
   }
   function email() {
     return (profile && profile.email) || (session && session.user && session.user.email) || "";
+  }
+  // Who is signed in, for the Support page's checkout link. Empty for guests.
+  function account() {
+    if (!signedIn()) return {};
+    return { id: (profile && profile.id) || (session && session.user && session.user.id) || "", email: email() };
+  }
+  // When this person became a friend of the cave (a monthly supporter), or
+  // null. Null for guests and before the supporters migration has run.
+  function supporterSince() {
+    return (signedIn() && profile && profile.supporter_since) || null;
   }
 
   // Up to two initials for the account chip: "Odiche Obiakarije" is "OO",
@@ -334,6 +433,9 @@
     if (me) me.title = name || email() || "Your account";
     if ($("#menuName")) $("#menuName").textContent = name || "Your account";
     if ($("#menuEmail")) $("#menuEmail").textContent = email();
+    // Friends of the cave carry a small ember on their chip, and the menu says so.
+    if (me) me.classList.toggle("supporter", !!supporterSince());
+    if ($("#menuFriend")) $("#menuFriend").hidden = !supporterSince();
     // The admin desk link is only there for the people in ADMIN_EMAILS.
     const desk = $("#menuDesk");
     if (desk) {
@@ -754,6 +856,7 @@
       data.memorize ? window.Memorize.homeCard(data.memorize, showHome) : null,
       data.prayers ? window.Prayers.homeCard(data.prayers, showHome) : null,
       data.revisit ? revisitCard(data.revisit) : null,
+      window.Support.homeCard(),
     ].filter(Boolean));
   }
 
@@ -1248,17 +1351,24 @@
   // ---------------------------------------------------------------------
   // Settings: profile, theme, and what Aquila remembers
   // ---------------------------------------------------------------------
+  // Drawn afresh each time Settings opens, since whether the supporter themes
+  // are unlocked can change between visits.
   function renderThemeOptions() {
     const box = $("#themeOptions");
-    if (box.children.length) return;
     const current = document.documentElement.dataset.theme;
-    box.append(
-      ...Object.entries(THEME_NAMES).map(([key, name]) =>
-        el("button", { class: "theme-option", type: "button", "data-set-theme": key, "aria-pressed": String(key === current) }, [
+    const unlocked = !!supporterSince();
+    box.replaceChildren(
+      ...Object.entries(THEME_NAMES).map(([key, name]) => {
+        const locked = SUPPORTER_THEMES.has(key) && !unlocked;
+        return el("button", {
+          class: `theme-option${locked ? " locked" : ""}`, type: "button", "data-set-theme": key, "aria-pressed": String(key === current),
+          title: locked ? "A thank-you for friends of the cave" : name,
+        }, [
           el("span", { class: "swatch", "data-swatch": key, "aria-hidden": "true" }),
           name,
-        ])
-      )
+          SUPPORTER_THEMES.has(key) ? el("span", { class: "theme-friend", html: ICON.ember, "aria-label": "Supporter theme" }) : null,
+        ]);
+      })
     );
   }
 
@@ -1334,6 +1444,7 @@
     $("#settingsEmail").textContent = email() ? `Signed in as ${email()}` : "";
     $("#settingsName").value = displayName();
     renderThemeOptions();
+    window.Support.renderSettings();
     renderMemories($("#memoryPanel"));
     if (route === "remembers") setTimeout(() => $("#remembers").scrollIntoView({ behavior: "smooth", block: "start" }), 120);
   }
@@ -1388,6 +1499,7 @@
     else if (view === "signedout") showSignedOut();
     else if (view === "desk") window.Refuge.renderDesk();
     else if (view === "sermon") window.Sermons.renderShared();
+    else if (view === "support") window.Support.show();
   }
 
   window.Cave = {
@@ -1398,6 +1510,9 @@
     formMessage,
     listBar,
     filterSelect,
+    moreMenu,
+    weekDots,
+    localDate,
     when,
     agoPhrase,
     localToday,
@@ -1406,6 +1521,8 @@
     showCave,
     signedIn,
     signOut,
+    account,
+    supporterSince,
     onView,
     openJournal,
     openConversations,

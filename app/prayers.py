@@ -1,7 +1,10 @@
 """The prayer list: what a person is praying for, and when it was answered.
 
 A prayer starts open. Marking it answered records the date and, if the
-person wants, a line on how it was answered; it can be reopened. When memory
+person wants, a line on how it was answered; it can be reopened. The days
+someone prayed are kept too (`prayer_days`): for one request ("Prayed today"
+on its card), or just "I prayed today". The Prayers tab shows them as this
+week's seven days, counted, never as a streak. Fasting is app/fasting.py. When memory
 is switched on, Aquila keeps one short note per prayer (rewritten when it is
 answered or edited, deleted with it) so she can bring an open request up when
 it is relevant. Like every memory, that note is about the person and is never
@@ -17,11 +20,13 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
 from app import memory
 from app.auth import AuthUser, require_user
 from app.cave import _db_call, _now
+from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import get_supabase
 from app.retrieval import parse_reference
 
@@ -40,13 +45,34 @@ _FIELDS = "id, body, passage_ref, status, answer_note, answered_at, created_at, 
 RECENT_ANSWERS_DAYS = 30
 
 
+# The week of prayer reads a table added by a later migration than the list.
+PRACTICE_HINT = (
+    "Tracking prayer and fasting needs a database update. Run "
+    "supabase/migrations/20261112_pebbles_and_prayer_practice.sql in the Supabase SQL editor."
+)
+
+
 def _db(fn):
     return _db_call(fn, _SETUP_HINT)
+
+
+def _practice_db(fn):
+    return _db_call(fn, PRACTICE_HINT)
 
 
 class PrayerIn(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
     passage_ref: str | None = Field(default=None, max_length=120)
+
+
+class PrayedIn(BaseModel):
+    """Marks a day prayed, or takes it back. With `prayer_id` it's for that
+    request; without, it's simply "I prayed today"."""
+
+    today: str | None = None
+    day: str | None = None  # today when left out, or one of the last seven
+    prayer_id: uuid.UUID | None = None
+    prayed: bool = True
 
 
 class PrayerPatch(BaseModel):
@@ -108,6 +134,31 @@ def prayer_summary(rows: list[dict], today: date) -> dict:
     }
 
 
+def prayer_week(marks: list[dict], today: date) -> dict:
+    """The Prayers tab's week of prayer from this person's `prayer_days` rows
+    (each {day, prayer_id}): this week's seven days, lit for any prayer that
+    day; how many days that is; whether they've said "I prayed today"; and,
+    per request, whether it was prayed for today and on how many days this week."""
+    week_start = today - timedelta(days=today.weekday())
+    prayed_on = {date.fromisoformat(m["day"]) for m in marks}
+    week = week_marks(prayed_on, today)
+    by_prayer: dict[str, dict] = {}
+    for m in marks:
+        if not m.get("prayer_id"):
+            continue
+        d = date.fromisoformat(m["day"])
+        entry = by_prayer.setdefault(m["prayer_id"], {"today": False, "this_week": 0})
+        entry["today"] = entry["today"] or d == today
+        if week_start <= d <= today:
+            entry["this_week"] += 1
+    return {
+        "week": week,
+        "days_this_week": sum(1 for w in week if w["done"]),
+        "prayed_today": any(not m.get("prayer_id") and m["day"] == today.isoformat() for m in marks),
+        "by_prayer": by_prayer,
+    }
+
+
 def _remember(user: AuthUser, prayer: dict) -> None:
     """Replace Aquila's note about this prayer with one that says what it
     says now. Skipped entirely when the person has memory switched off, and
@@ -136,6 +187,42 @@ def list_prayers(status: Status | None = None, user: AuthUser = Depends(require_
         return q.order(order, desc=True).limit(300).execute().data
 
     return _db(run)
+
+
+@router.get("/me/prayers/week")
+def week_of_prayer(today: str | None = None, user: AuthUser = Depends(require_user)) -> dict:
+    """This week of prayer, for the top of the Prayers tab and each card."""
+    day = parse_today(today)
+    since = (day - timedelta(days=MARKABLE_DAYS - 1)).isoformat()
+    marks = _practice_db(
+        lambda: get_supabase().table("prayer_days").select("day, prayer_id")
+        .eq("user_id", user.id).gte("day", since).execute().data
+    )
+    return prayer_week(marks, day)
+
+
+@router.post("/me/prayers/log")
+def log_prayer(body: PrayedIn, user: AuthUser = Depends(require_user)) -> dict:
+    """Marks a day prayed (for a request, or in general), or takes it back."""
+    today = parse_today(body.today)
+    day = parse_markable_day(body.day, today).isoformat()
+    db = get_supabase()
+    prayer_id = str(body.prayer_id) if body.prayer_id else None
+    if prayer_id:
+        owned = _db(lambda: db.table("prayers").select("id").eq("id", prayer_id).eq("user_id", user.id).limit(1).execute().data)
+        if not owned:
+            raise HTTPException(status_code=404, detail="Prayer not found")
+    if body.prayed:
+        try:
+            _practice_db(lambda: db.table("prayer_days").insert({"user_id": user.id, "day": day, "prayer_id": prayer_id}).execute())
+        except APIError as err:
+            if err.code != "23505":  # already marked: nothing to do
+                raise
+    else:
+        q = db.table("prayer_days").delete().eq("user_id", user.id).eq("day", day)
+        q = q.eq("prayer_id", prayer_id) if prayer_id else q.is_("prayer_id", "null")
+        _practice_db(lambda: q.execute())
+    return {"day": day, "prayer_id": prayer_id, "prayed": body.prayed}
 
 
 @router.post("/me/prayers")

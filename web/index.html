@@ -60,9 +60,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </button>
         <div class="menu" id="menu" role="menu" hidden>
-          <div class="menu-head"><strong id="menuName">Your account</strong><span id="menuEmail"></span></div>
+          <div class="menu-head"><strong id="menuName">Your account</strong><span id="menuEmail"></span><em class="friend-tag" id="menuFriend" hidden>Friend of the cave</em></div>
           <a role="menuitem" href="#cave">Your cave</a>
           <a role="menuitem" href="#settings">Settings</a>
+          <a role="menuitem" href="#support" class="menu-support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Support Adullum</a>
           <a role="menuitem" href="#desk" id="menuDesk" hidden>Admin desk</a>
           <button type="button" role="menuitem" class="menu-item danger" data-sign-out>Sign out</button>
         </div>
@@ -137,8 +138,18 @@
         <a href="#signin" class="btn btn-quiet">I already have one</a>
       </div>
     </div>
+    <!-- Giving (web/support.js). Free for everyone, kept going by people who give. -->
+    <div class="wrap section">
+      <div class="card warm support-band">
+        <div>
+          <h2 class="section-title">Free, and kept that way together</h2>
+          <p class="muted">No ads, and nobody's data is ever sold. Adullum runs on what people give.</p>
+        </div>
+        <a href="#support" class="btn btn-ember">Support Adullum</a>
+      </div>
+    </div>
     <footer class="wrap site-foot">
-      <span>Aquila is an AI study companion, not a pastor or counselor. In crisis, call or text 988 (US).</span>
+      <span>Aquila is an AI study companion, not a pastor or counselor. In crisis, call or text 988 (US). <a href="#support">Support Adullum</a></span>
       <span class="row" style="gap:10px">Theme <span data-themes></span></span>
     </footer>
   </section>
@@ -359,6 +370,10 @@
         <select class="field" id="settingsTranslation" data-translation-picker style="max-width:420px;margin-bottom:8px"></select>
         <p class="muted" id="settingsTranslationAbout" style="margin:0;font-size:15px"></p>
       </section>
+      <section class="card">
+        <h2 class="section-title">Support Adullum</h2>
+        <div id="supportSettings"></div>
+      </section>
       <section class="card" id="remembers">
         <h2 class="section-title">What Aquila remembers</h2>
         <div id="memoryPanel"></div>
@@ -376,6 +391,12 @@
   <!-- Read-only, opened from a link (#sermon/<token>). No account needed. -->
   <section data-view="sermon" hidden>
     <div class="wrap page" id="sharedSermon"></div>
+  </section>
+
+  <!-- ======================= Support (web/support.js) ======================= -->
+  <!-- Open to everyone: give once, or monthly as a friend of the cave. -->
+  <section data-view="support" hidden>
+    <div class="wrap page support" id="supportPage"></div>
   </section>
 
   <!-- ======================= Admin desk (web/refuge.js) ======================= -->
@@ -407,6 +428,7 @@
             <a href="#signin" class="btn btn-ember">Sign back in</a>
             <a href="#aquila" class="btn btn-ghost">Ask as a guest</a>
           </div>
+          <p class="faint farewell-support">Adullum is free, kept going by people who give. <a href="#support">Support Adullum</a></p>
         </div>
       </main>
     </div>
@@ -452,6 +474,7 @@
 <script src="sermons.js"></script>
 <script src="memorize.js"></script>
 <script src="refuge.js"></script>
+<script src="support.js"></script>
 <script src="reader.js"></script>
 <script src="graph.js"></script>
 <script>
@@ -516,6 +539,7 @@ $$("[data-topics]").forEach((box) => {
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
 // #sermons opens the cave on Sermons. #sermon/<token> is a sermon note someone
 // shared (web/sermons.js): read-only, and open to guests.
+// #support is the Support page (web/support.js), open to guests too.
 // #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
 // #bible/notes is "My notes" and #bible/memorize the verses being learned, and
 // the old cave tabs #notes and #memorize land on them.
@@ -526,7 +550,7 @@ $$("[data-topics]").forEach((box) => {
 const VIEWS = {
   welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
   notes: "bible", memorize: "bible", cave: "cave", journal: "cave", sermons: "cave", prayers: "cave", refuge: "cave", amens: "cave", plans: "cave", sermon: "sermon",
-  conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk",
+  conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk", support: "support",
 };
 const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "sermons", "prayers", "refuge", "amens", "plans", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
@@ -561,7 +585,7 @@ function render() {
   $("#menu").hidden = true;
   $$("[data-home-link]").forEach((a) => (a.href = signedIn ? "#home" : "#welcome"));
 
-  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum", sermon: "Sermon notes, Adullum" };
+  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum", sermon: "Sermon notes, Adullum", support: "Support Adullum" };
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.

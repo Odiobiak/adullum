@@ -71,6 +71,38 @@
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
   color-scheme: dark;
 }
+/* The supporter themes, for friends of the cave (app/support.py). Almond is
+   light, after Aaron's rod that budded (Numbers 17:8); Cedar is dark, after
+   the cedars of Lebanon (Psalm 92:12). web/cave.js::SUPPORTER_THEMES offers
+   them only to supporters. */
+[data-theme="almond"] {
+  --ground: #FBF4F3; --surface: #FFFCFB; --raised: #F3E6E4; --line: #E8D5D2; --line-2: #D9BDB8;
+  --text: #2A1C1E; --soft: #4A3336; --muted: #6D5256; --faint: #7A5E62;
+  --ember: #9E3B52; --ember-hi: #7D2A3F; --ember-ink: #FFFFFF; --ember-bg: #F8E1E6; --ember-line: #EDC3CD;
+  --sage: #3D6B4F; --sage-bg: #E3F0E7; --sage-line: #BCD9C6;
+  --glow: #F7DCE1; --glow-strong: #F0C7CF; --well: #F6ECEA; --hover: #F2E4E2; --card-warm: #FDF0F1; --divider: #EDDEDB;
+  --danger: #B3261E; --shadow: rgba(80, 30, 40, 0.16); --ember-glow: rgba(158, 59, 82, 0.32); --ring: rgba(158, 59, 82, 0.18);
+  --art-dim: #D8AEB6;
+  --shine: rgba(255, 255, 255, 0.9);
+  --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
+  --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
+  --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
+  color-scheme: light;
+}
+[data-theme="cedar"] {
+  --ground: #131E19; --surface: #1A2822; --raised: #22332B; --line: #2E443A; --line-2: #3B5649;
+  --text: #EEF2EA; --soft: #D0DACF; --muted: #A9BBAE; --faint: #8A9D90;
+  --ember: #E3B867; --ember-hi: #F5D394; --ember-ink: #1A1408; --ember-bg: #2A3322; --ember-line: #4A5232;
+  --sage: #9DC9B0; --sage-bg: #1D2E27; --sage-line: #2F4A3E;
+  --glow: #2E3A22; --glow-strong: #3A4526; --well: #0F1814; --hover: #20302A; --card-warm: #1F2B21; --divider: #26372F;
+  --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.45); --ember-glow: rgba(227, 184, 103, 0.4); --ring: rgba(227, 184, 103, 0.2);
+  --art-dim: #5E7A5A;
+  --shine: rgba(255, 255, 255, 0.14);
+  --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
+  --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
+  --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
+  color-scheme: dark;
+}
 
 /* Control sizes, the same in every theme. A mouse gets compact controls; a
    touch screen gets a few pixels more so every tap target stays comfortable.
@@ -235,6 +267,8 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .swatch[data-set-theme="olive"], .swatch[data-swatch="olive"] { --sw-bg: #F3F5EC; --sw-accent: #556B2F; --sw-line: #D6DDC6; }
 .swatch[data-set-theme="twilight"], .swatch[data-swatch="twilight"] { --sw-bg: #23233A; --sw-accent: #F2B35E; --sw-line: #44466B; }
 .swatch[data-set-theme="hearth"], .swatch[data-swatch="hearth"] { --sw-bg: #1B1511; --sw-accent: #F4A14C; --sw-line: #3F3227; }
+.swatch[data-set-theme="almond"], .swatch[data-swatch="almond"] { --sw-bg: #FBF4F3; --sw-accent: #9E3B52; --sw-line: #E8D5D2; }
+.swatch[data-set-theme="cedar"], .swatch[data-swatch="cedar"] { --sw-bg: #131E19; --sw-accent: #E3B867; --sw-line: #2E443A; }
 /* The labelled version in Settings */
 .theme-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .theme-option { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 7px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); text-align: left; font-size: 14px; font-weight: 500; }
@@ -320,7 +354,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .seg { display: flex; background: var(--raised); border: 1px solid var(--line); border-radius: var(--pill); padding: 3px; margin-bottom: 22px; }
 .seg button { flex: 1; border: 0; border-radius: var(--pill); min-height: var(--h-btn-sm); padding: 5px 10px; font-size: 14px; font-weight: 600; background: transparent; color: var(--muted); transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease; }
 .seg button:hover { color: var(--text); }
-.seg button[aria-selected="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px var(--shadow), 0 0 0 1px var(--line); }
+.seg button[aria-selected="true"], .seg button[aria-pressed="true"] { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px var(--shadow), 0 0 0 1px var(--line); }
 .form-msg { font-size: 14px; margin: 0 0 14px; color: var(--muted); }
 .form-msg.bad { color: var(--danger); }
 .form-msg:empty { display: none; }
@@ -682,6 +716,91 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .answer-note p { font-size: 15px; color: var(--text); white-space: pre-wrap; }
 .answered-line { display: flex; align-items: center; gap: 6px; color: var(--sage); font-size: 14px; font-weight: 500; margin-top: 8px; }
 .answered-line svg { width: 16px; height: 16px; display: block; }
+/* The menu sits at the end of a card's top line. */
+.prayer-card .entry-meta .more { margin: -6px -8px -6px auto; }
+.prayer-card .entry-since { flex: 1; min-width: 0; }
+.prayed-count { color: var(--sage); }
+
+/* The top of the Prayers tab: this week of prayer and fasting, side by side,
+   the same width as the list beneath them. */
+.practice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 760px; margin: 0 0 28px; }
+.practice-card { display: grid; gap: 12px; align-content: start; padding: 18px; }
+.practice-card .card-head { margin: 0; align-items: center; }
+.practice-aside { font-size: 13px; }
+.practice-lede { font-size: 14px; }
+.practice-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.practice-foot .faint { font-size: 12.5px; flex: 1 1 140px; }
+.practice-link { font-size: 13px; padding: 0; }
+.practice-card .week-dots { justify-content: space-between; }
+.practice-card.is-fasting { border-color: var(--ember-line); background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--surface) 60%); }
+.fast { display: grid; gap: 10px; }
+.fast + .fast { padding-top: 12px; border-top: 1px solid var(--divider); }
+.fast-head { display: flex; align-items: flex-start; gap: 8px; }
+.fast-title { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.fast-title strong { font-size: 15px; font-weight: 600; }
+.fast-title .faint { font-size: 13px; }
+.fast-head .more { margin: -6px -8px 0 0; }
+.fast-intention { font-size: 14px; color: var(--soft); line-height: 1.5; white-space: pre-wrap; }
+.prayer-list-title { margin: 0 0 8px; }
+.setup-note { max-width: 760px; margin: 0 0 24px; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--well); color: var(--muted); font-size: 14px; }
+.past-list { display: grid; gap: 4px; margin: 6px 0 4px; }
+.past-item { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--divider); font-size: 14px; }
+.past-item:first-child { border-top: 0; }
+.past-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.past-head .more { margin: -6px -8px -6px 0; }
+.past-item .faint { font-size: 13px; }
+
+/* A ghost button that has been done ("Prayed today"), in the answered green. */
+.btn.is-done { border-color: var(--sage-line); background: var(--sage-bg); color: var(--sage); }
+.btn.is-done:hover:not(:disabled) { border-color: var(--sage); color: var(--sage); }
+.btn svg, .act svg { flex: none; }
+.btn svg { width: 15px; height: 15px; }
+
+/* ---------- Shared small parts ---------- */
+/* The "⋯" menu (cave.js::moreMenu): a quiet round button, and a small card of
+   actions that opens beneath it, aligned to its right edge. */
+.more { position: relative; flex: none; }
+.more-btn { width: var(--h-btn-sm); height: var(--h-btn-sm); border-radius: 50%; border: 0; background: transparent; color: var(--faint); display: grid; place-items: center; padding: 0; transition: background-color 0.15s ease, color 0.15s ease; }
+.more-btn svg { width: 18px; height: 18px; }
+.more-btn:hover, .more-btn[aria-expanded="true"] { background: var(--hover); color: var(--text); }
+.more-menu { position: absolute; right: 0; top: calc(100% + 4px); z-index: 30; min-width: 190px; padding: 5px; display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 32px -8px var(--shadow); animation: rise 0.14s ease both; }
+.more-item { text-align: left; border: 0; background: none; color: var(--text); font-size: 14px; padding: 8px 10px; border-radius: 9px; white-space: nowrap; }
+.more-item:hover, .more-item:focus-visible { background: var(--hover); outline: none; }
+.more-item.danger { color: var(--danger); }
+
+/* This week as dots (cave.js::weekDots): done days filled, today ringed,
+   days still to come dashed. Dots that mark a day are buttons. */
+.week-dots { display: flex; gap: 6px; }
+.wd-col { display: grid; justify-items: center; gap: 3px; }
+.wd { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line-2); background: transparent; padding: 0; display: block; }
+button.wd { cursor: pointer; transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease; }
+button.wd:hover { border-color: var(--sage); }
+button.wd:active { transform: scale(0.88); }
+.wd.done { background: var(--sage); border-color: var(--sage); }
+.wd.today { box-shadow: 0 0 0 2px var(--ground), 0 0 0 3.5px var(--ember-line); }
+.wd.future { border-style: dashed; opacity: 0.55; }
+.wd-label { font-size: 10.5px; font-weight: 600; color: var(--faint); line-height: 1; }
+/* Touch screens get bigger dots to tap. */
+@media (pointer: coarse) { .wd { width: 24px; height: 24px; } }
+
+/* Sheet controls: a segmented choice, a hint under it, two fields side by
+   side, quick picks, and optional fields folded away. */
+.seg-sheet { margin: 0 0 6px; }
+.seg-sheet button { font-size: 13px; padding-inline: 6px; }
+.seg-hint { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+.sheet .field-wrap > .seg-sheet { margin-top: 6px; }
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0 12px; }
+.sheet select.field, .sheet .field-wrap select { display: block; width: 100%; margin-top: 6px; background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 16px; }
+.sheet .field-wrap .field { margin: 6px 0 0; background: var(--ground); }
+.quick-picks { display: flex; flex-wrap: wrap; gap: 6px; margin: -6px 0 14px; }
+.quick-picks button { min-height: 28px; padding: 3px 11px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--soft); font-size: 12.5px; font-weight: 600; }
+.quick-picks button:hover { border-color: var(--ember); color: var(--ember-hi); }
+.more-fields { margin: 0 0 14px; border-top: 1px solid var(--divider); padding-top: 10px; }
+.more-fields summary { cursor: pointer; font-size: 14px; font-weight: 500; color: var(--muted); padding: 4px 0; list-style-position: inside; }
+.more-fields summary:hover { color: var(--text); }
+.more-fields[open] summary { margin-bottom: 10px; }
+/* Short notes in a sheet ("Why it matters", what a fast is for) start small. */
+.sheet .field-wrap textarea[rows="2"] { min-height: 4.5rem; }
 
 /* ---------- Memorize (web/memorize.js) ---------- */
 .memory-card .badge { text-transform: none; }
@@ -801,34 +920,157 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .care-line span { display: block; font-size: 13px; color: var(--muted); }
 .care-panel { display: grid; gap: 12px; margin-top: 14px; padding: 16px; border-radius: var(--radius-sm); background: var(--sage-bg); border: 1px solid var(--sage-line); font-size: 15px; }
 
-/* Grow */
-.kind-choices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 0 16px; }
-.kind-choice { text-align: left; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); display: grid; gap: 2px; }
-.kind-choice strong { font-size: 15px; font-weight: 600; }
-.kind-choice span { font-size: 13px; color: var(--muted); line-height: 1.4; }
-.kind-choice[aria-pressed="true"] { border-color: var(--ember); background: var(--ember-bg); }
-.seed-list { grid-template-columns: minmax(0, 1fr); }
-.seed-card.is-fulfilled { background: radial-gradient(120% 140% at 100% 0%, var(--sage-bg) 0%, var(--surface) 60%); border-color: var(--sage-line); }
-.seed-card.is-aside { opacity: 0.75; }
-.steps { display: grid; gap: 4px; }
-.step { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; padding: 4px 0; cursor: pointer; }
-.step input { margin-top: 4px; accent-color: var(--sage); }
+/* Pebbles (refuge.js::pebblesRoom): habits as a list of rows, goals as cards */
+.pebbles { display: grid; gap: 22px; }
+.pebbles > .list-bar { margin: 0; }
+.pebble-section { display: grid; gap: 10px; }
+.pebble-section .kicker { margin: 0; }
+.pebble-section .row-between { margin: 0; }
+.pebble-tally { font-size: 13px; }
+.pebbles-empty .pebbles-starts { justify-content: center; margin-top: 16px; }
+.pebbles-empty .btn { margin-top: 0; }
+
+/* A habit row: today's check, its name and count, the week, and its menu.
+   On a phone the week drops under the name (see the 720px block). */
+.habit-list { display: grid; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: visible; }
+.habit-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; grid-template-areas: "check main week more"; gap: 4px 14px; align-items: center; padding: 12px 10px 12px 16px; }
+.habit-row + .habit-row { border-top: 1px solid var(--divider); }
+.habit-row > .habit-check { grid-area: check; }
+.habit-row > .habit-main { grid-area: main; }
+.habit-row > .week-dots { grid-area: week; }
+.habit-row > .more { grid-area: more; }
+.habit-check { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--line-2); background: transparent; color: transparent; display: grid; place-items: center; padding: 0; transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease; }
+.habit-check svg { width: 16px; height: 16px; }
+button.habit-check:hover { border-color: var(--sage); color: var(--sage-line); }
+button.habit-check:active { transform: scale(0.92); }
+.habit-row.is-done .habit-check, .habit-row.is-quiet .habit-check { background: var(--sage); border-color: var(--sage); color: var(--surface); }
+.habit-row.is-quiet .habit-check { opacity: 0.6; }
+.habit-main { display: grid; gap: 1px; min-width: 0; }
+.habit-main strong { font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+.habit-row.is-done .habit-main strong { color: var(--muted); }
+.habit-sub { font-size: 13px; color: var(--faint); }
+.habit-sub.is-met { color: var(--sage); font-weight: 500; }
+
+/* A goal card: its title and menu, how far along, and the next thing to do. */
+.goal-list { grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: start; }
+.goal-card { gap: 12px; }
+.goal-card:hover { transform: none; }
+.goal-head { display: flex; align-items: flex-start; gap: 8px; }
+.goal-head h3 { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.goal-head .more { margin: -4px -6px 0 0; }
+.goal-card .entry-actions { padding-top: 0; }
+.goal-card.is-complete { border-color: var(--ember-line); background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--surface) 60%); }
+.goal-card.is-fulfilled { background: radial-gradient(120% 140% at 100% 0%, var(--sage-bg) 0%, var(--surface) 60%); border-color: var(--sage-line); }
+.goal-card.is-aside { opacity: 0.75; }
+.goal-progress { display: grid; gap: 8px; }
+.goal-card.is-fulfilled .bar span { background: var(--sage); }
+.goal-count { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; font-weight: 600; color: var(--soft); font-variant-numeric: tabular-nums; }
+.count-btn { background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; text-decoration: underline dotted var(--line-2); text-underline-offset: 4px; }
+.count-btn:hover { color: var(--ember-hi); text-decoration-color: var(--ember); }
+/* Minus and plus share one pill, split down the middle. */
+.stepper { display: inline-flex; flex: none; border: 1px solid var(--line-2); border-radius: var(--pill); overflow: hidden; }
+.stepper button { width: var(--h-btn-sm); height: var(--h-chip); border: 0; background: transparent; color: var(--text); font-size: 17px; font-weight: 500; line-height: 1; }
+.stepper button + button { border-left: 1px solid var(--line-2); }
+.stepper button:hover:not(:disabled) { background: var(--hover); color: var(--ember-hi); }
+.stepper button:disabled { color: var(--faint); cursor: default; }
+.due { font-size: 13px; color: var(--muted); }
+.due.is-soon { color: var(--ember-hi); font-weight: 500; }
+.due.is-late { color: var(--danger); font-weight: 500; }
+.steps { display: grid; gap: 2px; }
+.step { display: flex; gap: 10px; align-items: flex-start; font-size: 15px; padding: 3px 0; cursor: pointer; }
+.step input { width: 17px; height: 17px; margin-top: 3px; flex: none; accent-color: var(--sage); }
 .step.done span { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-2); }
-.tend-row { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
-.rhythm { display: flex; gap: 6px; }
-.rhythm-day { width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-2); display: grid; place-items: center; }
-.rhythm-day.on { background: var(--sage); border-color: var(--sage); }
 
 /* Be still */
-.still { text-align: center; padding: 24px 16px 40px; }
-.still h2 { font-size: 26px; }
-.breath { width: 220px; height: 220px; margin: 30px auto; border-radius: 50%; display: grid; place-items: center; position: relative; border: 1px solid var(--line); }
-.breath::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle, var(--ember-glow) 0%, var(--glow-strong) 40%, transparent 72%); transform: scale(0.7); }
-.breath.is-on::before { animation: breathe 10s ease-in-out infinite; }
-.breath b { position: relative; font-weight: 500; font-size: 18px; color: var(--soft); }
-@keyframes breathe { 0% { transform: scale(0.7); } 40% { transform: scale(1); } 60% { transform: scale(1); } 100% { transform: scale(0.7); } }
-.still .scripture-lg { max-width: 520px; margin: 0 auto 6px; min-height: 1.5em; }
-.timer { font-variant-numeric: tabular-nums; color: var(--faint); font-size: 14px; margin-top: 18px; }
+/* Be still (web/refuge.js::stillRoom): the choices, then a full-screen
+   session. The light is a lit sphere like the Amens bubbles, glowing in the
+   theme's ember, and grows and shrinks with the breath over the exact
+   seconds of each part, set from the script as a transition duration. */
+.still { display: grid; gap: 16px; justify-items: center; text-align: center; padding: 8px 0 40px; }
+.still h2 { font-size: 26px; margin: 0; }
+.still-lede { max-width: 460px; margin: 0; }
+.still-hint { font-size: 13px; color: var(--faint); margin: 0; }
+.still .mood, .still-session .mood { text-transform: none; }
+.still-orb { position: relative; width: 208px; height: 208px; margin: 12px auto 0; border: 0; border-radius: 50%; padding: 0; background: transparent; display: grid; place-items: center; cursor: pointer; }
+.still-orb:focus-visible { outline: 2px solid var(--ember); outline-offset: 8px; }
+.still-orb-light {
+  position: absolute; inset: 0; border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--card-warm) 34%, var(--ember-bg) 68%, var(--ember-line) 100%);
+  box-shadow: 0 0 70px 4px var(--ember-glow), inset -10px -14px 26px -8px color-mix(in srgb, var(--ember) 24%, transparent), inset 8px 10px 18px -10px var(--shine);
+  animation: still-idle 8s ease-in-out infinite; transition: scale 0.25s ease;
+}
+.still-orb:hover .still-orb-light { scale: 1.04; }
+.still-orb:active .still-orb-light { scale: 0.97; }
+.still-orb-text { position: relative; display: grid; gap: 2px; }
+.still-orb-text strong { font-size: 21px; font-weight: 600; color: var(--text); }
+.still-orb-text small { font-size: 13px; color: var(--muted); }
+@keyframes still-idle { 0%, 100% { transform: scale(0.93); } 50% { transform: scale(1); } }
+.still-options { width: 100%; max-width: 580px; display: grid; gap: 20px; text-align: left; }
+.still-field { display: grid; gap: 8px; }
+.still-label { font-size: 13px; font-weight: 600; color: var(--muted); margin: 0; }
+.still-options .moods, .still-options .seg { margin: 0; }
+.still-preview { display: grid; gap: 4px; align-content: center; min-height: 92px; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--raised); border: 1px solid var(--line); }
+.still-line { display: flex; gap: 12px; align-items: baseline; margin: 0; }
+.still-cue { flex: none; width: 28px; font-size: 11.5px; font-weight: 700; color: var(--ember-hi); }
+.still-line .scripture { font-size: 18px; line-height: 1.4; }
+.still-preview .verse-ref { margin: 4px 0 0 40px; }
+.still-switch { margin: 0; font-size: 14px; }
+.still-tally { font-size: 13px; color: var(--faint); margin: 0; }
+
+body.still-open { overflow: hidden; }
+.still-session {
+  position: fixed; inset: 0; z-index: 60; display: flex; flex-direction: column;
+  padding: max(14px, env(safe-area-inset-top, 0px)) 16px max(20px, env(safe-area-inset-bottom, 0px));
+  background: radial-gradient(80% 60% at 50% 40%, var(--glow) 0%, var(--ground) 72%); color: var(--text);
+  animation: appear 0.4s ease both;
+}
+.still-session:focus { outline: none; }
+.still-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; max-width: 760px; margin: 0 auto; }
+.still-ref { font-size: 13px; color: var(--faint); }
+.still-top-actions { display: inline-flex; gap: 8px; }
+.still-icon-btn { display: grid; place-items: center; width: var(--h-icon); height: var(--h-icon); padding: 0; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; }
+.still-icon-btn:hover { color: var(--text); }
+.still-icon-btn svg { width: 18px; height: 18px; display: block; }
+.still-icon-btn[aria-pressed="true"] { color: var(--ember); border-color: var(--ember-line); background: var(--ember-bg); }
+.still-body { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 26px; text-align: center; overflow-y: auto; }
+.still-stage { position: relative; width: min(300px, 74vw, 46vh); aspect-ratio: 1; display: grid; place-items: center; flex: none; }
+.still-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.still-ring circle { fill: none; stroke-width: 3; }
+.still-ring-track { stroke: var(--line); }
+.still-ring-fill { stroke: var(--ember); stroke-linecap: round; transition: stroke-dashoffset 0.25s linear, stroke 0.3s ease; }
+.still-session.is-paused .still-ring-fill { stroke: var(--faint); }
+.still-light {
+  position: absolute; inset: 10%; border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--card-warm) 34%, var(--ember-bg) 68%, var(--ember-line) 100%);
+  box-shadow: 0 0 90px 10px var(--ember-glow), inset -12px -16px 30px -8px color-mix(in srgb, var(--ember) 26%, transparent), inset 8px 10px 20px -10px var(--shine);
+  transform: scale(0.55); transition: transform 4s cubic-bezier(0.45, 0, 0.55, 1);
+}
+.still-center { position: relative; display: grid; gap: 2px; }
+.still-phase { font-size: 22px; font-weight: 600; margin: 0; }
+.still-count { font-size: 15px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.3em; margin: 0; }
+.still-words { font-size: clamp(22px, 5vw, 32px); line-height: 1.35; max-width: 600px; min-height: 2.7em; margin: 0; opacity: 0; transition: opacity 0.5s ease; }
+.still-words.is-shown { opacity: 1; }
+.still-words:empty { display: none; }
+.still-controls { display: flex; align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.still-left { min-width: 72px; font-size: 14px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.still-after { display: grid; gap: 12px; justify-items: center; max-width: 540px; }
+.still-after h2 { font-size: 26px; margin: 8px 0 0; }
+.still-after .muted { margin: 0; }
+.still-after-light { position: relative; width: 96px; height: 96px; }
+.still-verse { margin: 6px 0 0; padding: 14px 18px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); }
+.still-verse .scripture { font-size: 18px; line-height: 1.5; margin: 0 0 4px; }
+.still-verse .verse-ref { margin: 0; }
+.still-ask { font-weight: 600; margin: 10px 0 0; }
+.still-feel { justify-content: center; margin: 0; }
+.still-reply { display: grid; gap: 12px; justify-items: center; }
+.still-reply p { margin: 0; }
+.still-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center; }
+/* With reduced motion the light doesn't grow; it brightens and dims instead. */
+@media (prefers-reduced-motion: reduce) {
+  .still-orb-light { animation: none; }
+  .still-light { transform: none !important; transition: opacity 1.2s ease !important; opacity: 0.55; }
+  .still-session[data-phase="in"] .still-light, .still-session[data-phase="hold"] .still-light { opacity: 1; }
+}
 
 /* Amens: Refuge's wall, and its card on the home screen */
 .wall-section { display: grid; gap: 12px; }
@@ -930,6 +1172,24 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 @keyframes bubble-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
 @keyframes bubble-pop { 0% { scale: 1; } 35% { scale: 1.14; } 65% { scale: 0.97; } 100% { scale: 1; } }
 .bubble-sheet .burden { padding: 0; border: 0; background: none; animation: none; }
+/* What you've shared (refuge.js::mineBubble): the same bubbles, smaller, in
+   one row that scrolls sideways. The auto margins centre a short row without
+   hiding the start of a long one, as plain `justify-content: center` would. */
+.mine-row { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x proximity; padding: 10px 4px 12px; scrollbar-width: none; }
+.mine-row::-webkit-scrollbar { display: none; }
+.mine-row > :first-child { margin-left: auto; }
+.mine-row > :last-child { margin-right: auto; }
+.bubble.bubble-mine { --size: 136px; padding: 0 calc(var(--size) * 0.14); gap: 4px; scroll-snap-align: center; }
+.bubble-mine .bubble-who { font-size: 10.5px; }
+.bubble.bubble-mine .bubble-text { font-size: 12.5px; -webkit-line-clamp: 3; line-clamp: 3; }
+.bubble-mine .bubble-count { gap: 3px; font-size: 11.5px; }
+.bubble-mine .bubble-count span + svg { margin-left: 6px; }
+.bubble-mine.has-amens .bubble-count { color: var(--sage); }
+/* Not on the wall yet, or not at all: a quieter bubble with a dashed edge. */
+.bubble-mine.is-waiting, .bubble-mine.is-not-shared { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--line); outline: 1.5px dashed var(--ember-line); outline-offset: -6px; animation: none; }
+.bubble-mine.is-waiting::before, .bubble-mine.is-not-shared::before { display: none; }
+.bubble-mine.is-waiting .bubble-who, .bubble-mine.is-not-shared .bubble-who { color: var(--muted); }
+.bubble-mine.is-waiting:focus-visible, .bubble-mine.is-not-shared:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; }
 @media (max-width: 520px) {
   .bubble { --size: 168px; }
   .bubble-s { --size: 146px; }
@@ -1047,7 +1307,15 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
   .reader-notes-link span, .reader-learn-link span { display: none; }
   .reader-notes-link, .reader-learn-link { padding-left: 8px; padding-right: 8px; }
   .reader-bar-inner { gap: 4px; }
-  .refuge-doors, .kind-choices { grid-template-columns: 1fr; }
+  .refuge-doors { grid-template-columns: 1fr; }
+  /* A secondary action shows its icon alone, so a card's actions fit one line. */
+  .act-collapse span { display: none; }
+  .act-collapse { padding-left: 9px; padding-right: 9px; }
+  /* Prayer and fasting stack; a habit's week drops under its name. */
+  .practice-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 22px; }
+  .practice-card { padding: 16px; }
+  .habit-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "check main more" ". week week"; padding: 12px 6px 12px 12px; row-gap: 10px; }
+  .habit-row > .week-dots { justify-content: space-between; padding-right: 10px; }
   .refuge-threshold { padding: 34px 18px 24px; }
   .kept { flex-wrap: wrap; }
   .kept-actions { width: 100%; justify-content: flex-end; }
@@ -1192,4 +1460,48 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
   html { scroll-behavior: auto; }
+}
+
+/* ---------------------------------------------------------------------
+   Support Adullum (web/support.js): the page, the home card, the welcome
+   band, and the marks a friend of the cave carries.
+   --------------------------------------------------------------------- */
+.support-options { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 8px; max-width: 880px; }
+.support-option { display: flex; flex-direction: column; }
+.support-option-title { font-size: 20px; font-weight: 600; margin: 0 0 8px; }
+.support-option > p { margin: 0 0 14px; }
+.support-gifts { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 8px; }
+.support-gifts li { position: relative; padding-left: 22px; color: var(--soft); font-size: 15px; }
+.support-gifts li::before { content: ""; position: absolute; left: 3px; top: 0.5em; width: 8px; height: 8px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 3px var(--ember-bg); }
+.support-swatches { display: flex; gap: 8px; margin: 0 0 20px; }
+.support-swatches .swatch { display: inline-block; }
+.support-option-foot { margin-top: auto; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; }
+.support-thanks { color: var(--sage); font-weight: 600; margin: 0; }
+.support-note { font-size: 14px; margin: 0; }
+.support-small { font-size: 14px; margin: 18px 0 0; max-width: 620px; }
+.support-verse { margin: 36px 0 0; padding: 22px 0 0; border-top: 1px solid var(--divider); max-width: 620px; }
+.support-verse p { font-size: 18px; margin: 0 0 8px; color: var(--soft); }
+.support-band { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; justify-content: space-between; padding: 28px; }
+.support-band .section-title { margin: 0; }
+.support-band p { margin: 6px 0 0; }
+.farewell-support { margin: 26px 0 0; font-size: 14px; }
+
+/* The account menu's way in, and the tag a friend of the cave sees there */
+.menu .menu-support { display: flex; align-items: center; gap: 8px; color: var(--ember-hi); }
+.menu .menu-support svg { width: 16px; height: 16px; flex: none; }
+.menu-head .friend-tag { display: inline-block; margin-top: 8px; padding: 2px 9px; border-radius: var(--pill); font: normal 600 12px/1.5 var(--body); color: var(--ember-hi); background: var(--ember-bg); border: 1px solid var(--ember-line); }
+
+/* A small ember on the account chip of a friend of the cave */
+.me-avatar { position: relative; }
+.me.supporter .me-avatar::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 10px; height: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--ember-hi), var(--ember)); box-shadow: 0 0 0 2px var(--surface); }
+
+/* Supporter themes in Settings: marked with an ember, softer until unlocked */
+.theme-friend { margin-left: auto; display: inline-flex; color: var(--ember); }
+.theme-friend svg { width: 13px; height: 13px; fill: currentColor; }
+.theme-option.locked { color: var(--muted); }
+.theme-option.locked .swatch { opacity: 0.7; }
+
+@media (max-width: 720px) {
+  .support-options { grid-template-columns: minmax(0, 1fr); }
+  .support-band { padding: 22px; }
 }

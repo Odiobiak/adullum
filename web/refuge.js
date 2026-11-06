@@ -7,8 +7,10 @@
 //   Write it out    nothing, unless "Keep it" is pressed (app/refuge.py)
 //   Talk with Aquila  nothing, unless "Keep this talk" is pressed; otherwise
 //                   the talk lives only in `talk` below and vanishes on leaving
-//   Pebbles         hopes, goals, habits and prayers (app/refuge.py seeds)
-//   Be still        nothing at all
+//   Pebbles         goals and habits (app/refuge.py seeds); praying and
+//                   fasting are tracked on the prayer list (web/prayers.js)
+//   Be still        nothing on the server; choices and this week's count
+//                   stay on the device
 //   Amens           posts, amens and kind words (app/one_another.py)
 // Nothing anyone keeps or shares here appears on the home screen or in
 // Aquila's memory. The home's Amens notice (homeCard below) shows only the
@@ -41,8 +43,12 @@
     forward: svg('<path d="M9 6l6 6-6 6"/>'),
     send: svg('<path d="M5 12h13M13 6l6 6-6 6"/>'),
     check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    plus: svg('<path d="M12 5v14M5 12h14"/>'),
     // Hands pressed together, thumbs showing, for praying over a burden.
     pray: svg('<path d="M12 4.5V15"/><path d="M12 4.5c-.6-1.3-2.2-1.2-2.6.1L8 10v3.5l-4 5 2.5 2 5.5-5"/><path d="M12 4.5c.6-1.3 2.2-1.2 2.6.1L16 10v3.5l4 5-2.5 2-5.5-5"/><path d="M8 13.5l2-1.5M16 13.5l-2-1.5"/>'),
+    // A speaker giving off sound, for Be still's soft tones.
+    sound: svg('<path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z"/><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/>'),
+    close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
     // A small sun, for rejoicing over good news.
     rejoice: svg('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>'),
   };
@@ -175,9 +181,9 @@
         el("div", { class: "refuge-doors" }, [
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
           door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
-          door(ICON.pebbles, "Pebbles", "Hopes, goals, habits and prayers, carried with God one small step at a time.", growRoom),
+          door(ICON.pebbles, "Pebbles", "Goals and habits, carried with God one small step at a time.", pebblesRoom),
           door(ICON.together, "Amens", "Share your burdens or joys anonymously. Let people pray and rejoice with you.", amensRoom),
-          door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
+          door(ICON.still, "Be still", "Breathe slowly and pray a line of Scripture, when words won't come.", stillRoom),
         ]),
         el("button", { class: "refuge-help-link", type: "button", html: `${ICON.person}<span>Need a person? Someone to talk to, a Christian counsellor, or a church nearby</span>`, onclick: helpRoom }),
       ]),
@@ -200,22 +206,19 @@
     ]);
   }
 
-  // Habits and prayers not yet tended today, so they can be done from here.
+  // Habits not yet done today, so they can be done from the threshold.
   function growingToday(seeds) {
-    const due = seeds.filter((s) => s.status === "growing" && s.rhythm && !s.tended_today).slice(0, 3);
+    const due = seeds.filter((s) => s.kind === "habit" && s.status === "growing" && !s.tended_today).slice(0, 3);
     if (!due.length) return null;
     return el("section", { class: "fade-in" }, [
       el("p", { class: "kicker", text: "For today" }),
       el("div", { class: "today-list" }, due.map((s) => {
-        const row = el("div", { class: "today-row" }, [
-          el("span", { class: `badge ${s.kind === "prayer" ? "" : "plain"}`, text: KIND_LABEL[s.kind] }),
-          el("span", { class: "today-title", text: s.title }),
-        ]);
-        row.append(el("button", { class: "act", type: "button", text: s.kind === "prayer" ? "Prayed today" : "Done today", onclick: async () => {
+        const row = el("div", { class: "today-row" }, [el("span", { class: "today-title", text: s.title })]);
+        row.append(el("button", { class: "act", type: "button", html: `${ICON.check}<span>Done</span>`, onclick: async () => {
           try {
             await api(`/me/refuge/seeds/${s.id}/tend`, { method: "POST", body: { today: cave().localToday(), tended: true } });
             row.classList.add("is-done");
-            row.lastChild.replaceWith(el("span", { class: "today-done", html: `${ICON.check}<span>Done</span>` }));
+            row.lastChild.replaceWith(el("span", { class: "today-done", html: `${ICON.check}<span>Done today</span>` }));
           } catch (err) {
             toast(err.message);
           }
@@ -298,7 +301,7 @@
       label: "When you're hoping", kept: "Hope",
       lede: "Bring what you're hoping for to God, and think it through with Him.",
       steps: [["What are you hoping for?", "Say it without shrinking it."], ["What would you ask God about it?", "For it, for wisdom, for patience."], ["What could a first small step be?", "Something you could do this week."]],
-      release: { title: "Placed in His hands.", line: "It wasn't saved. If you'd like to come back to it, plant it in Pebbles next time.", verse: "Proverbs 16:3" },
+      release: { title: "Placed in His hands.", line: "It wasn't saved. If you'd like to come back to it, make it a goal in Pebbles next time.", verse: "Proverbs 16:3" },
     },
   };
 
@@ -321,10 +324,13 @@
     const actions = [
       el("span", { class: "faint", text: "Nothing is saved unless you keep it." }),
       shape === "dream"
-        ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Plant it in Pebbles", onclick: () => {
+        ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Make it a goal", onclick: () => {
+            // The hope becomes the goal, what they'd ask God is why it
+            // matters, and the first small step is its first step.
             const hope = steps[0].box.value.trim();
             if (!hope) return toast("Write what you're hoping for first.");
-            plantSheet({ kind: "hope", title: hope.slice(0, 200), note: [steps[1].box.value.trim(), steps[2].box.value.trim()].filter(Boolean).join("\n\n") }, growRoom);
+            const firstStep = steps[2].box.value.trim();
+            plantSheet({ kind: "goal", title: hope.slice(0, 200), note: steps[1].box.value.trim() || null, steps: firstStep ? [firstStep.slice(0, 200)] : [] }, pebblesRoom);
           } })
         : null,
       el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Keep it, only for me", onclick: async () => {
@@ -529,79 +535,149 @@
   }
 
   // ---------------------------------------------------------------------
-  // Pebbles (once "Grow"): hopes, goals, habits and prayers
+  // Pebbles (once "Grow"; app/refuge.py still says seeds): goals and habits.
+  // A goal is reached by steps, by a number ("4 of 12 books") or simply
+  // marked reached, optionally by a date. A habit is meant for some days a
+  // week and shows this week as dots, counted ("3 of 5 this week"), never as
+  // a streak. Praying and fasting are tracked on the prayer list instead.
   // ---------------------------------------------------------------------
-  const KIND_LABEL = { hope: "Hope", goal: "Goal", habit: "Habit", prayer: "Prayer" };
-  const KINDS = {
-    hope: { line: "Something you're trusting God for.", placeholder: "What are you hoping for?", note: "What would it mean to you?", fulfil: "It came to pass", fulfilled: "Came to pass", talk: "something I'm hoping for" },
-    goal: { line: "Something to work toward, step by step.", placeholder: "What do you want to reach?", note: "Why does it matter?", fulfil: "Reached it", fulfilled: "Reached", talk: "a goal I'm working toward" },
-    habit: { line: "A rhythm to build, day by day.", placeholder: "e.g. Read a psalm before bed", note: "What do you hope it grows in you?", fulfil: "It's part of me now", fulfilled: "Rooted", talk: "a habit I'm trying to build" },
-    prayer: { line: "Something to keep praying, day by day.", placeholder: "e.g. Patience with my children", note: "Who or what is it for?", fulfil: "Answered", fulfilled: "Answered", talk: "something I keep praying about" },
+  const PEBBLE = {
+    goal: { name: "Goal", placeholder: "e.g. Read through the Gospels", reach: "Mark reached", reached: "Reached", talk: "a goal I'm working toward" },
+    habit: { name: "Habit", placeholder: "e.g. Read a psalm before bed", reach: "It's part of me now", reached: "Part of me now", talk: "a habit I'm trying to build" },
   };
-  let growFilter = "growing";
+  // How a goal is tracked, chosen when it's set: steps, a number, or neither.
+  const TRACK_BY = [["steps", "Steps"], ["number", "A number"], ["none", "Just done"]];
+  const STATUS_LABEL = { growing: "Active", fulfilled: "Reached", set_aside: "Set aside" };
+  let pebbleFilter = "growing";
 
-  // Plant something new, or edit `existing`.
+  function amount(n) {
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
+  function perWeekLabel(n) {
+    return n === 7 ? "Every day" : `${plural(n, "day", "days")} a week`;
+  }
+  // "Dec 31 · 12 days left", or that it's due or past, for an active goal.
+  function dueLine(seed) {
+    if (seed.due_in === null || seed.due_in === undefined || seed.status !== "growing") return null;
+    const when = cave().localDate(seed.due_on).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    if (seed.due_in < 0) return el("span", { class: "due is-late", text: `Was due ${when}` });
+    if (seed.due_in === 0) return el("span", { class: "due is-soon", text: "Due today" });
+    return el("span", { class: `due${seed.due_in <= 7 ? " is-soon" : ""}`, text: `${when} · ${plural(seed.due_in, "day", "days")} left` });
+  }
+
+  // A compact segmented choice inside a sheet; `onPick` gets the chosen key.
+  function segChoice(label, options, selected, onPick) {
+    const group = el("div", { class: "seg seg-sheet", role: "group", "aria-label": label });
+    const paint = (key) => [...group.children].forEach((b, i) => b.setAttribute("aria-pressed", String(options[i][0] === key)));
+    options.forEach(([key, text]) => group.append(el("button", { type: "button", text, onclick: () => { paint(key); onPick(key); } })));
+    paint(selected);
+    return group;
+  }
+
+  // Set a goal or start a habit, or edit `existing`. Something prefilled but
+  // not yet saved (from Write it out) comes in as `existing` without an id.
   function plantSheet(existing, onSaved) {
-    const editing = existing && existing.id;
-    let kind = (existing && existing.kind) || "hope";
+    const editing = !!(existing && existing.id);
+    let kind = (existing && existing.kind) || "goal";
+    const existingSteps = ((existing && existing.steps) || []).map((s) => (typeof s === "string" ? { text: s, done: false } : s));
+    let trackBy = existing && existing.target ? "number" : existingSteps.length || !editing ? "steps" : "none";
+
     const title = el("input", { class: "field", maxlength: "200" });
-    const note = el("textarea", { class: "field", maxlength: "2000", rows: "3" });
-    const passage = el("input", { class: "field", maxlength: "120", placeholder: "Jeremiah 29:11, or leave blank" });
     const stepsBox = el("textarea", { class: "field", rows: "4", placeholder: "One step per line" });
+    const target = el("input", { class: "field", type: "number", min: "0", step: "any", inputmode: "decimal", placeholder: "12" });
+    const unit = el("input", { class: "field", maxlength: "30", placeholder: "books" });
+    const due = el("input", { class: "field", type: "date" });
+    const perWeek = el("select", { class: "field" }, [7, 6, 5, 4, 3, 2, 1].map((n) => el("option", { value: n, text: perWeekLabel(n) })));
+    const note = el("textarea", { class: "field", maxlength: "2000", rows: "2", placeholder: "Why it matters to you" });
+    const passage = el("input", { class: "field", maxlength: "120", placeholder: "Philippians 4:13, or leave blank" });
     title.value = (existing && existing.title) || "";
+    stepsBox.value = existingSteps.map((s) => s.text).join("\n");
+    target.value = (existing && existing.target) || "";
+    unit.value = (existing && existing.unit) || "";
+    due.value = (existing && existing.due_on) || "";
+    perWeek.value = String((existing && existing.per_week) || 7);
     note.value = (existing && existing.note) || "";
     passage.value = (existing && existing.passage_ref) || "";
-    stepsBox.value = ((existing && existing.steps) || []).map((s) => (typeof s === "string" ? s : s.text)).join("\n");
-    const stepsWrap = el("label", { class: "field-wrap" }, ["Steps (optional)", stepsBox]);
-    const titleLabel = el("span");
-    const noteLabel = el("span");
-    const msg = cave().formMessage();
 
-    const kindButtons = Object.keys(KINDS).map((k) => el("button", { class: "kind-choice", type: "button", "aria-pressed": String(k === kind), onclick: () => { kind = k; paint(); } }, [
-      el("strong", { text: KIND_LABEL[k] }), el("span", { text: KINDS[k].line }),
-    ]));
+    const titleLabel = el("span");
+    const stepsWrap = el("label", { class: "field-wrap" }, ["Steps", stepsBox]);
+    const numberWrap = el("div", { class: "field-row" }, [
+      el("label", { class: "field-wrap" }, ["Reach", target]),
+      el("label", { class: "field-wrap" }, ["Of what", unit]),
+    ]);
+    const trackWrap = el("div", { class: "field-wrap" }, [
+      el("span", { text: "Track it by" }),
+      segChoice("Track it by", TRACK_BY, trackBy, (key) => { trackBy = key; paint(); }),
+    ]);
+    const dueWrap = el("label", { class: "field-wrap" }, ["By when (optional)", due]);
+    const perWeekWrap = el("label", { class: "field-wrap" }, ["How often", perWeek]);
+    // Why it matters and a verse are worth having but not worth the room up
+    // front, so they fold away unless they already hold something.
+    const more = el("details", { class: "more-fields", open: !!(note.value || passage.value) }, [
+      el("summary", { text: "Why it matters, and a verse (optional)" }),
+      el("label", { class: "field-wrap" }, ["Why it matters", note]),
+      el("label", { class: "field-wrap" }, ["A verse to hold onto", passage]),
+    ]);
+
     function paint() {
-      kindButtons.forEach((b, i) => b.setAttribute("aria-pressed", String(Object.keys(KINDS)[i] === kind)));
-      titleLabel.textContent = KIND_LABEL[kind];
-      title.placeholder = KINDS[kind].placeholder;
-      noteLabel.textContent = `${KINDS[kind].note} (optional)`;
-      // Steps belong to goals; an existing seed keeps its kind.
-      stepsWrap.hidden = kind !== "goal";
+      const goal = kind === "goal";
+      titleLabel.textContent = PEBBLE[kind].name;
+      title.placeholder = PEBBLE[kind].placeholder;
+      trackWrap.hidden = !goal;
+      stepsWrap.hidden = !goal || trackBy !== "steps";
+      numberWrap.hidden = !goal || trackBy !== "number";
+      dueWrap.hidden = !goal;
+      perWeekWrap.hidden = goal;
     }
     paint();
 
-    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: editing ? "Save" : "Plant it" });
+    const msg = cave().formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: editing ? "Save" : kind === "goal" ? "Set goal" : "Start habit" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "plantTitle" }, [
-      el("h3", { id: "plantTitle", text: editing ? "Edit" : "Plant something" }),
-      el("p", { class: "sheet-lede", text: "Only you can see what you're growing." }),
-      editing ? null : el("div", { class: "kind-choices" }, kindButtons),
+      el("h3", { id: "plantTitle", text: editing ? `Edit ${PEBBLE[kind].name.toLowerCase()}` : "New pebble" }),
+      el("p", { class: "sheet-lede", text: "Only you can see your pebbles." }),
+      editing ? null : segChoice("Goal or habit", [["goal", "Goal"], ["habit", "Habit"]], kind, (key) => {
+        kind = key;
+        save.textContent = key === "goal" ? "Set goal" : "Start habit";
+        paint();
+      }),
       el("label", { class: "field-wrap" }, [titleLabel, title]),
-      el("label", { class: "field-wrap" }, [noteLabel, note]),
+      trackWrap,
       stepsWrap,
-      el("label", { class: "field-wrap" }, ["A verse to hold onto (optional)", passage]),
+      numberWrap,
+      dueWrap,
+      perWeekWrap,
+      more,
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
     ]);
     const close = cave().overlay(form);
+
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       if (!title.value.trim()) return msg.say("Give it a few words.", true);
+      const body = { title: title.value.trim(), note: note.value.trim() || null, passage_ref: passage.value.trim() || null };
+      if (kind === "goal") {
+        const lines = trackBy === "steps" ? stepsBox.value.split("\n").map((s) => s.trim()).filter(Boolean) : [];
+        const number = trackBy === "number" ? Number(target.value) : null;
+        if (trackBy === "number" && !(number > 0)) return msg.say("Set the number you're aiming for.", true);
+        // An edited goal keeps the steps already ticked.
+        const done = new Set(existingSteps.filter((s) => s.done).map((s) => s.text));
+        Object.assign(body, {
+          steps: editing ? lines.map((text) => ({ text, done: done.has(text) })) : lines,
+          target: number,
+          unit: number ? unit.value.trim() || null : null,
+          due_on: due.value || null,
+        });
+      } else {
+        body.per_week = Number(perWeek.value);
+      }
       save.disabled = true;
-      const lines = stepsBox.value.split("\n").map((s) => s.trim()).filter(Boolean);
       try {
-        if (editing) {
-          const done = new Set((existing.steps || []).filter((s) => s.done).map((s) => s.text));
-          await api(`/me/refuge/seeds/${existing.id}`, { method: "PATCH", body: {
-            title: title.value.trim(), note: note.value.trim() || null, passage_ref: passage.value.trim() || null,
-            ...(kind === "goal" ? { steps: lines.map((text) => ({ text, done: done.has(text) })) } : {}),
-          } });
-        } else {
-          await api("/me/refuge/seeds", { method: "POST", body: {
-            kind, title: title.value.trim(), note: note.value.trim() || null, passage_ref: passage.value.trim() || null, steps: kind === "goal" ? lines : [],
-          } });
-        }
+        if (editing) await api(`/me/refuge/seeds/${existing.id}`, { method: "PATCH", body });
+        else await api("/me/refuge/seeds", { method: "POST", body: { kind, ...body } });
         close();
-        toast(editing ? "Saved." : "Planted.");
+        toast(editing ? "Saved." : kind === "goal" ? "Goal set." : "Habit started.");
         if (onSaved) onSaved();
       } catch (err) {
         msg.say(err.message, true);
@@ -611,12 +687,13 @@
   }
 
   function fulfilSheet(seed, onSaved) {
-    const note = el("textarea", { class: "field", maxlength: "2000", rows: "3", placeholder: "How did it happen? A sentence is plenty, or leave it blank." });
+    const spec = PEBBLE[seed.kind];
+    const note = el("textarea", { class: "field", maxlength: "2000", rows: "3", placeholder: "How did you get there? A sentence is plenty, or leave it blank." });
     const msg = cave().formMessage();
-    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: KINDS[seed.kind].fulfil });
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: spec.reach });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "fulfilTitle" }, [
-      el("h3", { id: "fulfilTitle", text: KINDS[seed.kind].fulfil }),
-      el("div", { class: "journal-preview" }, [el("strong", { text: `${KIND_LABEL[seed.kind]} since ${shortDate(seed.created_at)}` }), document.createTextNode(seed.title)]),
+      el("h3", { id: "fulfilTitle", text: spec.reach }),
+      el("div", { class: "journal-preview" }, [el("strong", { text: `${spec.name} since ${shortDate(seed.created_at)}` }), document.createTextNode(seed.title)]),
       el("label", { class: "field-wrap" }, ["Remember how it came about", note]),
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
@@ -637,18 +714,38 @@
     });
   }
 
-  function rhythmDots(seed) {
-    const today = new Date();
-    return el("div", { class: "rhythm", "aria-label": `Tended ${seed.rhythm.filter(Boolean).length} of the last 7 days` }, seed.rhythm.map((on, i) => {
-      const d = new Date(today);
-      d.setDate(today.getDate() - (seed.rhythm.length - 1 - i));
-      return el("span", { class: `rhythm-day${on ? " on" : ""}`, title: d.toLocaleDateString(undefined, { weekday: "long" }) }, el("i"));
-    }));
+  // Where a number goal stands now, typed in (for amounts that don't go up
+  // by one at a time, like money saved).
+  function amountSheet(seed, onSaved) {
+    const input = el("input", { class: "field", type: "number", min: "0", step: "any", inputmode: "decimal" });
+    input.value = seed.progress || 0;
+    const msg = cave().formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Update" });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "amountTitle" }, [
+      el("h3", { id: "amountTitle", text: seed.title }),
+      el("label", { class: "field-wrap" }, [`Where you are now, of ${amount(seed.target)}${seed.unit ? ` ${seed.unit}` : ""}`, input]),
+      msg.node,
+      el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
+    ]);
+    const close = cave().overlay(form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const value = Number(input.value);
+      if (!(value >= 0)) return msg.say("Enter a number, 0 or more.", true);
+      save.disabled = true;
+      try {
+        await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body: { progress: value } });
+        close();
+        onSaved();
+      } catch (err) {
+        msg.say(err.message, true);
+        save.disabled = false;
+      }
+    });
   }
 
-  function seedCard(seed, rerender) {
-    const growing = seed.status === "growing";
-    const node = el("article", { class: `entry seed-card seed-${seed.kind}${seed.status === "fulfilled" ? " is-fulfilled" : ""}${seed.status === "set_aside" ? " is-aside" : ""} fade-in` });
+  // The "⋯" menu every pebble has: the things done now and then.
+  function pebbleMenu(seed, rerender, { withReach = true } = {}) {
     const patch = async (body) => {
       try {
         await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body });
@@ -657,164 +754,715 @@
         toast(err.message);
       }
     };
-    const meta = el("div", { class: "entry-meta" }, [
-      el("span", { class: `badge ${seed.kind === "hope" || seed.kind === "prayer" ? "" : "plain"}`, text: KIND_LABEL[seed.kind] }),
-      seed.status === "fulfilled"
-        ? el("span", { class: "badge answered", html: `${ICON.check}<span>${KINDS[seed.kind].fulfilled} ${shortDate(seed.fulfilled_at)}</span>` })
-        : el("span", { text: seed.status === "set_aside" ? "Set aside" : `Since ${shortDate(seed.created_at)}` }),
-    ]);
-
-    let steps = null;
-    if (seed.kind === "goal" && seed.steps.length) {
-      const done = seed.steps.filter((s) => s.done).length;
-      steps = el("div", { class: "steps" }, [
-        el("p", { class: "faint", style: "font-size:13px", text: `${done} of ${seed.steps.length} steps` }),
-        ...seed.steps.map((s, i) => el("label", { class: `step${s.done ? " done" : ""}` }, [
-          el("input", { type: "checkbox", checked: s.done, disabled: !growing, onchange: (e) => {
-            const next = seed.steps.map((x, j) => (j === i ? { ...x, done: e.target.checked } : x));
-            patch({ steps: next });
-          } }),
-          el("span", { text: s.text }),
-        ])),
-      ]);
-    }
-
-    let tend = null;
-    if (seed.rhythm && growing) {
-      const label = seed.kind === "prayer" ? "Prayed today" : "Done today";
-      const btn = el("button", { class: `act${seed.tended_today ? " is-done" : ""}`, type: "button", html: `${ICON.check}<span>${label}</span>` });
-      btn.onclick = async () => {
-        const tended = !btn.classList.contains("is-done");
+    const remove = {
+      label: "Delete", danger: true, onClick: async () => {
+        if (!confirm("Delete this? Its history goes too.")) return;
         try {
-          await api(`/me/refuge/seeds/${seed.id}/tend`, { method: "POST", body: { today: cave().localToday(), tended } });
+          await api(`/me/refuge/seeds/${seed.id}`, { method: "DELETE" });
           rerender();
         } catch (err) {
           toast(err.message);
         }
-      };
-      tend = el("div", { class: "tend-row" }, [rhythmDots(seed), btn]);
-    }
+      },
+    };
+    if (seed.status !== "growing") return cave().moreMenu(`More for ${seed.title}`, [{ label: "Make it active again", onClick: () => patch({ status: "growing" }) }, remove]);
+    return cave().moreMenu(`More for ${seed.title}`, [
+      {
+        label: "Talk it over with Aquila", onClick: () => {
+          talk = null;
+          talkRoom(`I'd like to talk with you about ${PEBBLE[seed.kind].talk}: "${seed.title}".${seed.note ? ` ${seed.note}` : ""}`);
+        },
+      },
+      { label: "Edit", onClick: () => plantSheet(seed, rerender) },
+      withReach ? { label: PEBBLE[seed.kind].reach, onClick: () => fulfilSheet(seed, rerender) } : null,
+      { label: "Set aside for now", onClick: () => patch({ status: "set_aside" }) },
+      remove,
+    ]);
+  }
 
-    const act = (label, onclick, extra = "") => el("button", { class: `act${extra}`, type: "button", text: label, onclick });
-    const remove = act("Delete", async () => {
-      if (!confirm("Delete this? Its history goes too.")) return;
+  // A habit as one row: a check for today, its name and this week's count,
+  // and the week as dots (tap an earlier day to mark it).
+  function habitRow(seed, rerender) {
+    const active = seed.status === "growing";
+    const mark = async (day, tended) => {
       try {
-        await api(`/me/refuge/seeds/${seed.id}`, { method: "DELETE" });
+        await api(`/me/refuge/seeds/${seed.id}/tend`, { method: "POST", body: { today: cave().localToday(), day, tended } });
         rerender();
       } catch (err) {
         toast(err.message);
       }
-    }, " danger");
-    const actions = growing
-      ? [
-          act("Talk it over with Aquila", () => {
-            talk = null;
-            const note = seed.note ? ` ${seed.note}` : "";
-            talkRoom(`I'd like to talk with you about ${KINDS[seed.kind].talk}: "${seed.title}".${note}`);
-          }),
-          act(KINDS[seed.kind].fulfil, () => fulfilSheet(seed, rerender)),
-          act("Edit", () => plantSheet(seed, rerender)),
-          act("Set aside", () => patch({ status: "set_aside" })),
-          remove,
-        ]
-      : [act("Grow again", () => patch({ status: "growing" })), remove];
-
-    node.append(...[
-      meta,
-      el("h3", { text: seed.title }),
-      seed.note ? el("p", { class: "refl", text: seed.note }) : null,
-      seed.passage_ref ? el("a", { class: "pill prayer-passage", href: `#${window.Reader.href(seed.passage_ref)}` }, el("span", { text: seed.passage_ref })) : null,
-      steps,
-      tend,
-      seed.status === "fulfilled" && seed.outcome_note ? el("div", { class: "answer-note" }, [el("strong", { text: "How it came about" }), el("p", { text: seed.outcome_note })]) : null,
-      el("div", { class: "entry-actions" }, actions),
-    ].filter(Boolean));
-    return node;
+    };
+    const metWeek = seed.week_done >= seed.per_week;
+    const sub = active
+      ? `${seed.week_done} of ${seed.per_week} this week${metWeek ? " · well done" : ""}`
+      : `${STATUS_LABEL[seed.status]}${seed.fulfilled_at ? ` ${shortDate(seed.fulfilled_at)}` : ""} · ${perWeekLabel(seed.per_week)}`;
+    return el("div", { class: `habit-row${seed.tended_today ? " is-done" : ""}${active ? "" : " is-quiet"}` }, [
+      active
+        ? el("button", {
+            class: "habit-check", type: "button", "aria-pressed": String(seed.tended_today),
+            "aria-label": `Done today: ${seed.title}`, html: ICON.check,
+            onclick: () => mark(cave().localToday(), !seed.tended_today),
+          })
+        : el("span", { class: "habit-check", "aria-hidden": "true", html: ICON.check }),
+      el("div", { class: "habit-main" }, [
+        el("strong", { text: seed.title }),
+        el("span", { class: `habit-sub${metWeek && active ? " is-met" : ""}`, text: sub }),
+      ]),
+      active ? cave().weekDots(seed.week, { label: `${seed.title}, this week`, onToggle: (m) => mark(m.day, !m.done) }) : null,
+      pebbleMenu(seed, rerender),
+    ]);
   }
 
-  async function growRoom() {
+  // A goal as a card: how far along it is, and the one thing to do next.
+  function goalCard(seed, rerender) {
+    const active = seed.status === "growing";
+    const m = seed.measure;
+    const patch = async (body) => {
+      try {
+        await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body });
+        rerender();
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+    const complete = m && m.fraction >= 1;
+    // Once there's nothing left to count, reaching it is the next thing, so
+    // it moves from the menu onto the card.
+    const reachOnCard = active && (!m || complete);
+
+    let progress = null;
+    if (m) {
+      const bar = el("div", { class: "bar", role: "progressbar", "aria-label": "Progress", "aria-valuemin": "0", "aria-valuemax": String(m.of), "aria-valuenow": String(m.done) },
+        el("span", { style: `width:${Math.round(m.fraction * 100)}%` }));
+      const count = m.by === "number"
+        ? `${amount(m.done)} of ${amount(m.of)}${seed.unit ? ` ${seed.unit}` : ""}`
+        : `${m.done} of ${plural(m.of, "step", "steps")}`;
+      const controls = m.by === "number" && active
+        ? el("div", { class: "stepper", role: "group", "aria-label": "Change progress" }, [
+            el("button", { type: "button", "aria-label": "One less", text: "−", disabled: !(seed.progress > 0), onclick: () => patch({ progress: Math.max(0, Number(seed.progress) - 1) }) }),
+            el("button", { type: "button", "aria-label": "One more", text: "+", onclick: () => patch({ progress: Number(seed.progress) + 1 }) }),
+          ])
+        : null;
+      progress = el("div", { class: "goal-progress" }, [
+        bar,
+        el("div", { class: "goal-count" }, [
+          m.by === "number" && active
+            ? el("button", { class: "count-btn", type: "button", title: "Type where you are now", text: count, onclick: () => amountSheet(seed, rerender) })
+            : el("span", { text: count }),
+          controls,
+        ]),
+      ]);
+    }
+
+    const steps = m && m.by === "steps"
+      ? el("div", { class: "steps" }, seed.steps.map((s, i) => el("label", { class: `step${s.done ? " done" : ""}` }, [
+          el("input", { type: "checkbox", checked: s.done, disabled: !active, onchange: (e) => patch({ steps: seed.steps.map((x, j) => (j === i ? { ...x, done: e.target.checked } : x)) }) }),
+          el("span", { text: s.text }),
+        ])))
+      : null;
+
+    const status = active
+      ? dueLine(seed)
+      : el("span", { class: `badge ${seed.status === "fulfilled" ? "answered" : "plain"}`, html: seed.status === "fulfilled" ? `${ICON.check}<span>Reached ${shortDate(seed.fulfilled_at)}</span>` : "Set aside" });
+
+    return el("article", { class: `entry goal-card${complete ? " is-complete" : ""}${seed.status === "fulfilled" ? " is-fulfilled" : ""}${seed.status === "set_aside" ? " is-aside" : ""} fade-in` }, [
+      el("div", { class: "goal-head" }, [el("h3", { text: seed.title }), pebbleMenu(seed, rerender, { withReach: !reachOnCard })]),
+      status ? el("div", { class: "entry-meta" }, status) : null,
+      seed.note ? el("p", { class: "refl", text: seed.note }) : null,
+      progress,
+      steps,
+      seed.passage_ref ? el("a", { class: "pill prayer-passage", href: `#${window.Reader.href(seed.passage_ref)}` }, el("span", { text: seed.passage_ref })) : null,
+      seed.status === "fulfilled" && seed.outcome_note ? el("div", { class: "answer-note" }, [el("strong", { text: "How it came about" }), el("p", { text: seed.outcome_note })]) : null,
+      reachOnCard
+        ? el("div", { class: "entry-actions" }, el("button", {
+            class: `btn btn-sm ${complete ? "btn-ember" : "btn-ghost"}`, type: "button",
+            html: `${ICON.check}<span>${PEBBLE.goal.reach}</span>`, onclick: () => fulfilSheet(seed, rerender),
+          }))
+        : null,
+    ].filter(Boolean));
+  }
+
+  // The room's shell is drawn once; `draw` refills only its body, so marking
+  // a habit or ticking a step never jumps the page back to the top.
+  async function pebblesRoom() {
     let seeds;
     try {
       seeds = await api(`/me/refuge/seeds?today=${cave().localToday()}`);
     } catch (err) {
       return failed(err);
     }
-    const rerender = () => growRoom();
-    const groups = { growing: [], fulfilled: [], set_aside: [] };
-    seeds.forEach((s) => groups[s.status].push(s));
-    const filter = el("div", { class: "moods", role: "group", "aria-label": "Which to show", style: "margin:0" }, [
-      ["growing", `Growing (${groups.growing.length})`],
-      ["fulfilled", `Came to pass (${groups.fulfilled.length})`],
-      ["set_aside", `Set aside (${groups.set_aside.length})`],
-    ].filter(([key], i) => i === 0 || groups[key].length).map(([key, label]) =>
-      el("button", { class: "mood", type: "button", style: "text-transform:none", "aria-pressed": String(key === growFilter), text: label, onclick: () => { growFilter = key; rerender(); } })
-    ));
-    if (!groups[growFilter].length && growFilter !== "growing") growFilter = "growing";
-    const list = groups[growFilter];
-    const plant = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Plant something", onclick: () => plantSheet(null, rerender) });
-    show(room("Pebbles", "Hopes you're holding, goals you're working toward, habits and prayers you're building. Bring them to God one day at a time.",
-      el("div", { class: "row-between", style: "flex-wrap:wrap;gap:10px" }, [filter, plant]),
-      list.length
-        ? el("div", { class: "entries seed-list" }, list.map((s) => seedCard(s, rerender)))
-        : el("div", { class: "empty" }, [
-            el("strong", { text: "Nothing planted yet" }),
-            "A hope you're trusting God for, a goal for this season, a habit you'd like to build, or a prayer to keep praying. Start with one.",
-          ])
-    ));
+    const body = el("div", { class: "pebbles" });
+    const refresh = async () => {
+      try {
+        seeds = await api(`/me/refuge/seeds?today=${cave().localToday()}`);
+        draw();
+      } catch (err) {
+        toast(err.message);
+      }
+    };
+    const newPebble = (kind) => plantSheet(kind ? { kind } : null, refresh);
+
+    function draw() {
+      const counts = { growing: 0, fulfilled: 0, set_aside: 0 };
+      seeds.forEach((s) => counts[s.status]++);
+      if (!counts[pebbleFilter]) pebbleFilter = "growing";
+      const shown = seeds.filter((s) => s.status === pebbleFilter);
+      const habits = shown.filter((s) => s.kind === "habit");
+      const goals = shown.filter((s) => s.kind === "goal");
+
+      const filter = cave().filterSelect("Which pebbles to show",
+        Object.entries(STATUS_LABEL).filter(([key]) => key === "growing" || counts[key]).map(([key, label]) => [key, `${label} (${counts[key]})`]),
+        pebbleFilter, (value) => { pebbleFilter = value; draw(); });
+      const bar = el("div", { class: "list-bar" }, [
+        filter,
+        el("button", { class: "btn btn-ember btn-sm", type: "button", html: `${ICON.plus}<span>New</span>`, onclick: () => newPebble() }),
+      ]);
+
+      if (!shown.length) {
+        body.replaceChildren(bar, el("div", { class: "empty pebbles-empty" }, [
+          el("strong", { text: "Start with one small stone" }),
+          "A goal for this season, or a habit you'd like to build. Pebbles keeps track, one day and one step at a time.",
+          el("div", { class: "row pebbles-starts" }, [
+            el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Set a goal", onclick: () => newPebble("goal") }),
+            el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Start a habit", onclick: () => newPebble("habit") }),
+          ]),
+        ]));
+        return;
+      }
+
+      const doneToday = habits.filter((h) => h.tended_today).length;
+      body.replaceChildren(...[
+        bar,
+        habits.length ? el("section", { class: "pebble-section" }, [
+          el("div", { class: "row-between" }, [
+            el("h3", { class: "kicker", text: "Habits" }),
+            pebbleFilter === "growing" ? el("span", { class: "faint pebble-tally", text: `${doneToday} of ${habits.length} done today` }) : null,
+          ]),
+          el("div", { class: "habit-list" }, habits.map((s) => habitRow(s, refresh))),
+        ]) : null,
+        goals.length ? el("section", { class: "pebble-section" }, [
+          el("h3", { class: "kicker", text: "Goals" }),
+          el("div", { class: "entries goal-list" }, goals.map((s) => goalCard(s, refresh))),
+        ]) : null,
+      ].filter(Boolean));
+    }
+
+    draw();
+    show(room("Pebbles", "Goals you're working toward and habits you're building, carried with God one small stone at a time.", body));
   }
 
   // ---------------------------------------------------------------------
   // Be still
   // ---------------------------------------------------------------------
-  let stillTimer = null;
+  // A guided pause with God. The person picks a rhythm, a length and, if
+  // they like, a breath prayer: a line of Scripture prayed in two halves,
+  // the first on the breath in and the second on the breath out. Then the
+  // page gives way to a full-screen session: a light that fills and empties
+  // with the breath, a ring that fills as the minutes pass, and the words.
+  // Afterwards it asks how they are, and points somewhere useful if the
+  // answer is "still heavy".
+  //
+  // Nothing here reaches the server. The choices and a count of this week's
+  // quiet moments are kept on this device only (localStorage), and the page
+  // works the same without them.
+  //
+  // The breath prayers' words are never typed here. Each is a reference
+  // whose text is read from the database in the reader's translation and
+  // cut in two by breathHalves, so the words always match the Bible open.
+
+  const RHYTHMS = {
+    calm: { name: "Calm", line: "In for 4, hold for 2, out for 6. A longer breath out helps the body settle.", phases: [["in", 4], ["hold", 2], ["out", 6]] },
+    even: { name: "Even", line: "In for 5, out for 5. Slow and steady, about six breaths a minute.", phases: [["in", 5], ["out", 5]] },
+    box: { name: "Box", line: "In, hold, out, hold, for 4 each. Good for a racing mind.", phases: [["in", 4], ["hold", 4], ["out", 4], ["rest", 4]] },
+    sleep: { name: "Deep rest", line: "In for 4, hold for 7, out for 8. Unhurried, for winding down at night.", phases: [["in", 4], ["hold", 7], ["out", 8]] },
+  };
+  const PHASE_WORDS = { in: "Breathe in", hold: "Hold", out: "Breathe out", rest: "Rest" };
+  const LENGTHS = [1, 3, 5, 10];
+  const SETTLE_SECONDS = 3; // "Settle in" before the first breath
+  const RECORD_AFTER = 20; // seconds of breathing before a pause counts this week
+
+  // `words` is how many words of the verse to gather before cutting it in
+  // two, tuned so each half is one comfortable breath in every translation.
+  const BREATH_PRAYERS = [
+    { id: "still", theme: "Be still", ref: "Psalm 46:10", words: 6 },
+    { id: "shepherd", theme: "My shepherd", ref: "Psalm 23:1", words: 6 },
+    { id: "afraid", theme: "When I'm afraid", ref: "Psalm 56:3", words: 6 },
+    { id: "rest", theme: "Rest in God", ref: "Psalm 62:1", words: 10 },
+    { id: "peace", theme: "His peace", ref: "John 14:27", words: 8 },
+    { id: "hands", theme: "Letting go", ref: "Psalm 31:5", words: 10 },
+    { id: "fight", theme: "He fights for me", ref: "Exodus 14:14", words: 8 },
+    { id: "help", theme: "My help", ref: "Psalm 121:2", words: 8 },
+  ];
+  const NO_PRAYER = "none";
+
+  // Words that start a natural second half when a line has no comma to cut at.
+  const BREATH_JOINS = new Set(["and", "that", "for", "because", "but", "so"]);
+
+  // Cuts a verse into the two halves of a breath prayer. A psalm's heading
+  // ("A Psalm of David.") and quotation marks are dropped first. Clauses are
+  // gathered until there are `target` words, then cut at the clause break
+  // nearest the middle; a single clause is cut before a joining word near
+  // the middle ("Be still and know / that I am God"), or else in half.
+  function breathHalves(text, ref, target) {
+    let clean = text.replace(/[“”"]/g, "").replace(/(^|\s)‘|’(?=\s|$)/g, "$1").trim();
+    if (/^Psalm /.test(ref)) {
+      const withoutHeading = clean.replace(/^.*?\b(?:Psalm|Song|Maskil|Miktam)\b[^.]*\.\s+/, "");
+      if (withoutHeading) clean = withoutHeading;
+    }
+    const wordCount = (s) => s.split(/\s+/).length;
+    const clauses = clean.split(/\s*[,;:.!?]+\s*/).filter(Boolean);
+    const picked = [];
+    let total = 0;
+    for (const clause of clauses) {
+      picked.push(clause);
+      total += wordCount(clause);
+      if (total >= target) break;
+    }
+    if (picked.length > 1) {
+      let cut = 1;
+      let bestGap = Infinity;
+      let run = 0;
+      for (let i = 1; i < picked.length; i++) {
+        run += wordCount(picked[i - 1]);
+        const gap = Math.abs(run - total / 2);
+        if (gap < bestGap) [cut, bestGap] = [i, gap];
+      }
+      return { text: clean, in: picked.slice(0, cut).join(", "), out: picked.slice(cut).join(", ") };
+    }
+    const words = picked[0].split(/\s+/);
+    let cut = Math.ceil(words.length / 2);
+    let bestGap = Infinity;
+    words.forEach((word, i) => {
+      if (i < 2 || i > words.length - 2 || !BREATH_JOINS.has(word.toLowerCase())) return;
+      const gap = Math.abs(i - words.length / 2);
+      if (gap < bestGap) [cut, bestGap] = [i, gap];
+    });
+    return { text: clean, in: words.slice(0, cut).join(" "), out: words.slice(cut).join(" ") };
+  }
+
+  // Each verse is read once per translation and remembered for the visit.
+  const breathCache = new Map();
+  function prayerLines(prayer) {
+    const key = `${prayer.ref}|${translation()}`;
+    if (!breathCache.has(key)) {
+      const loading = cave().verseText(prayer.ref).then((v) => ({ ...breathHalves(v.text, prayer.ref, prayer.words), translation: v.translation }));
+      loading.catch(() => breathCache.delete(key)); // try again next time
+      breathCache.set(key, loading);
+    }
+    return breathCache.get(key);
+  }
+
+  // This device only: wrapped, because storage can be blocked or throw.
+  const STILL_PREFS_KEY = "adullumStill";
+  const STILL_LOG_KEY = "adullumStillLog";
+  function readLocal(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) || fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  function writeLocal(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* fine without it */
+    }
+  }
+  function stillPrefs() {
+    const saved = readLocal(STILL_PREFS_KEY, {});
+    return {
+      rhythm: RHYTHMS[saved.rhythm] ? saved.rhythm : "calm",
+      minutes: LENGTHS.includes(saved.minutes) ? saved.minutes : 3,
+      prayer: saved.prayer === NO_PRAYER || BREATH_PRAYERS.some((p) => p.id === saved.prayer) ? saved.prayer : "still",
+      tones: saved.tones === true,
+    };
+  }
+
+  // A local day as YYYY-MM-DD, `back` days before today.
+  function dayKey(back = 0) {
+    const d = new Date(`${cave().localToday()}T12:00:00`);
+    d.setDate(d.getDate() - back);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  }
+  // The log is { "2026-11-06": [times, seconds] }, kept for two weeks.
+  function recordStill(seconds) {
+    const log = readLocal(STILL_LOG_KEY, {});
+    const today = dayKey();
+    const [times, total] = log[today] || [0, 0];
+    log[today] = [times + 1, total + Math.round(seconds)];
+    const oldest = dayKey(13);
+    for (const day of Object.keys(log)) if (day < oldest) delete log[day];
+    writeLocal(STILL_LOG_KEY, log);
+  }
+  function weekTally() {
+    const log = readLocal(STILL_LOG_KEY, {});
+    let times = 0;
+    let seconds = 0;
+    for (let back = 0; back < 7; back++) {
+      const [t, s] = log[dayKey(back)] || [0, 0];
+      times += t;
+      seconds += s;
+    }
+    return { times, minutes: Math.max(1, Math.round(seconds / 60)) };
+  }
+
+  function clock(seconds) {
+    const s = Math.max(0, Math.ceil(seconds));
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  // A soft bell as the breath turns: higher going in, lower going out, and
+  // a gentle pair at the end. Made in the browser, so there's no file to load.
+  let stillAudio = null;
+  function chime(kind) {
+    try {
+      stillAudio = stillAudio || new (window.AudioContext || window.webkitAudioContext)();
+      const notes = kind === "end" ? [396, 528] : [kind === "in" ? 528 : 396];
+      notes.forEach((freq, i) => {
+        const at = stillAudio.currentTime + i * 0.35;
+        const osc = stillAudio.createOscillator();
+        const gain = stillAudio.createGain();
+        osc.type = "sine";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.06, at + 0.04);
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + 2.4);
+        osc.connect(gain).connect(stillAudio.destination);
+        osc.start(at);
+        osc.stop(at + 2.5);
+      });
+    } catch {
+      /* no sound is fine */
+    }
+  }
+
+  // The running session, if any: its timer, its full-screen node, and what
+  // it listens to. stopStill takes all of it down, and runs whenever the
+  // room changes or the person leaves Refuge.
+  let still = null;
   function stopStill() {
-    clearInterval(stillTimer);
-    stillTimer = null;
+    if (!still) return;
+    clearInterval(still.timer);
+    document.removeEventListener("keydown", still.onKey);
+    document.removeEventListener("visibilitychange", still.onVisible);
+    if (still.wake) still.wake.release().catch(() => {});
+    still.node.remove();
+    document.body.classList.remove("still-open");
+    still = null;
+  }
+
+  // Asks the phone not to dim its screen mid-breath. It's let go whenever
+  // the page is hidden, so it's asked for again on coming back.
+  function keepScreenOn() {
+    if (!still || still.done || !navigator.wakeLock) return;
+    navigator.wakeLock.request("screen").then((lock) => {
+      if (still && !still.done) still.wake = lock;
+      else lock.release().catch(() => {});
+    }).catch(() => {});
   }
 
   function stillRoom() {
-    const word = el("b", { text: "Ready when you are" });
-    const circle = el("div", { class: "breath", "aria-hidden": "true" }, word);
-    const timer = el("p", { class: "timer", role: "timer", text: "1:00" });
-    const verse = el("p", { class: "scripture-lg" });
-    const ref = el("p", { class: "verse-ref" });
-    const start = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Begin" });
-    start.onclick = () => {
-      stopStill();
-      start.hidden = true;
-      circle.classList.add("is-on");
-      let left = 60;
-      let beat = 0;
-      word.textContent = "Breathe in";
-      timer.textContent = "1:00";
-      stillTimer = setInterval(() => {
-        left -= 1;
-        beat = (beat + 1) % 10;
-        word.textContent = beat < 4 ? "Breathe in" : beat < 6 ? "Hold" : "Breathe out";
-        timer.textContent = `0:${String(left).padStart(2, "0")}`;
-        if (left <= 0) {
-          stopStill();
-          circle.classList.remove("is-on");
-          word.textContent = "Rest here";
-          timer.textContent = "";
-          start.textContent = "One more minute";
-          start.hidden = false;
-        }
-      }, 1000);
+    const prefs = stillPrefs();
+    const save = () => writeLocal(STILL_PREFS_KEY, prefs);
+
+    const summary = el("small");
+    const orb = el("button", { class: "still-orb", type: "button", onclick: () => beginStill(prefs) }, [
+      el("span", { class: "still-orb-light", "aria-hidden": "true" }),
+      el("span", { class: "still-orb-text" }, [el("strong", { text: "Begin" }), summary]),
+    ]);
+    const paintSummary = () => {
+      summary.textContent = `${prefs.minutes} min · ${RHYTHMS[prefs.rhythm].name}`;
+      orb.setAttribute("aria-label", `Begin, ${summary.textContent}`);
     };
+
+    // Pray as you breathe: the chips, and the two halves of the chosen verse.
+    const preview = el("div", { class: "still-preview", "aria-live": "polite" });
+    async function showPrayer() {
+      const prayer = BREATH_PRAYERS.find((p) => p.id === prefs.prayer);
+      if (!prayer) {
+        preview.replaceChildren(el("p", { class: "still-hint", text: "No words this time. Just breathe with the light, and let God be near." }));
+        return;
+      }
+      preview.replaceChildren(el("p", { class: "still-hint", text: "Finding the verse…" }));
+      try {
+        const lines = await prayerLines(prayer);
+        if (prefs.prayer !== prayer.id) return; // another was picked meanwhile
+        preview.replaceChildren(
+          el("p", { class: "still-line" }, [el("span", { class: "still-cue", text: "In" }), el("span", { class: "scripture", text: lines.in })]),
+          el("p", { class: "still-line" }, [el("span", { class: "still-cue", text: "Out" }), el("span", { class: "scripture", text: lines.out })]),
+          el("p", { class: "verse-ref", text: `${prayer.ref} · ${lines.translation}` })
+        );
+      } catch {
+        preview.replaceChildren(el("p", { class: "still-hint", text: "Couldn't find this verse just now. You can still breathe with the light." }));
+      }
+    }
+    const prayerChips = el("div", { class: "moods", role: "group", "aria-label": "Pray as you breathe" },
+      [...BREATH_PRAYERS.map((p) => [p.id, p.theme]), [NO_PRAYER, "Just breathe"]].map(([id, label]) => el("button", {
+        class: "mood", type: "button", "aria-pressed": String(prefs.prayer === id), text: label,
+        onclick: (e) => {
+          prefs.prayer = id;
+          save();
+          prayerChips.querySelectorAll(".mood").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget)));
+          showPrayer();
+        },
+      })));
+
+    // A row of choices that behaves like the sign-in switch.
+    function segment(label, options, current, onPick) {
+      const group = el("div", { class: "seg", role: "group", "aria-label": label }, options.map(([value, text]) => el("button", {
+        type: "button", "aria-pressed": String(value === current), text,
+        onclick: (e) => {
+          group.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget)));
+          onPick(value);
+        },
+      })));
+      return group;
+    }
+    const rhythmLine = el("p", { class: "still-hint", text: RHYTHMS[prefs.rhythm].line });
+    const rhythms = segment("Rhythm", Object.entries(RHYTHMS).map(([key, r]) => [key, r.name]), prefs.rhythm, (key) => {
+      prefs.rhythm = key;
+      rhythmLine.textContent = RHYTHMS[key].line;
+      save();
+      paintSummary();
+    });
+    const lengths = segment("Length", LENGTHS.map((m) => [m, `${m} min`]), prefs.minutes, (m) => {
+      prefs.minutes = m;
+      save();
+      paintSummary();
+    });
+    const tones = el("input", { type: "checkbox", checked: prefs.tones });
+    tones.addEventListener("change", () => {
+      prefs.tones = tones.checked;
+      save();
+      if (tones.checked) chime("in"); // a taste of it, and it unlocks sound on iPhones
+    });
+
+    const tally = weekTally();
+    paintSummary();
     show(el("div", { class: "fade-in" }, [
       el("button", { class: "back", type: "button", html: `${ICON.back}<span>Refuge</span>`, onclick: threshold }),
       el("section", { class: "still" }, [
         el("h2", { text: "Be still" }),
-        el("p", { class: "muted", text: "Breathe with the light. In for four, hold for two, out for four." }),
-        circle, verse, ref, timer,
-        el("div", { style: "margin-top:16px" }, start),
+        el("p", { class: "muted still-lede", text: "A few quiet minutes with God. Breathe with the light, and if you'd like, pray a line of Scripture as you do." }),
+        orb,
+        el("p", { class: "still-hint", text: "Tap the light when you're ready. Find somewhere you can sit for a moment." }),
+        el("div", { class: "card still-options" }, [
+          el("div", { class: "still-field" }, [el("p", { class: "still-label", text: "Pray as you breathe" }), prayerChips, preview]),
+          el("div", { class: "still-field" }, [el("p", { class: "still-label", text: "Rhythm" }), rhythms, rhythmLine]),
+          el("div", { class: "still-field" }, [el("p", { class: "still-label", text: "Length" }), lengths]),
+          el("label", { class: "switch still-switch" }, [tones, "Soft tones as the breath turns, so you can close your eyes"]),
+        ]),
+        el("p", { class: "still-tally", text: tally.times
+          ? `This week: ${plural(tally.times, "quiet moment", "quiet moments")}, ${plural(tally.minutes, "minute", "minutes")}. Kept on this device only.`
+          : "Nothing here leaves your device." }),
       ]),
     ]));
-    cave().verseText("Psalm 46:10").then((v) => {
-      verse.textContent = v.text;
-      ref.textContent = `Psalm 46:10 · ${v.translation}`;
-    }).catch(() => {});
+    showPrayer();
+  }
+
+  // What follows "How are you now?", and where each answer can lead.
+  const STILL_AFTER = {
+    calmer: { label: "Calmer", reply: "Carry this quiet with you into the rest of your day.", go: ["again", "refuge"] },
+    same: { label: "About the same", reply: "That's alright. Showing up is enough, and God was here with you either way.", go: ["again", "write"] },
+    heavy: { label: "Still heavy", reply: "Thank you for being honest. You don't have to carry it alone.", go: ["talk", "write", "person"] },
+  };
+
+  async function beginStill(prefs) {
+    stopStill();
+    const rhythm = RHYTHMS[prefs.rhythm];
+    const cycle = rhythm.phases.reduce((sum, [, secs]) => sum + secs, 0);
+    const total = Math.ceil((prefs.minutes * 60) / cycle) * cycle; // end on a whole breath
+    const prayer = BREATH_PRAYERS.find((p) => p.id === prefs.prayer);
+    const lines = prayer ? await prayerLines(prayer).catch(() => null) : null;
+
+    // The stage: a progress ring around the light, the breath's word inside.
+    const RADIUS = 146;
+    const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
+    const stage = el("div", { class: "still-stage", html: `<svg class="still-ring" viewBox="0 0 300 300" aria-hidden="true"><circle class="still-ring-track" cx="150" cy="150" r="${RADIUS}"/><circle class="still-ring-fill" cx="150" cy="150" r="${RADIUS}" stroke-dasharray="${CIRCUMFERENCE}" stroke-dashoffset="${CIRCUMFERENCE}"/></svg>` });
+    const ringFill = stage.querySelector(".still-ring-fill");
+    const light = el("div", { class: "still-light", "aria-hidden": "true" });
+    const phaseWord = el("p", { class: "still-phase", "aria-live": "polite", text: "Settle in" });
+    const count = el("p", { class: "still-count", "aria-hidden": "true" });
+    stage.append(light, el("div", { class: "still-center" }, [phaseWord, count]));
+    const words = el("p", { class: "still-words scripture" });
+    const timeLeft = el("span", { class: "still-left", text: clock(total) });
+    const pause = el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Pause", onclick: () => togglePause() });
+    const end = el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "End", onclick: () => finish(false) });
+    const tones = el("button", { class: "still-icon-btn", type: "button", "aria-pressed": String(prefs.tones), "aria-label": "Soft tones", title: "Soft tones", html: ICON.sound });
+    tones.onclick = () => {
+      prefs.tones = !prefs.tones;
+      tones.setAttribute("aria-pressed", String(prefs.tones));
+      writeLocal(STILL_PREFS_KEY, prefs);
+    };
+    const body = el("div", { class: "still-body" }, [stage, words, el("div", { class: "still-controls" }, [timeLeft, pause, end])]);
+    const node = el("div", { class: "still-session", role: "dialog", "aria-modal": "true", "aria-label": "Be still", tabindex: "-1" }, [
+      el("div", { class: "still-top" }, [
+        el("span", { class: "still-ref", text: prayer && lines ? `${prayer.ref} · ${lines.translation}` : `${rhythm.name} · ${prefs.minutes} min` }),
+        el("span", { class: "still-top-actions" }, [tones, el("button", { class: "still-icon-btn", type: "button", "aria-label": "Close", title: "Close", html: ICON.close, onclick: () => finish(false) })]),
+      ]),
+      body,
+    ]);
+
+    // Time runs from the clock, not from counting ticks, so a slow tick never
+    // stretches a breath. Paused time is set aside.
+    const startedAt = performance.now();
+    let pausedAt = null;
+    let pausedFor = 0;
+    let lastPhase = null;
+    const elapsed = () => ((pausedAt ?? performance.now()) - startedAt - pausedFor) / 1000 - SETTLE_SECONDS;
+
+    function showWords(text) {
+      if (words.textContent === text && words.classList.contains("is-shown")) return;
+      words.classList.remove("is-shown");
+      setTimeout(() => {
+        words.textContent = text;
+        words.classList.add("is-shown");
+      }, 300);
+    }
+
+    // A new part of the breath: the light grows on the way in, rests on a
+    // hold, and shrinks on the way out, over exactly the seconds left in it.
+    function enterPhase(kind, secondsLeft) {
+      phaseWord.textContent = PHASE_WORDS[kind];
+      node.dataset.phase = kind;
+      const moving = kind === "in" || kind === "out";
+      light.style.transitionDuration = `${moving ? secondsLeft : 0.6}s`;
+      light.style.transform = kind === "in" || kind === "hold" ? "scale(1)" : "scale(0.55)";
+      if (lines) showWords(kind === "in" || kind === "hold" ? lines.in : lines.out);
+      if (prefs.tones && moving) chime(kind);
+    }
+
+    function tick() {
+      if (pausedAt !== null || still.done) return;
+      const t = elapsed();
+      if (t < 0) {
+        count.textContent = String(Math.ceil(-t));
+        return;
+      }
+      if (t >= total) return finish(true);
+      const within = t % cycle;
+      let start = 0;
+      let index = 0;
+      while (within >= start + rhythm.phases[index][1]) start += rhythm.phases[index++][1];
+      const [kind, secs] = rhythm.phases[index];
+      const secondsLeft = secs - (within - start);
+      const phaseId = `${Math.floor(t / cycle)}:${index}`;
+      if (phaseId !== lastPhase) {
+        lastPhase = phaseId;
+        enterPhase(kind, secondsLeft);
+      }
+      count.textContent = String(Math.ceil(secondsLeft));
+      timeLeft.textContent = `${clock(total - t)} left`;
+      ringFill.style.strokeDashoffset = String(CIRCUMFERENCE * (1 - t / total));
+    }
+
+    function togglePause() {
+      if (still.done) return;
+      if (pausedAt === null) {
+        pausedAt = performance.now();
+        // Hold the light where it is, mid-breath.
+        const now = getComputedStyle(light).transform;
+        light.style.transitionDuration = "0s";
+        light.style.transform = now;
+        phaseWord.textContent = "Paused";
+        count.textContent = "";
+        pause.textContent = "Resume";
+        node.classList.add("is-paused");
+      } else {
+        pausedFor += performance.now() - pausedAt;
+        pausedAt = null;
+        lastPhase = null; // pick the breath up again from where it was
+        pause.textContent = "Pause";
+        node.classList.remove("is-paused");
+        if (elapsed() < 0) phaseWord.textContent = "Settle in";
+        tick();
+      }
+    }
+
+    // Ending on time, or early. A pause of any length counts this week once
+    // it's had a few breaths; closing after the check-in just goes back.
+    function finish(completed) {
+      if (still.done) {
+        stopStill();
+        stillRoom();
+        return;
+      }
+      const breathed = Math.max(0, Math.min(elapsed(), total));
+      still.done = true;
+      clearInterval(still.timer);
+      if (still.wake) still.wake.release().catch(() => {});
+      still.wake = null;
+      if (breathed >= RECORD_AFTER) recordStill(breathed);
+      if (!completed && breathed < RECORD_AFTER) {
+        stopStill();
+        stillRoom();
+        return;
+      }
+      if (prefs.tones) chime("end");
+      showAfter(breathed);
+    }
+
+    function showAfter(seconds) {
+      tones.hidden = true;
+      const reply = el("div", { class: "still-reply", "aria-live": "polite" });
+      const actions = {
+        again: () => el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Another round", onclick: () => beginStill(prefs) }),
+        refuge: () => el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Back to Refuge", onclick: threshold }),
+        write: () => el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Write it out", onclick: () => writeRoom() }),
+        talk: () => el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Talk with Aquila", onclick: () => talkRoom() }),
+        person: () => el("button", { class: "linkish", type: "button", text: "Need a person?", onclick: helpRoom }),
+      };
+      const feelings = el("div", { class: "moods still-feel", role: "group", "aria-label": "How are you now?" },
+        Object.entries(STILL_AFTER).map(([key, after]) => el("button", {
+          class: "mood", type: "button", "aria-pressed": "false", text: after.label,
+          onclick: (e) => {
+            feelings.querySelectorAll(".mood").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget)));
+            reply.replaceChildren(el("p", { text: after.reply }), el("div", { class: "still-actions" }, after.go.map((go) => actions[go]())));
+          },
+        })));
+      const minutes = Math.max(1, Math.round(seconds / 60));
+      body.replaceChildren(el("div", { class: "still-after fade-in" }, [
+        el("div", { class: "still-orb-light still-after-light", "aria-hidden": "true" }),
+        el("h2", { text: "Rest here a moment" }),
+        el("p", { class: "muted", text: `${plural(minutes, "quiet minute", "quiet minutes")} with God.` }),
+        lines ? el("blockquote", { class: "still-verse" }, [
+          el("p", { class: "scripture", text: lines.text }),
+          el("p", { class: "verse-ref", text: `${prayer.ref} · ${lines.translation}` }),
+        ]) : null,
+        el("p", { class: "still-ask", text: "How are you now?" }),
+        feelings,
+        reply,
+      ]));
+    }
+
+    still = {
+      node,
+      done: false,
+      wake: null,
+      timer: null,
+      // Space pauses and Escape closes, unless a button has the key.
+      onKey: (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          finish(false);
+        } else if (e.key === " " && !e.target.closest("button, input, textarea, a")) {
+          e.preventDefault();
+          togglePause();
+        }
+      },
+      onVisible: () => {
+        if (document.visibilityState === "visible") keepScreenOn();
+      },
+    };
+    document.body.append(node);
+    document.body.classList.add("still-open");
+    document.addEventListener("keydown", still.onKey);
+    document.addEventListener("visibilitychange", still.onVisible);
+    keepScreenOn();
+    node.focus();
+    count.textContent = String(SETTLE_SECONDS);
+    still.timer = setInterval(tick, 200);
   }
 
   // ---------------------------------------------------------------------
@@ -1033,6 +1681,49 @@
     ]));
   }
 
+  // What this person has shared, as small bubbles in one row that scrolls
+  // sideways, so it never pushes the wall down the page. Each shows how far
+  // the post has got (waiting, or what came back once it's on the wall), and
+  // tapping it opens the whole post, the kind words and "Take it down".
+  const MINE_BUBBLE_STATUS = { waiting: "Waiting", not_shared: "Not shared" };
+
+  function mineBubble(post, index, rerender) {
+    const r = REACTIONS[post.kind];
+    const n = post.reactions || 0;
+    const words = post.kind_words.length;
+    const shared = post.status === "shared";
+    // On the wall it reads like the wall's own bubbles; before that, its status.
+    const who = shared ? (post.kind === "rejoice" ? "Good news" : "Carrying this") : MINE_BUBBLE_STATUS[post.status];
+    const count = el("span", { class: "bubble-count" });
+    if (shared) {
+      count.innerHTML = `${r.icon}<span></span>${words ? `${ICON.talk}<span></span>` : ""}`;
+      const [amens, kind] = count.querySelectorAll("span");
+      amens.textContent = n ? String(n) : "None yet";
+      if (kind) kind.textContent = String(words);
+    }
+    const label = shared
+      ? `${r.forMine(n)}${words ? `, ${plural(words, "kind word", "kind words")}` : ""}. ${post.body}`
+      : `${who}. ${post.body}`;
+    const node = el("button", {
+      class: `bubble bubble-mine bubble-${post.kind} is-${post.status.replace("_", "-")}${n ? " has-amens" : ""}`,
+      type: "button",
+      style: `--drift-delay:${-((index * 1.3) % 6).toFixed(1)}s;--drift-time:${7 + (index % 3)}s`,
+      "aria-label": label,
+    }, [
+      el("span", { class: "bubble-who", text: who }),
+      el("span", { class: "bubble-text", text: post.body }),
+      shared ? count : null,
+    ]);
+    node.onclick = () => {
+      const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].mineWho }, [
+        // Taking it down redraws the room, so the sheet goes first.
+        mineCard(post, () => { close(); rerender(); }),
+        el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
+      ]));
+    };
+    return node;
+  }
+
   function mineCard(post, rerender) {
     const spec = POST_KINDS[post.kind];
     const r = REACTIONS[post.kind];
@@ -1134,7 +1825,10 @@
     const rerender = () => amensRoom();
     show(room("Amens", null,
       shareBox(rerender),
-      data.mine.length ? el("section", { class: "wall-section" }, [el("p", { class: "kicker", text: "What you've shared" }), ...data.mine.map((p) => mineCard(p, rerender))]) : null,
+      data.mine.length ? el("section", { class: "wall-section" }, [
+        el("p", { class: "kicker", text: "What you've shared" }),
+        el("div", { class: "mine-row" }, data.mine.map((p, i) => mineBubble(p, i, rerender))),
+      ]) : null,
       el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "On the wall" }),
         ...(data.posts.length

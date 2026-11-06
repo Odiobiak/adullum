@@ -21,6 +21,12 @@ services:
         value: gpt-4o-mini
       - key: ADMIN_EMAILS
         value: odicheobiakarije@gmail.com
+      - key: SUPPORT_ONCE_URL
+        sync: false
+      - key: SUPPORT_MONTHLY_URL
+        sync: false
+      - key: SUPPORT_MONTHLY_AMOUNT
+        value: $3
       - key: LANGFUSE_PUBLIC_KEY
         sync: false
       - key: LANGFUSE_SECRET_KEY

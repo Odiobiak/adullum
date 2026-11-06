@@ -74,5 +74,15 @@ class Settings(BaseSettings):
     # can approve anything and the wall stays empty, which is the safe default.
     admin_emails: str = ""
 
+    # Giving, shown on the Support page (#support) and everywhere that links to
+    # it. Both are Stripe Payment Links (or any checkout page). Left empty, the
+    # page still explains why Adullum asks, and says giving opens soon, so the
+    # buttons never lead nowhere. See app/support.py.
+    support_once_url: str = ""
+    support_monthly_url: str = ""
+    # What the monthly link charges, as the page should say it ("$3"). Stripe
+    # holds the real price; keep this in step with it.
+    support_monthly_amount: str = "$3"
+
 
 settings = Settings()
