@@ -31,6 +31,8 @@
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>',
     ember: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
+    edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   };
 
   // ---------------------------------------------------------------------
@@ -450,6 +452,9 @@
 
   function signOut() {
     lastName = displayName();
+    // This device stops getting their notifications. The headers are taken
+    // now, while the session still exists (web/notify.js).
+    if (window.Notify) window.Notify.forget(authHeaders());
     writeSession(null);
     profile = null;
     updateChrome();
@@ -951,9 +956,18 @@
       continueCard(data.last_session),
       homePlanCard(data.plan),
     ].filter(Boolean));
+    // While one of the person's churches is live, a card for it leads the
+    // page; nothing else about churches shows on Home (web/church.js).
+    window.Church.homeLive().then((card) => {
+      main.querySelectorAll(".church-home-live").forEach((old) => old.remove());
+      if (card && main.isConnected) main.prepend(card);
+    }).catch(() => {});
     // The prayer and memory-verse cards are null until their migration has
     // run, and the memory-verse card only appears when something is due.
+    // The halfway check-in on a reflection's plan comes first while it lasts
+    // (two weeks from the middle of the stretch, app/reflections.py).
     side.replaceChildren(...[
+      data.reflection ? window.Reflections.homeCard(data.reflection) : null,
       data.embers ? weekCard(data.embers) : null,
       data.memorize ? window.Memorize.homeCard(data.memorize, showHome) : null,
       data.prayers ? window.Prayers.homeCard(data.prayers, showHome) : null,
@@ -1315,7 +1329,8 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Sermons, Refuge and Prayers, side by side as tabs. Past
+  // The cave: Journal, Refuge and Prayers, side by side as tabs (sermon notes
+  // live in the Church tab, web/church.js). Past
   // conversations live with Aquila (the rail, or the Conversations sheet on a
   // phone), where they can be opened, renamed and deleted; notes, highlights,
   // verses to learn and reading plans live in the Bible (#bible/notes,
@@ -1323,10 +1338,10 @@
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
   // #amens opens Refuge already inside the Amens room.
-  const CAVE_ROUTES = { journal: "journal", sermons: "sermons", prayers: "prayers", refuge: "refuge", amens: "refuge" };
+  // #reflection/<id> opens a reflection inside the Journal tab (web/reflections.js).
+  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", reflection: "journal" };
   const CAVE_ACTIONS = {
-    journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
-    sermons: ["New sermon note", () => window.Sermons.newNote()],
+    journal: ["New entry", () => newEntryMenu()],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
     // Refuge has no header button: its rooms are its own ways in.
   };
@@ -1338,19 +1353,24 @@
   async function showCave(tab, route) {
     caveTab = tab || caveTab;
     $$("[data-cave-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.caveTab === caveTab)));
+    // A reflection open in the Journal tab has its own way back, so the
+    // header button steps aside while it's open. Any other way out of it
+    // (a tab, another page) saves what's waiting and closes it.
+    const reflectionId = route === "reflection" ? location.hash.split("/")[1] : null;
+    if (!reflectionId) {
+      window.Reflections.hide();
+      if (location.hash.startsWith("#reflection/")) history.replaceState(null, "", `#${caveTab}`);
+    }
     const action = CAVE_ACTIONS[caveTab];
-    $("#caveAction").hidden = !action;
+    $("#caveAction").hidden = !action || !!reflectionId;
     if (action) $("#caveAction").textContent = action[0];
     // Leaving Refuge settles the page back and lets an unkept talk vanish.
     if (caveTab !== "refuge") window.Refuge.hide();
-    // Leaving Sermons saves whatever is still waiting to be saved.
-    if (caveTab !== "sermons") window.Sermons.hide();
     const panel = $("#cavePanel");
     panel.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
       await {
-        journal: renderJournal,
-        sermons: (p) => window.Sermons.renderTab(p),
+        journal: (p) => (reflectionId ? window.Reflections.show(p, reflectionId) : renderJournal(p)),
         prayers: (p) => window.Prayers.renderTab(p),
         refuge: (p) => window.Refuge.renderTab(p, route),
       }[caveTab](panel);
@@ -1359,47 +1379,130 @@
     }
   }
 
+  // The Journal's filter value that shows reflections instead of entries.
+  // Tags are always lower case (app/cave.py::_clean_tags), so it can't clash.
+  const REFLECTIONS_FILTER = "@Reflections";
+
+  // "New entry" offers a plain entry or a reflection, as a small menu under
+  // the button. It closes on a pick, Escape, a scroll, or a click elsewhere.
+  function newEntryMenu() {
+    const button = $("#caveAction");
+    if (button.getAttribute("aria-expanded") === "true") return;
+    const choice = (title, sub, onPick) => el("button", {
+      class: "more-item new-entry-item", type: "button", role: "menuitem",
+      onclick: () => { close(); onPick(); },
+    }, [el("strong", { text: title }), el("span", { text: sub })]);
+    const menu = el("div", { class: "more-menu new-entry-menu", role: "menu", "aria-label": "New entry" }, [
+      choice("Journal entry", "Write about today", () => openJournal({}, () => showCave("journal"))),
+      choice("Reflection", "Look back and look ahead with God", () => window.Reflections.openStart()),
+    ]);
+    const at = button.getBoundingClientRect();
+    menu.style.top = `${at.bottom + 6}px`;
+    menu.style.right = `${Math.max(12, window.innerWidth - at.right)}px`;
+    document.body.append(menu);
+    button.setAttribute("aria-expanded", "true");
+    menu.querySelector("button").focus();
+
+    function close() {
+      menu.remove();
+      button.setAttribute("aria-expanded", "false");
+      document.removeEventListener("click", onOutside, true);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", close, true);
+      window.removeEventListener("resize", close);
+    }
+    function onOutside(e) {
+      if (!menu.contains(e.target)) close();
+    }
+    function onKey(e) {
+      if (e.key === "Escape") {
+        close();
+        button.focus();
+      }
+    }
+    // Wait a tick, so the click that opened the menu doesn't also close it.
+    setTimeout(() => {
+      document.addEventListener("click", onOutside, true);
+      document.addEventListener("keydown", onKey);
+      window.addEventListener("scroll", close, true);
+      window.addEventListener("resize", close);
+    });
+  }
+
   async function renderJournal(panel) {
-    const entries = await api("/me/journal");
-    if (!entries.length) {
+    // Reflections come back empty until their migration has run.
+    const [entries, reflections] = await Promise.all([api("/me/journal"), window.Reflections.list()]);
+    if (!entries.length && !reflections.length) {
       panel.replaceChildren(el("div", { class: "empty" }, [
         el("strong", { text: "Nothing in your journal yet" }),
-        "Save an answer or a verse from Aquila, or write about today.",
-        el("div", {}, el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Write an entry", onclick: () => openJournal({}, () => showCave("journal")) })),
+        "Save an answer or a verse from Aquila, write about today, or look back on a stretch of time with God.",
+        el("div", { class: "empty-actions" }, [
+          el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Write an entry", onclick: () => openJournal({}, () => showCave("journal")) }),
+          el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Start a reflection", onclick: () => window.Reflections.openStart() }),
+        ]),
       ]));
       return;
     }
-    // Filter by the tags actually in use, most used first. Filtering happens
-    // here rather than on the server: a journal is at most a hundred entries.
+    // Filter by the tags actually in use, most used first, or to reflections.
+    // Filtering happens here rather than on the server: a journal is at most
+    // a hundred entries.
     const counts = new Map();
     entries.forEach((e) => entryTags(e).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
     const used = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || a.localeCompare(b));
-    if (tagFilter && !counts.has(tagFilter)) tagFilter = null;
+    if (tagFilter === REFLECTIONS_FILTER ? !reflections.length : tagFilter && !counts.has(tagFilter)) tagFilter = null;
+    const options = [["", "All entries"], ...(reflections.length ? [[REFLECTIONS_FILTER, "Reflections"]] : []), ...used.map((t) => [t, `#${t}`])];
+    const filter = options.length > 1
+      ? filterSelect("Filter the journal", options, tagFilter || "", (value) => {
+          tagFilter = value || null;
+          showCave("journal");
+        })
+      : null;
+
+    if (tagFilter === REFLECTIONS_FILTER) {
+      const cards = [
+        ...reflections.filter((r) => r.current).map(window.Reflections.planCard),
+        ...reflections.filter((r) => !r.current).map(window.Reflections.rowCard),
+      ];
+      panel.replaceChildren(
+        listBar(`${reflections.length} ${reflections.length === 1 ? "reflection" : "reflections"}`, filter),
+        el("div", { class: "entries" }, cards)
+      );
+      return;
+    }
     const shown = tagFilter ? entries.filter((e) => entryTags(e).includes(tagFilter)) : entries;
-    const bar = listBar(
-      `${shown.length} ${shown.length === 1 ? "entry" : "entries"}`,
-      used.length
-        ? filterSelect("Filter by tag", [["", "All tags"], ...used.map((t) => [t, `#${t}`])], tagFilter || "", (value) => {
-            tagFilter = value || null;
-            showCave("journal");
-          })
-        : null
+    // The plan someone is living in, and reflections still in progress, sit
+    // above the entries when the whole journal is showing.
+    const pinned = tagFilter ? [] : window.Reflections.pinned(reflections);
+    panel.replaceChildren(
+      listBar(`${shown.length} ${shown.length === 1 ? "entry" : "entries"}`, filter),
+      pinned.length ? el("div", { class: "entries journal-pinned" }, pinned) : null,
+      el("div", { class: "entries" }, shown.map(journalCard))
     );
-    panel.replaceChildren(bar, el("div", { class: "entries" }, shown.map(journalCard)));
   }
 
+  // A round icon button for an entry's less wordy actions.
+  function iconAct(icon, label, onclick) {
+    return el("button", { class: "icon-act", type: "button", "aria-label": label, title: label, html: icon, onclick });
+  }
+
+  // An entry: what it's about, the person's reflection, then one row of
+  // actions. The likely next step stays in words; Connections and Edit are
+  // icons; Share and Delete wait in the "⋯" menu, so Delete is never one slip away.
   function journalCard(e) {
     const node = el("article", { class: "entry fade-in" });
     const meta = el("div", { class: "entry-meta" }, [el("span", { text: when(e.created_at) })]);
     for (const t of entryTags(e)) meta.append(el("span", { class: "tag", text: `#${t}` }));
-    const refl = el("p", { class: "refl", text: e.reflection || "No reflection yet. Tap Edit to add one." });
-    const editBtn = el("button", { class: "act", type: "button", text: "Edit" });
+    const refl = el("p", { class: "refl", text: e.reflection || "No reflection yet. Tap the pencil to add one." });
+    const editBtn = iconAct(ICON.edit, "Edit");
     editBtn.onclick = () => {
       const ta = el("textarea", { "aria-label": "Your reflection" });
       ta.value = e.reflection || "";
       refl.replaceWith(ta);
       ta.focus();
-      editBtn.textContent = "Save";
+      editBtn.innerHTML = ICON.check;
+      editBtn.setAttribute("aria-label", "Save");
+      editBtn.title = "Save";
+      editBtn.classList.add("is-on");
       editBtn.onclick = async () => {
         try {
           node.replaceWith(journalCard(await api(`/me/journal/${e.id}`, { method: "PATCH", body: { reflection: ta.value.trim() } })));
@@ -1410,26 +1513,30 @@
     };
     const refs = (e.citations || []).map((c) => `${c.book} ${c.chapter}:${c.verse}`);
     if (!refs.length && e.passage_ref) refs.push(e.passage_ref);
+    const textAct = (icon, label, onclick) => el("button", { class: "text-act", type: "button", html: icon, onclick }, [label]);
     const actions = el("div", { class: "entry-actions" }, [
-      e.question
-        ? el("button", { class: "act", type: "button", text: "Ask again", onclick: () => app().submitQuery(e.question) })
-        : e.passage_ref
-          ? el("button", { class: "act", type: "button", text: "Return to it", onclick: () => app().submitQuery(`I'd like to come back to ${e.passage_ref}.`) })
-          : null,
-      refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
-      editBtn,
-      el("button", {
-        class: "act danger", type: "button", text: "Delete",
-        onclick: async () => {
-          if (!confirm("Delete this journal entry? This can't be undone.")) return;
-          try {
-            await api(`/me/journal/${e.id}`, { method: "DELETE" });
-            node.remove();
-          } catch (err) {
-            toast(err.message);
-          }
-        },
-      }),
+      e.question ? textAct(ICON.chat, "Ask again", () => app().submitQuery(e.question)) : null,
+      el("div", { class: "entry-icons" }, [
+        refs.length ? iconAct(ICON.graph, "See connections", () => window.Graph.open(refs.slice(0, 4))) : null,
+        editBtn,
+        moreMenu("More for this entry", [
+          e.passage_ref && e.verse_text
+            ? { label: "Share as an image", onClick: () => shareCard({ ref: e.passage_ref, text: e.verse_text, translation: ((e.citations || [])[0] || {}).translation || translation() }) }
+            : null,
+          {
+            label: "Delete", danger: true,
+            onClick: async () => {
+              if (!confirm("Delete this journal entry? This can't be undone.")) return;
+              try {
+                await api(`/me/journal/${e.id}`, { method: "DELETE" });
+                node.remove();
+              } catch (err) {
+                toast(err.message);
+              }
+            },
+          },
+        ]),
+      ]),
     ]);
     node.append(meta, el("h3", { text: e.passage_ref || e.question || "A moment kept" }));
     if (e.verse_text) node.append(el("p", { class: "verse", text: e.verse_text }));
@@ -1590,7 +1697,7 @@
   // Called by index.html's router each time the view changes
   // ---------------------------------------------------------------------
   function onView(view, route) {
-    if (view !== "cave") { window.Refuge.hide(); window.Sermons.hide(); }
+    if (view !== "cave") { window.Refuge.hide(); window.Sermons.hide(); window.Reflections.hide(); }
     if (view === "welcome") showWelcome();
     else if (view === "signin") showSignin(route);
     else if (view === "home") showHome();

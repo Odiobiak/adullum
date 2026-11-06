@@ -11,6 +11,7 @@ contract.
 
 import asyncio
 import json
+from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
-from app import bible, cave, connections, fasting, hearth, highlights, memorize, notes, one_another, prayers, reading_plans, refuge, sermons, support
+from app import bible, cave, churches, connections, fasting, hearth, highlights, memorize, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, sermons, support
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -43,7 +44,14 @@ def _run_config() -> dict:
     handler = get_langfuse_handler()
     return {"callbacks": [handler] if handler else []}
 
-app = FastAPI(title="Adullum")
+@asynccontextmanager
+async def _lifespan(_app: FastAPI):
+    """Sends due reminders while the server is awake (app/reminders.py)."""
+    reminders.start()
+    yield
+
+
+app = FastAPI(title="Adullum", lifespan=_lifespan)
 
 # Dev-only: lets the static test page in web/index.html (opened via file:// or a
 # throwaway local server, i.e. a different origin than the API) call these
@@ -58,6 +66,7 @@ app.add_middleware(
 
 app.include_router(bible.router)
 app.include_router(cave.router)
+app.include_router(churches.router)
 app.include_router(connections.router)
 app.include_router(hearth.router)
 app.include_router(highlights.router)
@@ -69,7 +78,11 @@ app.include_router(prayers.router)
 app.include_router(fasting.router)
 app.include_router(reading_plans.router)
 app.include_router(refuge.router)
+app.include_router(reminders.router)
+app.include_router(reflections.router)
 app.include_router(support.router)
+
+
 
 # Holds a reference to each after-turn save until it finishes. asyncio only
 # keeps a weak reference to a bare create_task(), so without this a save could

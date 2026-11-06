@@ -27,6 +27,16 @@ services:
         sync: false
       - key: SUPPORT_MONTHLY_AMOUNT
         value: $3
+      # Push notifications (scripts/make_vapid_keys.py makes the pair) and the
+      # secret the reminders workflow sends. See app/reminders.py.
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: CRON_SECRET
+        sync: false
       - key: LANGFUSE_PUBLIC_KEY
         sync: false
       - key: LANGFUSE_SECRET_KEY

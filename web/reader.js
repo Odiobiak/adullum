@@ -808,12 +808,19 @@
     const mine = door({ href: "#bible/notes", icon: ICON.note, title: MINE.notes.title, text: "Your highlights and notes, kept beside the verses" });
     const learn = door({ href: "#bible/memorize", icon: ICON.heart, title: "Memorize", text: "Learn verses by heart, a few minutes a day" });
     const plans = door({ href: "#bible/plans", icon: ICON.plan, title: MINE.plans.title, text: "Read a little each day, shaped with Aquila" });
+    // Connections opens over the page rather than being a route. On a phone
+    // this door is its way in, since the tab bar holds Church instead.
+    const links = door({ href: "#bible", icon: ICON.graph, title: "Connections", text: "See how passages link across the Bible" });
+    links.link.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.Graph.open([]);
+    });
 
     $("#readerMine").replaceChildren(
       el("div", { class: "page-head" }, el("div", {}, [
         cave().titleInfo(el("h1", { class: "page-title", text: "The Bible" }), "Read, follow a plan, keep notes as you go, and learn the verses you want to carry with you."),
       ])),
-      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, plans.link, mine.link, learn.link]),
+      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, plans.link, mine.link, learn.link, links.link]),
     );
     if (cave().signedIn()) fillHubCounts(mine, learn, plans);
   }

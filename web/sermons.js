@@ -1,4 +1,5 @@
-// Sermon notes: the cave's Sermons tab, and the read-only page a shared link
+// Sermon notes: the Sermons part of the Church tab (#church/sermons, drawn
+// into web/church.js's page), and the read-only page a shared link
 // opens (#sermon/<token>).
 //
 // A note is the sermon's details plus an ordered list of blocks (text, point,
@@ -56,7 +57,7 @@
   // ---------------------------------------------------------------------
   // State for the open tab
   // ---------------------------------------------------------------------
-  let panel = null;      // the cave panel while the Sermons tab is open
+  let panel = null;      // the Church tab's panel while Sermons is open
   let notes = [];        // the list, without blocks
   let current = null;    // the open note, with blocks
   let query = "";
@@ -291,8 +292,8 @@
 
   async function newNote() {
     if (!panel) {
-      // From the header button on another tab: open the tab, then start one.
-      await cave().showCave("sermons");
+      // From somewhere else: open Sermons in the Church tab, then start one.
+      await window.Church.openSermons();
     }
     await save();
     try {
@@ -962,5 +963,15 @@
     ]));
   }
 
-  window.Sermons = { renderTab, renderShared, newNote, hide };
+  // Opens one note by id, for web/church.js once it has drafted one. The
+  // list is read again first, so a note made elsewhere is in it.
+  async function open(id) {
+    if (!panel) return;
+    try {
+      notes = await api("/me/sermons");
+    } catch { /* the note still opens */ }
+    await openNote(id, { scroll: true });
+  }
+
+  window.Sermons = { renderTab, renderShared, newNote, open, hide };
 })();

@@ -557,7 +557,21 @@ button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
 .entry .verse { font-family: var(--scripture); color: var(--soft); font-size: 16px; }
 .entry .refl { color: var(--text); white-space: pre-wrap; font-size: 15px; }
 .entry textarea { width: 100%; min-height: 6rem; background: var(--ground); border: 1px solid var(--ember); border-radius: var(--radius-sm); padding: 10px 12px; resize: vertical; }
-.entry .entry-actions { display: flex; gap: 6px; flex-wrap: wrap; margin: auto 0 0; padding-top: 6px; }
+/* An entry's actions: the likely next step in words, then a few round icons
+   (Connections, Edit) and the "⋯" menu with Share and Delete. */
+.entry .entry-actions { display: flex; align-items: center; gap: 4px; margin: auto 0 0; padding-top: 10px; border-top: 1px solid var(--divider); }
+.entry-icons { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.text-act { display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-btn-sm); padding: 0 8px 0 0; border: 0; background: none; color: var(--ember); font-size: 14px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.text-act svg { width: 16px; height: 16px; flex: none; }
+.text-act:hover { color: var(--ember-hi); }
+.icon-act { width: var(--h-btn-sm); height: var(--h-btn-sm); display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); transition: background-color 0.15s ease, color 0.15s ease; }
+.icon-act svg { width: 18px; height: 18px; }
+.icon-act:hover, .icon-act.is-on { background: var(--hover); color: var(--text); }
+.icon-act.is-on { color: var(--sage); }
+/* The "⋯" menu sits at the foot of a card, so it opens upward, inside the
+   card, and the card rises above its neighbours while it's open. */
+.entry:has(.more-menu) { position: relative; z-index: 5; }
+.entry .entry-actions .more-menu { top: auto; bottom: calc(100% + 4px); }
 .tag { font-size: 13px; color: var(--ember); }
 .plan-list { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
 .plan-item .overview { color: var(--muted); font-size: 15px; margin: 2px 0 14px; }
@@ -1684,3 +1698,397 @@ body.still-open { overflow: hidden; }
 
 /* A post's status reads in sentence case, like every other label. */
 .burden.is-mine .badge { text-transform: none; }
+
+/* =====================================================================
+   Reflections (web/reflections.js): New entry's menu, the plan pinned in the
+   Journal, and a reflection's three stages.
+   ===================================================================== */
+.new-entry-menu { position: fixed; top: 0; right: 0; min-width: 240px; }
+.new-entry-item { display: grid; gap: 1px; white-space: normal; }
+.new-entry-item strong { font-size: 14px; font-weight: 600; }
+.new-entry-item span { font-size: 12.5px; color: var(--muted); }
+.empty-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.journal-pinned { margin-bottom: 16px; align-items: start; }
+.refl-entry .badge { text-transform: none; }
+
+.refl-flame { width: 12px; height: 12px; flex: none; color: var(--ember); }
+.refl-kicker, .refl-entry .tag { display: inline-flex; align-items: center; gap: 6px; }
+.refl-entry-word { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--ember-hi); }
+
+/* The plan someone is living in */
+.refl-plan { display: grid; gap: 12px; align-content: start; }
+.refl-plan .kicker { margin: 0; }
+.refl-plan-word { font-size: 34px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; color: var(--text); }
+.refl-plan-word.small { font-size: 24px; margin-bottom: 2px; }
+.refl-plan-verse { margin: 0; display: grid; gap: 4px; }
+.refl-plan-verse .scripture { font-size: 16px; color: var(--soft); }
+.refl-ref { font-size: 12.5px; font-weight: 600; color: var(--ember); }
+.refl-aims-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.refl-aim { padding: 3px 10px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 12.5px; font-weight: 600; }
+.refl-plan-area { display: grid; gap: 2px; font-size: 14px; }
+.refl-plan-area b { font-weight: 600; }
+.refl-plan-area b span { color: var(--ember); font-weight: 500; }
+.refl-plan-area ul { margin: 0; padding-left: 18px; color: var(--soft); }
+.refl-plan-area small { color: var(--faint); font-size: 12.5px; }
+
+/* A reflection, open */
+.refl-top { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.refl-backlink { color: var(--ember); font-weight: 600; font-size: 14px; text-decoration: none; }
+.refl-backlink:hover { color: var(--ember-hi); }
+.refl-status { margin-left: auto; font-size: 13px; color: var(--faint); }
+.refl-status.bad { color: var(--danger); }
+.refl-head { margin: 6px 0 14px; }
+.refl-head .kicker { margin: 0 0 4px; }
+/* The reflection's name is a heading you can type into: it only looks like a
+   field when it's hovered or focused. */
+.refl-title { display: block; width: 100%; max-width: 720px; margin: 0 -8px; padding: 2px 8px; font: 700 clamp(22px, 3vw, 28px)/1.2 var(--body); letter-spacing: -0.01em; color: var(--text); background: transparent; border: 1px solid transparent; border-radius: var(--radius-sm); }
+.refl-title::placeholder { color: var(--faint); }
+.refl-title:hover { border-color: var(--line); }
+.refl-title:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); background: var(--surface); }
+.refl-dates-line { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.refl-plan-title { font-size: 17px; font-weight: 600; line-height: 1.3; margin: -4px 0 0; }
+.refl-name-field { margin-top: 2px; }
+.refl-stages { max-width: 460px; margin-bottom: 18px; }
+.refl-body { display: grid; gap: 18px; max-width: 720px; }
+.refl-stage-title { font-size: 20px; }
+.refl-lede { color: var(--muted); font-size: 15px; margin-top: -10px; }
+.refl-note { font-size: 13px; color: var(--muted); }
+.refl-note.bad { color: var(--danger); }
+.refl-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; max-width: 720px; margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--divider); }
+
+.refl-field { display: grid; gap: 6px; font-size: 14px; font-weight: 600; color: var(--soft); }
+.refl-field input, .refl-field textarea { width: 100%; font: 16px/1.5 var(--body); font-weight: 400; color: var(--text); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 9px 12px; }
+.refl-field textarea { min-height: 5.5rem; resize: vertical; }
+.refl-field input:focus, .refl-field textarea:focus, .refl-body input:focus, .refl-body select:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); }
+.refl-word input { font-size: 26px; font-weight: 700; text-align: center; letter-spacing: -0.01em; padding: 12px; }
+.refl-verse-text { margin-top: -10px; font-size: 15px; }
+.refl-verse-text .scripture { font-size: 16px; color: var(--soft); }
+
+/* The summary, folded into one line until it's opened */
+.refl-summary { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.refl-summary > summary { list-style: none; display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 14px; cursor: pointer; background: radial-gradient(120% 220% at 0% 0%, var(--glow) 0%, var(--surface) 70%); }
+.refl-summary > summary::-webkit-details-marker { display: none; }
+.refl-summary-badge { width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: var(--ember-bg); color: var(--ember); }
+.refl-summary-badge svg { width: 18px; height: 18px; }
+.refl-summary-title { display: grid; min-width: 0; }
+.refl-summary-title strong { font-size: 15px; font-weight: 600; }
+.refl-summary-title span { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.refl-chev { width: 18px; height: 18px; color: var(--muted); transition: transform 0.2s ease; }
+.refl-summary[open] .refl-chev { transform: rotate(180deg); }
+.refl-summary-body { padding: 14px; display: grid; gap: 14px; border-top: 1px solid var(--divider); }
+
+.refl-group { display: grid; gap: 10px; }
+.refl-group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.refl-group-head h4, .refl-panel h4 { margin: 0; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.refl-group-head small { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--faint); }
+.refl-block-title { font-size: 15px; font-weight: 600; margin: 0; }
+.refl-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; gap: 10px; }
+.refl-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.refl-chips .chip-btn { border-style: dashed; }
+.refl-passage { text-decoration: none; text-transform: none; }
+
+.refl-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 8px; }
+.refl-tile { position: relative; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 10px 9px; display: grid; gap: 3px; align-content: start; }
+.refl-tile > strong, .refl-tile-num { font-size: 22px; font-weight: 700; line-height: 1.15; color: var(--ember-hi); font-variant-numeric: tabular-nums; }
+.refl-tile > span { display: flex; align-items: center; gap: 4px; padding-right: 14px; font-size: 12.5px; color: var(--muted); line-height: 1.3; }
+.refl-tile input { width: 100%; min-width: 0; border: 0; border-bottom: 1px dashed var(--line-2); border-radius: 0; background: none; padding: 0 0 1px; color: var(--text); font-family: var(--body); }
+.refl-tile input:focus { box-shadow: none; border-bottom-color: var(--ember); }
+.refl-tile-num { width: calc(100% - 20px) !important; -moz-appearance: textfield; }
+.refl-tile-num::-webkit-inner-spin-button, .refl-tile-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.refl-tile input.refl-tile-num { color: var(--ember-hi); }
+.refl-tile input.refl-tile-label { font-size: 13px; color: var(--muted); }
+.refl-tile input:disabled { border-bottom-color: transparent; }
+.refl-last-time { font-size: 11.5px; color: var(--faint); }
+.refl-tile-add { border-style: dashed; background: none; color: var(--ember); font-size: 13px; font-weight: 600; place-items: center; min-height: 70px; cursor: pointer; }
+.refl-tile-add:hover { border-color: var(--ember); }
+.refl-x { flex: none; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--faint); font-size: 17px; line-height: 1; }
+.refl-x:hover { background: var(--hover); color: var(--text); }
+.refl-tile .refl-x { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; font-size: 15px; }
+
+.refl-goals { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.refl-goals li { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 8px; align-items: center; font-size: 14px; }
+.refl-goal-name { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.refl-status-pill { border: 0; padding: 3px 10px; border-radius: var(--pill); font: 600 12px var(--body); white-space: nowrap; background: var(--ember-bg); color: var(--ember-hi); }
+.refl-status-pill.reached { background: var(--sage-bg); color: var(--sage); }
+.refl-status-pill.not_this_time { background: var(--raised); color: var(--muted); }
+button.refl-status-pill { cursor: pointer; }
+.refl-add { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; }
+.refl-add input { flex: 1 1 160px; min-width: 0; font: 16px var(--body); color: var(--text); background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 5px 14px; min-height: var(--h-btn-sm); }
+.refl-add button { flex: none; }
+
+.refl-review { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.refl-review li { display: grid; gap: 5px; font-size: 14px; }
+.refl-review-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.refl-review-top > span { min-width: 0; }
+.refl-review-top small { font-size: 12.5px; color: var(--muted); white-space: nowrap; }
+.refl-review-top small.met { color: var(--sage); font-weight: 600; }
+.refl-area-tag { color: var(--faint); font-size: 12.5px; }
+.refl-bar { height: 5px; border-radius: 5px; background: var(--raised); overflow: hidden; }
+.refl-bar i { display: block; height: 100%; border-radius: 5px; background: var(--ember); }
+.refl-stones-verse { margin: 0; display: grid; gap: 2px; }
+.refl-stones-verse .scripture { font-size: 16px; color: var(--soft); }
+.refl-stones { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 14px; }
+.refl-stones li { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 8px; align-items: start; }
+.refl-stones li::before { content: ""; width: 13px; height: 10px; margin-top: 5px; border-radius: 50% 50% 45% 55%; background: linear-gradient(160deg, var(--line-2), var(--muted)); }
+.refl-stones small { color: var(--faint); font-size: 12px; white-space: nowrap; }
+
+/* Areas of life */
+.refl-area-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.refl-area-chips button { min-height: var(--h-chip); padding: 0 12px; border: 1px solid var(--line-2); border-radius: var(--pill); background: var(--surface); color: var(--soft); font-size: 13px; font-weight: 600; }
+.refl-area-chips button[aria-pressed="true"] { background: var(--ember-bg); border-color: var(--ember-line); color: var(--ember-hi); }
+.refl-area-chips .refl-area-own { border-style: dashed; background: none; color: var(--ember); }
+.refl-area-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 10px; }
+.refl-area { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px 14px; display: grid; gap: 9px; align-content: start; }
+.refl-area header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.refl-area header strong { font-size: 15px; font-weight: 600; }
+.refl-sub { font-size: 12.5px; font-weight: 600; color: var(--muted); margin: 2px 0 -3px; }
+.refl-seg { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.refl-seg button { padding: 4px 2px; font-size: 13px; min-height: var(--h-btn-sm); }
+.refl-seg button[aria-pressed="true"] { color: var(--ember-hi); }
+.refl-area-note { width: 100%; font: 16px var(--body); color: var(--text); background: var(--ground); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 7px 11px; }
+.refl-agoals { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.refl-agoal { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 8px; align-items: center; padding: 8px 8px 8px 11px; border-radius: 12px; background: var(--ground); border: 1px solid var(--divider); }
+.refl-agoal strong { font-size: 14px; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.refl-agoal-tools { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.refl-select, .refl-small-input { min-height: var(--h-chip); font: 14px var(--body); color: var(--text); background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 0 10px; max-width: 100%; }
+.refl-small-input { width: 8.5em; font-size: 16px; }
+.refl-select:disabled, .refl-small-input:disabled { opacity: 0.75; }
+.refl-track { display: inline-flex; align-items: center; min-height: var(--h-chip); padding: 0 11px; border: 1px dashed var(--line-2); border-radius: var(--pill); background: none; color: var(--muted); font-size: 12.5px; font-weight: 600; }
+.refl-track.on { border-style: solid; border-color: var(--ember-line); background: var(--ember-bg); color: var(--ember-hi); }
+
+.refl-checks { display: grid; gap: 8px; }
+.refl-check { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; cursor: pointer; }
+.refl-check input { margin-top: 3px; accent-color: var(--ember); }
+.refl-check span { display: grid; }
+.refl-check small { color: var(--muted); font-size: 12.5px; }
+
+/* Starting one */
+.refl-span { display: grid; grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto; gap: 8px; align-items: stretch; margin: 0 0 12px; }
+.refl-span-box { background: var(--ground); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 9px 11px; display: grid; gap: 1px; min-width: 0; }
+.refl-span-box small { font-size: 12px; color: var(--muted); }
+.refl-span-box strong { font-size: 14px; font-weight: 600; }
+.refl-span-arrow { align-self: center; color: var(--faint); }
+.refl-step { align-self: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: none; color: var(--muted); font-size: 20px; line-height: 1; padding: 0; }
+.refl-step:hover { background: var(--hover); color: var(--text); }
+.refl-dates { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
+.refl-dates label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.refl-dates input { font: 16px var(--body); color: var(--text); background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 7px 10px; width: 100%; min-width: 0; }
+/* A season has no arrows, so its two stretches take the room. */
+.refl-span:has(> .refl-step[hidden]) { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.refl-last { font-size: 13.5px; color: var(--muted); margin: 0 0 8px; }
+[hidden].refl-dates, [hidden].refl-step, [hidden].refl-last, [hidden].refl-add, [hidden].refl-stones-verse, [hidden].refl-plan-verse { display: none; }
+
+@media (max-width: 560px) {
+  .refl-span { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .refl-span-arrow { display: none; }
+  .refl-span > .refl-span-box:nth-of-type(1) { grid-column: 2; }
+  .refl-span > .refl-step:last-child { grid-row: 1; grid-column: 3; }
+  .refl-span > .refl-span-box:nth-of-type(2) { grid-column: 1 / -1; }
+  .refl-span:has(> .refl-step[hidden]) { grid-template-columns: minmax(0, 1fr); }
+  .refl-span:has(> .refl-step[hidden]) > .refl-span-box { grid-column: auto; }
+  .refl-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .refl-plan-word { font-size: 30px; }
+}
+
+/* =====================================================================
+   Church (web/church.js): your churches, sermons and Listen. Compact on
+   purpose: short rows, small type, few words. Every colour is a token, so
+   it follows the theme.
+   ===================================================================== */
+.church-top { display: grid; gap: 12px; margin-bottom: 16px; }
+.church-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.church-add { color: var(--ember); }
+.church-seg { display: flex; padding: 3px; gap: 2px; width: min(100%, 420px); background: var(--raised); border: 1px solid var(--line); border-radius: var(--pill); }
+.church-seg a { flex: 1; display: grid; place-items: center; min-height: var(--h-btn-sm); border-radius: var(--pill); color: var(--muted); font-size: 14px; font-weight: 600; text-decoration: none; transition: background-color 0.15s ease, color 0.15s ease; }
+.church-seg a:hover { color: var(--text); }
+.church-seg a[aria-current="page"] { color: var(--text); background: var(--surface); box-shadow: 0 1px 3px var(--shadow), 0 0 0 1px var(--line); }
+.church-back-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 12px; }
+.church-back { display: inline-flex; align-items: center; gap: 4px; }
+.church-back svg { width: 18px; height: 18px; }
+.church-back-actions { display: inline-flex; gap: 6px; }
+
+.church-av { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+.church-av.is-big { width: 52px; height: 52px; font-size: 16px; }
+.church-av-0 { background: var(--ember-bg); color: var(--ember-hi); }
+.church-av-1 { background: var(--sage-bg); color: var(--sage); }
+.church-av-2 { background: var(--hl-blue); color: var(--text); }
+.church-av-3 { background: var(--hl-rose); color: var(--text); }
+.live-badge { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px; border-radius: var(--pill); background: var(--danger); color: var(--surface); font-size: 11.5px; font-weight: 700; }
+.live-badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; animation: live-pulse 1.6s ease-in-out infinite; }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+
+/* Lists: one card, rows divided by a hairline. */
+.church-list { padding: 4px 0; display: flex; flex-direction: column; }
+.church-list > * + * { border-top: 1px solid var(--divider); }
+.church-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: left; }
+.church-row-text strong { font-size: 15px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.church-row-text small { font-size: 13px; color: var(--muted); }
+.church-row-text small .verse-ref { font-size: 13px; }
+.church-next { flex: none; font-size: 13px; font-weight: 600; color: var(--ember-hi); white-space: nowrap; }
+.church-next.is-live { color: var(--danger); }
+
+.church-item-row { display: flex; align-items: center; gap: 4px; padding: 6px 8px 6px 14px; }
+.church-item-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 48px; color: inherit; text-decoration: none; }
+.church-item-main:hover .church-row-text strong { color: var(--ember-hi); }
+.church-info { position: relative; flex: none; width: var(--h-icon); height: var(--h-icon); display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; }
+.church-info svg { width: 20px; height: 20px; display: block; }
+.church-info:hover { background: var(--hover); color: var(--text); }
+.church-info.has-new, .church-info.is-open { color: var(--ember); }
+.church-info.is-open { background: var(--ember-bg); }
+.church-info-count { position: absolute; top: 1px; right: 0; min-width: 17px; height: 17px; padding: 0 4px; border-radius: var(--pill); background: var(--ember); color: var(--ember-ink); font-size: 10.5px; font-weight: 700; line-height: 17px; box-shadow: 0 0 0 2px var(--surface); }
+.church-notes { display: grid; gap: 6px; padding: 0 14px 12px 64px; }
+.church-note { display: flex; gap: 10px; margin: 0; padding: 8px 10px; border-radius: var(--radius-sm); background: var(--well); font-size: 14px; }
+.church-note-when { flex: none; min-width: 44px; font-size: 12px; font-weight: 700; color: var(--ember-hi); padding-top: 1px; }
+
+.church-week-card { display: flex; align-items: center; gap: 12px; margin-top: 12px; padding: 12px 14px; border-radius: var(--radius); background: var(--card-warm); border: 1px solid var(--ember-line); color: var(--text); text-decoration: none; }
+.church-week-card:hover { border-color: var(--ember); }
+.church-week-text { flex: 1; display: grid; gap: 5px; }
+.church-week-top { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--muted); }
+.church-week-top strong { color: var(--ember-hi); }
+.church-week-title { font-size: 15px; font-weight: 600; }
+.church-bars { display: flex; gap: 4px; }
+.church-bars span { flex: 1; height: 5px; border-radius: var(--pill); background: var(--ember-line); }
+.church-bars span.is-done { background: var(--ember); }
+.church-go { color: var(--faint); }
+.church-go svg { width: 18px; height: 18px; display: block; }
+.church-empty { display: grid; gap: 8px; justify-items: start; }
+.church-empty p { margin: 0; }
+.church-quiet { padding: 24px 16px; display: grid; gap: 10px; justify-items: center; font-size: 14px; }
+
+/* One church */
+.church-hero { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.church-name { font-size: 21px; font-weight: 700; margin: 0; line-height: 1.25; }
+.church-where { margin: 2px 0 0; font-size: 13.5px; }
+.church-live-strip { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; padding: 10px 14px; border-radius: var(--radius-sm); background: var(--text); color: var(--ground); font-size: 14px; font-weight: 600; text-decoration: none; }
+.church-live-strip > span:nth-child(2) { flex: 1; }
+.church-live-strip svg { width: 16px; height: 16px; display: block; }
+.church-live-strip:hover { color: var(--ground); filter: brightness(1.1); }
+.church-tabs { margin-bottom: 12px; }
+.church-tabs button { position: relative; }
+.church-dot { position: absolute; top: 6px; right: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--ember); }
+.church-line { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
+.church-notice { align-items: flex-start; font-size: 14px; }
+.church-notice-icon { flex: none; color: var(--ember); }
+.church-notice-icon svg { width: 18px; height: 18px; display: block; }
+.church-date { flex: none; width: 40px; display: grid; justify-items: center; line-height: 1.1; }
+.church-date small { font-size: 11px; color: var(--muted); }
+.church-date strong { font-size: 17px; }
+.church-row { display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; }
+.church-row-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 4px; border: 0; border-radius: var(--radius-sm); background: none; color: inherit; font: inherit; cursor: pointer; }
+.church-row-main:hover { background: var(--hover); }
+.church-thumb { flex: none; width: 80px; aspect-ratio: 16 / 9; border-radius: 8px; object-fit: cover; background: var(--raised); }
+.church-thumb.is-audio { display: grid; place-items: center; color: var(--ember); }
+.church-thumb.is-audio svg { width: 18px; height: 18px; }
+.church-row-act { flex: none; }
+.church-about-row { display: flex; gap: 12px; align-items: baseline; padding: 11px 14px; font-size: 14px; }
+.church-about-row > span:first-child { flex: none; width: 96px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.church-links { display: inline-flex; gap: 14px; flex-wrap: wrap; }
+.church-toggle { align-items: center; justify-content: space-between; cursor: pointer; }
+.church-toggle > span:first-child { width: auto; flex: 1; color: var(--text); font-weight: 500; }
+.church-toggle input { width: 20px; height: 20px; accent-color: var(--ember); }
+.church-remove { margin-top: 10px; color: var(--danger); }
+.church-remove:hover { color: var(--danger); }
+
+/* Adding and editing */
+.church-add-title { margin-bottom: 12px; }
+.church-add-body { display: grid; gap: 12px; max-width: 560px; }
+.church-review-lede { margin: 0; font-size: 14px; }
+.church-link-form { display: grid; gap: 4px; }
+.church-link-form .field { margin: 0 0 8px; }
+.church-form { display: grid; gap: 12px; }
+.church-form .field { margin: 0; }
+.church-field { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--soft); }
+.church-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.church-times { display: grid; gap: 8px; }
+.church-time-row { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 0.9fr) auto; gap: 6px; align-items: center; }
+.church-more-time { justify-self: start; display: inline-flex; align-items: center; gap: 4px; }
+.church-more-time svg { width: 16px; height: 16px; }
+.church-links-box summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--soft); padding: 4px 0; }
+.church-links-box[open] { display: grid; gap: 10px; }
+.church-found { margin: 0; font-size: 13px; }
+.church-sheet { max-width: 520px; }
+.church-sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.church-sheet-head h3 { margin: 0; }
+
+/* Listen and sermons */
+.church-moods { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; padding-bottom: 2px; }
+.church-moods::-webkit-scrollbar { display: none; }
+.church-moods .mood { flex: none; text-transform: none; font-size: 14px; }
+.church-new-row { display: flex; gap: 8px; margin-bottom: 12px; }
+.church-new-row .btn { display: inline-flex; align-items: center; gap: 6px; }
+.church-new-row svg { width: 16px; height: 16px; }
+.church-steps { list-style: none; margin: 4px 0 12px; padding: 0; display: grid; gap: 6px; font-size: 14px; color: var(--faint); }
+.church-steps li { display: flex; align-items: center; gap: 8px; }
+.church-steps li::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--line-2); }
+.church-steps li.is-now { color: var(--text); }
+.church-steps li.is-now::before { background: var(--ember); animation: live-pulse 1.2s ease-in-out infinite; }
+.church-steps li.is-done { color: var(--muted); }
+.church-steps li.is-done::before { background: var(--sage); }
+
+/* The player, docked above the tab bar while the Church view is open. */
+.church-player { position: fixed; z-index: 36; left: 50%; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(420px, calc(100vw - 24px)); background: var(--text); color: var(--ground); border-radius: var(--radius); overflow: hidden; box-shadow: 0 18px 44px var(--shadow); animation: rise 0.2s ease both; }
+.church-player-media iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; background: #000; }
+.church-player.is-audio .church-player-media { padding: 10px 12px 0; }
+.church-player.is-audio audio { width: 100%; }
+.church-player-bar { display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 14px; }
+.church-player-text { flex: 1; min-width: 0; display: grid; }
+.church-player-text strong { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.church-player-text small { font-size: 12px; opacity: 0.75; }
+.church-player .iconbtn { color: var(--ground); background: transparent; border-color: transparent; }
+
+/* Watching live */
+.church-live { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+.church-live-video iframe { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; border-radius: var(--radius); background: #000; }
+.church-live-side { display: grid; gap: 10px; padding: 16px; }
+.church-live-head { display: flex; align-items: center; gap: 8px; font-size: 15px; }
+.church-live-notes { min-height: 200px; margin: 0; resize: vertical; }
+.church-live-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.church-live-actions .btn { display: inline-flex; align-items: center; gap: 6px; }
+.church-live-actions svg { width: 16px; height: 16px; }
+.church-live-hint { margin: 0; font-size: 12.5px; }
+
+/* The week after a sermon */
+.church-week-head { display: grid; gap: 6px; margin-bottom: 12px; padding: 16px; }
+.church-week-head small { font-size: 12.5px; color: var(--muted); font-weight: 600; }
+.church-week-head > span:last-child { font-size: 13px; color: var(--muted); }
+.church-steps-list { display: grid; gap: 8px; max-width: 640px; }
+.church-step { border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); }
+.church-step.is-open { border-color: var(--ember-line); }
+.church-step-row { display: flex; align-items: center; gap: 12px; padding: 8px 12px; }
+.church-step-check { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; padding: 0; cursor: pointer; border: 2px solid var(--line-2); background: var(--surface); color: transparent; }
+.church-step-check svg { width: 16px; height: 16px; }
+.church-step-check.is-done { border-color: var(--sage); background: var(--sage); color: var(--surface); }
+.church-step-title { flex: 1; display: grid; justify-items: start; gap: 1px; min-height: 44px; align-content: center; border: 0; background: none; padding: 0; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.church-step-title small { font-size: 12px; color: var(--muted); font-weight: 600; }
+.church-step-title small.is-today { color: var(--ember-hi); }
+.church-step-title strong { font-size: 15px; font-weight: 600; }
+.church-step-body { display: grid; gap: 10px; justify-items: start; padding: 0 14px 14px 54px; }
+.church-step-body p { margin: 0; font-size: 14.5px; }
+.church-step-body .field { margin: 0; width: 100%; }
+
+/* Home: the live card, only while a church is live */
+.church-home-live { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--radius); background: var(--text); color: var(--ground); text-decoration: none; }
+.church-home-live:hover { color: var(--ground); filter: brightness(1.1); }
+.church-home-live .church-row-text { gap: 4px; }
+.church-home-live .church-row-text strong { color: var(--ground); font-size: 15.5px; }
+.church-home-play { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--glow-strong); color: var(--text); }
+.church-home-play svg { width: 18px; height: 18px; display: block; }
+
+@media (max-width: 820px) {
+  .church-live { grid-template-columns: minmax(0, 1fr); }
+  .church-notes { padding-left: 14px; }
+  .church-player { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+  .church-time-row { grid-template-columns: minmax(0, 1fr) minmax(128px, 1fr) auto; }
+  .church-time-row > input:first-child { grid-column: 1 / -1; }
+  .church-step-body { padding-left: 14px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-badge::before, .church-steps li.is-now::before { animation: none; }
+}
+
+/* Church reminders: the bell on events and gatherings (web/church.js::bell). */
+.church-bell { flex: none; }
+.church-row-act.is-on { color: var(--ember); border-color: var(--ember-line); background: var(--ember-bg); }
+.church-bell-menu { min-width: 230px; }
+.church-bell-on { margin: 0; padding: 6px 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--ember-hi); border-bottom: 1px solid var(--divider); margin-bottom: 4px; }
+.church-notify-row { align-items: center; }

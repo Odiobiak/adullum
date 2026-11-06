@@ -84,5 +84,18 @@ class Settings(BaseSettings):
     # holds the real price; keep this in step with it.
     support_monthly_amount: str = "$3"
 
+    # Push notifications (app/push.py): reminders and "your church is live".
+    # Make the key pair once with `python scripts/make_vapid_keys.py`. Left
+    # empty, the bell still offers "Add to my calendar" and says notifications
+    # aren't set up here, and nothing is ever sent.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # Who push services contact about this sender: "mailto:you@example.com".
+    vapid_subject: str = "mailto:hello@adullum.app"
+    # Shared with the scheduled GitHub workflow that wakes the server to send
+    # due reminders (POST /internal/send-reminders). Left empty, that endpoint
+    # refuses every call, and reminders go out only while the server is awake.
+    cron_secret: str = ""
+
 
 settings = Settings()

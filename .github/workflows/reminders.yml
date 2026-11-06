@@ -1,0 +1,37 @@
+# Sends due reminders and "your church is live" notifications.
+#
+# Render's free plan puts a quiet server to sleep, and a sleeping server can't
+# send anything. Every five minutes this wakes it (the first call can take a
+# minute while it starts) and asks it to send whatever is due. While the
+# server is awake it also checks every minute by itself (app/reminders.py).
+#
+# Needs two repository secrets:
+#   DEPLOY_URL   - the live base URL, e.g. https://adullum.onrender.com (already used by deploy-watch)
+#   CRON_SECRET  - the same value as CRON_SECRET in Render's environment
+#
+# GitHub may run scheduled jobs a few minutes late when it's busy, so a
+# reminder can arrive a little after its time.
+name: Send reminders
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Wake the server and send what's due
+        env:
+          DEPLOY_URL: ${{ secrets.DEPLOY_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$DEPLOY_URL" ] || [ -z "$CRON_SECRET" ]; then
+            echo "DEPLOY_URL or CRON_SECRET isn't set; nothing to do."
+            exit 0
+          fi
+          curl --fail --silent --show-error --max-time 150 --retry 2 --retry-delay 20 \
+            -X POST "${DEPLOY_URL%/}/internal/send-reminders" \
+            -H "X-Cron-Secret: $CRON_SECRET"
