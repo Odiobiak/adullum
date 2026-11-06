@@ -313,12 +313,13 @@
       <div class="page-head">
         <div>
           <h1 class="page-title">Your cave</h1>
-          <p class="page-sub">Your journal, prayers and reading plans, and Refuge, a quiet place for every season. Only you can see them.</p>
+          <p class="page-sub">Your journal, sermon notes, prayers and reading plans, and Refuge, a quiet place for every season. Only you can see them, unless you share a sermon note.</p>
         </div>
         <button type="button" class="btn btn-ember btn-sm" id="caveAction">New entry</button>
       </div>
       <div class="tabs" role="tablist" aria-label="Your cave">
         <button type="button" role="tab" aria-selected="true" data-cave-tab="journal">Journal</button>
+        <button type="button" role="tab" aria-selected="false" data-cave-tab="sermons">Sermons</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="prayers">Prayers</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="refuge">Refuge</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="plans">Plans</button>
@@ -367,6 +368,12 @@
   </section>
 
   <!-- ======================= Signed out ======================= -->
+  <!-- ======================= A shared sermon note (web/sermons.js) ======================= -->
+  <!-- Read-only, opened from a link (#sermon/<token>). No account needed. -->
+  <section data-view="sermon" hidden>
+    <div class="wrap page" id="sharedSermon"></div>
+  </section>
+
   <!-- ======================= Admin desk (web/refuge.js) ======================= -->
   <!-- Only for the people in ADMIN_EMAILS; the server refuses everyone else. -->
   <section data-view="desk" hidden>
@@ -438,6 +445,7 @@
 <script src="https://github.com/Cognigy/click-to-call-widget/releases/latest/download/webRTCWidget.js"></script>
 <script src="cave.js"></script>
 <script src="prayers.js"></script>
+<script src="sermons.js"></script>
 <script src="memorize.js"></script>
 <script src="refuge.js"></script>
 <script src="reader.js"></script>
@@ -502,6 +510,8 @@ $$("[data-topics]").forEach((box) => {
 // open the cave on that tab, and #amens opens Refuge inside the Amens room; #remembers opens Settings at that section.
 // #conversations, the old cave tab, now lands on Aquila, where past conversations live.
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
+// #sermons opens the cave on Sermons. #sermon/<token> is a sermon note someone
+// shared (web/sermons.js): read-only, and open to guests.
 // #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
 // #bible/notes is "My notes" and #bible/memorize the verses being learned, and
 // the old cave tabs #notes and #memorize land on them.
@@ -511,10 +521,10 @@ $$("[data-topics]").forEach((box) => {
 // =====================================================================
 const VIEWS = {
   welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
-  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", prayers: "cave", refuge: "cave", amens: "cave", plans: "cave",
+  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", sermons: "cave", prayers: "cave", refuge: "cave", amens: "cave", plans: "cave", sermon: "sermon",
   conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk",
 };
-const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "prayers", "refuge", "amens", "plans", "settings", "remembers", "desk"]);
+const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "sermons", "prayers", "refuge", "amens", "plans", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
 
 // "bible/John/3/16" -> ["bible", "John/3/16"]
@@ -547,7 +557,7 @@ function render() {
   $("#menu").hidden = true;
   $$("[data-home-link]").forEach((a) => (a.href = signedIn ? "#home" : "#welcome"));
 
-  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum" };
+  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum", sermon: "Sermon notes, Adullum" };
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.

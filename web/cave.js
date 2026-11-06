@@ -1110,16 +1110,17 @@
   }
 
   // ---------------------------------------------------------------------
-  // The cave: Journal, Prayers, Refuge and Plans, side by side as tabs. Past
+  // The cave: Journal, Sermons, Prayers, Refuge and Plans, side by side as tabs. Past
   // conversations live with Aquila (the rail, or the Conversations sheet on a
   // phone), where they can be opened, renamed and deleted; notes, highlights
   // and verses to learn live in the Bible (#bible/notes, #bible/memorize).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
   // #amens opens Refuge already inside the Amens room.
-  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", plans: "plans" };
+  const CAVE_ROUTES = { journal: "journal", sermons: "sermons", prayers: "prayers", refuge: "refuge", amens: "refuge", plans: "plans" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
+    sermons: ["New sermon note", () => window.Sermons.newNote()],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
     plans: ["New plan", () => { const box = $("#planRequest"); if (box) { box.scrollIntoView({ behavior: "smooth", block: "center" }); box.focus(); } }],
     // Refuge has no header button: its rooms are its own ways in.
@@ -1137,11 +1138,14 @@
     if (action) $("#caveAction").textContent = action[0];
     // Leaving Refuge settles the page back and lets an unkept talk vanish.
     if (caveTab !== "refuge") window.Refuge.hide();
+    // Leaving Sermons saves whatever is still waiting to be saved.
+    if (caveTab !== "sermons") window.Sermons.hide();
     const panel = $("#cavePanel");
     panel.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
       await {
         journal: renderJournal,
+        sermons: (p) => window.Sermons.renderTab(p),
         prayers: (p) => window.Prayers.renderTab(p),
         refuge: (p) => window.Refuge.renderTab(p, route),
         plans: renderPlans,
@@ -1373,7 +1377,7 @@
   // Called by index.html's router each time the view changes
   // ---------------------------------------------------------------------
   function onView(view, route) {
-    if (view !== "cave") window.Refuge.hide();
+    if (view !== "cave") { window.Refuge.hide(); window.Sermons.hide(); }
     if (view === "welcome") showWelcome();
     else if (view === "signin") showSignin(route);
     else if (view === "home") showHome();
@@ -1382,6 +1386,7 @@
     else if (view === "settings") showSettings(route);
     else if (view === "signedout") showSignedOut();
     else if (view === "desk") window.Refuge.renderDesk();
+    else if (view === "sermon") window.Sermons.renderShared();
   }
 
   window.Cave = {

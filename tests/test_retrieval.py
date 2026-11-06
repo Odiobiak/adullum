@@ -93,3 +93,12 @@ class TestHybridRetrieveFallback:
         monkeypatch.setattr(retrieval, "keyword_search", lambda query, translation, k=8: [keyword_hit])
 
         assert retrieval.hybrid_retrieve("what does propitiation mean", "KJV") == [keyword_hit]
+
+
+def test_a_numbered_book_after_another_word_is_still_found():
+    """"Compare 1 Peter 5:7" first matches "Compare 1", which isn't a book;
+    the search has to look again from the next word, not skip past the "1"."""
+    from app.retrieval import find_references
+
+    found = find_references("Compare 1 Peter 5:7 with 2 Corinthians 12:9")
+    assert [(r.book, r.chapter, r.verse_start) for r in found] == [("1 Peter", 5, 7), ("2 Corinthians", 12, 9)]

@@ -61,6 +61,8 @@
 
   const newId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, "").slice(0, 16) : Math.random().toString(36).slice(2, 14));
   const translation = () => ((document.getElementById("translation") || {}).value || "BSB").trim() || "BSB";
+  // Same server as every other call (web/cave.js::apiBase): the hidden #apiBase input, or this site.
+  const apiBase = () => (((document.getElementById("apiBase") || {}).value || "").trim() || location.origin).replace(/\/$/, "");
   const isoToday = () => cave().localToday();
 
   function niceDate(iso) {
@@ -83,11 +85,17 @@
     return "";
   }
 
-  // A textarea that grows with what's written in it, so a block reads like a page.
+  // A textarea that grows with what's written in it, so a block reads like a
+  // page. Its height is measured again whenever its width changes and once
+  // the web fonts arrive: Inter wraps differently from the fallback font, and
+  // a height measured before it loads cuts off the last line.
+  const fitArea = (area) => { area.style.height = "auto"; area.style.height = `${area.scrollHeight}px`; };
+  const refit = window.ResizeObserver ? new ResizeObserver((entries) => entries.forEach((e) => fitArea(e.target))) : null;
   function grow(area) {
-    const fit = () => { area.style.height = "auto"; area.style.height = `${area.scrollHeight}px`; };
-    area.addEventListener("input", fit);
-    requestAnimationFrame(fit);
+    area.addEventListener("input", () => fitArea(area));
+    requestAnimationFrame(() => fitArea(area));
+    if (refit) refit.observe(area);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => fitArea(area));
     return area;
   }
 
@@ -271,7 +279,6 @@
       notes.unshift({ ...note, shared: false });
       query = "";
       if (panel && panel.querySelector(".sermon-search")) panel.querySelector(".sermon-search").value = "";
-      if (!panel.querySelector(".sermons")) panel.replaceChildren();
       await openNote(note.id, { scroll: true, focusTitle: true });
     } catch (err) {
       toast(err.message);
@@ -448,7 +455,9 @@
       const row = el("div", { class: `sermon-todo-row${item.done ? " is-done" : ""}` });
       const box = el("input", { type: "checkbox", checked: item.done, "aria-label": "Done" });
       box.addEventListener("change", () => { item.done = box.checked; row.classList.toggle("is-done", item.done); changed(); });
-      const text = el("input", { class: "sermon-todo-text", maxlength: "500", placeholder: "Something to do this week", "aria-label": "Step", value: item.text || "" });
+      // A growing box rather than a one-line input, so a long step wraps on a phone.
+      const text = grow(el("textarea", { class: "sermon-todo-text", rows: "1", maxlength: "500", placeholder: "Something to do this week", "aria-label": "Step" }));
+      text.value = item.text || "";
       text.addEventListener("input", () => { item.text = text.value; changed(); });
       text.addEventListener("keydown", (e) => {
         if (e.key === "Enter") { e.preventDefault(); block.items.splice(index + 1, 0, { text: "", done: false }); draw(); rows.children[index + 1].querySelector(".sermon-todo-text").focus(); changed(); }
@@ -719,7 +728,7 @@
 
   // Downloads go through fetch, since the export needs the sign-in header.
   async function download(path, fallbackName) {
-    const resp = await fetch(path, { headers: await cave().authHeaders() });
+    const resp = await fetch(`${apiBase()}${path}`, { headers: await cave().authHeaders() });
     if (!resp.ok) {
       let detail = "";
       try { detail = (await resp.json()).detail; } catch { /* not JSON */ }
@@ -787,7 +796,7 @@
     root.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     let note;
     try {
-      const resp = await fetch(`/shared/sermons/${encodeURIComponent(token)}`);
+      const resp = await fetch(`${apiBase()}/shared/sermons/${encodeURIComponent(token)}`);
       const data = await resp.json().catch(() => ({}));
       if (!resp.ok) throw new Error(typeof data.detail === "string" ? data.detail : "This sermon note couldn't be opened.");
       note = data;
