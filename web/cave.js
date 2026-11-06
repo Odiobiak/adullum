@@ -739,7 +739,13 @@
 
     const v = await versePromise;
     $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
-    main.replaceChildren(continueCard(data.last_session), homePlanCard(data.plan));
+    // Amens sits with the main cards so it's seen on arrival. It is null
+    // until the Refuge migration has run.
+    main.replaceChildren(...[
+      continueCard(data.last_session),
+      data.amens ? window.Refuge.homeCard(data.amens) : null,
+      homePlanCard(data.plan),
+    ].filter(Boolean));
     // The prayer and memory-verse cards are null until their migration has
     // run, and the memory-verse card only appears when something is due.
     side.replaceChildren(...[
@@ -1110,7 +1116,8 @@
   // and verses to learn live in the Bible (#bible/notes, #bible/memorize).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
-  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", plans: "plans" };
+  // #amens opens Refuge already inside the Amens room.
+  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", plans: "plans" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => openJournal({}, () => showCave("journal"))],
     prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
@@ -1120,7 +1127,9 @@
   let caveTab = "journal";
   let tagFilter = null;
 
-  async function showCave(tab) {
+  // `route` is the hash that opened the cave, passed on so a tab can open
+  // somewhere inside itself (Refuge's #amens).
+  async function showCave(tab, route) {
     caveTab = tab || caveTab;
     $$("[data-cave-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.caveTab === caveTab)));
     const action = CAVE_ACTIONS[caveTab];
@@ -1134,7 +1143,7 @@
       await {
         journal: renderJournal,
         prayers: (p) => window.Prayers.renderTab(p),
-        refuge: (p) => window.Refuge.renderTab(p),
+        refuge: (p) => window.Refuge.renderTab(p, route),
         plans: renderPlans,
       }[caveTab](panel);
     } catch (err) {
@@ -1369,7 +1378,7 @@
     else if (view === "signin") showSignin(route);
     else if (view === "home") showHome();
     else if (view === "aquila") refreshRail();
-    else if (view === "cave") showCave(CAVE_ROUTES[route]);
+    else if (view === "cave") showCave(CAVE_ROUTES[route], route);
     else if (view === "settings") showSettings(route);
     else if (view === "signedout") showSignedOut();
     else if (view === "desk") window.Refuge.renderDesk();

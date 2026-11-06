@@ -9,8 +9,11 @@
 //                   the talk lives only in `talk` below and vanishes on leaving
 //   Grow            hopes, goals, habits and prayers (app/refuge.py seeds)
 //   Be still        nothing at all
-//   One another     posts, reactions and kind words (app/one_another.py)
-// Nothing from here appears on the home screen or in Aquila's memory.
+//   Amens           posts, amens and kind words (app/one_another.py)
+// Nothing anyone keeps or shares here appears on the home screen or in
+// Aquila's memory. The home's Amens card (homeCard below) shows only the
+// wall's public side: this week's amens and a post by someone else.
+// #amens opens the cave straight into the Amens room.
 //
 // Loaded after web/cave.js, whose helpers it borrows through window.Cave.
 (function () {
@@ -151,9 +154,10 @@
   // ---------------------------------------------------------------------
   // The opening screen
   // ---------------------------------------------------------------------
-  async function renderTab(p) {
+  // `route` is the hash that opened the cave; #amens goes straight to the wall.
+  async function renderTab(p, route) {
     enter(p);
-    await threshold();
+    await (route === "amens" ? amensRoom() : threshold());
   }
 
   function door(icon, title, line, open) {
@@ -184,7 +188,7 @@
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
           door(ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
           door(ICON.grow, "Grow", "Hopes, goals, habits and prayers to grow into with God.", growRoom),
-          door(ICON.together, "One another", "Share without your name. Others pray, or rejoice with you.", togetherRoom),
+          door(ICON.together, "Amens", "Share without your name. Others say amen with you.", amensRoom),
           door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
         ]),
         el("button", { class: "refuge-help-link", type: "button", html: `${ICON.person}<span>Need a person? Someone to talk to, a Christian counsellor, or a church nearby</span>`, onclick: helpRoom }),
@@ -197,13 +201,14 @@
 
   function carriedNote(c) {
     if (!c) return null;
-    const people = c.kind === "rejoice" ? `${plural(c.reactions, "person is", "people are")} rejoicing with you` : `${plural(c.reactions, "person", "people")} prayed for what you shared`;
-    const words = c.kind_words ? `, and ${plural(c.kind_words, "kind word", "kind words")} came back` : "";
-    const line = c.reactions ? `${people}${words}.` : `${plural(c.kind_words, "kind word", "kind words")} came back to you.`;
+    const words = plural(c.kind_words, "kind word", "kind words");
+    const line = c.reactions
+      ? `${plural(c.reactions, "amen", "amens")}${c.kind_words ? ` and ${words}` : ""} came back to you.`
+      : `${words} came back to you.`;
     return el("div", { class: "carried-note fade-in" }, [
       el("span", { html: ICON.together }),
       el("span", { text: line }),
-      el("button", { class: "act", type: "button", text: "See", onclick: togetherRoom }),
+      el("button", { class: "act", type: "button", text: "See", onclick: amensRoom }),
     ]);
   }
 
@@ -821,11 +826,15 @@
   }
 
   // ---------------------------------------------------------------------
-  // One another
+  // Amens (app/one_another.py; it was "One another" at first)
   // ---------------------------------------------------------------------
+  // Saying amen is the wall's one reaction. `hint` says what it means on each
+  // kind of post, since the button itself just says "Say amen".
+  const amenCount = (n) => plural(n, "amen", "amens");
+  const amenSaid = (n) => (n > 1 ? `Amen, with ${plural(n - 1, "other", "others")}` : "Amen");
   const POST_KINDS = {
-    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", react: "I prayed for this", reacted: (n) => `Prayed, with ${plural(n - 1, "other", "others")}`, count: (n) => `${plural(n, "person", "people")} prayed`, placeholder: "What are you carrying? No names, places or links." },
-    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", react: "Rejoicing with you", reacted: (n) => `Rejoicing, with ${plural(n - 1, "other", "others")}`, count: (n) => `${plural(n, "person is", "people are")} rejoicing with you`, placeholder: "What's the good news? No names, places or links." },
+    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", hint: "Say amen once you've prayed for this", placeholder: "What are you carrying? No names, places or links." },
+    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", hint: "Say amen to rejoice with them", placeholder: "What's the good news? No names, places or links." },
   };
   const MINE_STATUS = { waiting: ["Waiting to be read", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
 
@@ -902,13 +911,13 @@
 
   function wallCard(post, rerender) {
     const spec = POST_KINDS[post.kind];
-    const react = el("button", { class: `act${post.reacted ? " is-done" : ""}`, type: "button", disabled: post.reacted, text: post.reacted ? spec.reacted(post.reactions) : spec.react });
+    const react = el("button", { class: `act${post.reacted ? " is-done" : ""}`, type: "button", title: spec.hint, disabled: post.reacted, text: post.reacted ? amenSaid(post.reactions) : "Say amen" });
     react.onclick = async () => {
       try {
         const res = await api(`/me/refuge/posts/${post.id}/react`, { method: "POST" });
         react.classList.add("is-done");
         react.disabled = true;
-        react.textContent = spec.reacted(res.reactions);
+        react.textContent = amenSaid(res.reactions);
       } catch (err) {
         toast(err.message);
       }
@@ -932,7 +941,7 @@
       el("div", { class: "entry-meta" }, [el("span", { class: `badge ${statusClass}`, text: statusText }), el("span", { text: `${spec.mineWho} · ${shortDate(post.created_at)}` })]),
       el("p", { class: "burden-text", text: post.body }),
       post.status === "shared" ? el("div", { class: "carried-count" }, [
-        el("span", { text: spec.count(post.reactions) }),
+        el("span", { text: amenCount(post.reactions) }),
         el("span", { text: plural(post.kind_words.length, "kind word", "kind words") }),
       ]) : null,
       post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "A person reads everything before it's shared. It'll appear on the wall once they have." }) : null,
@@ -1008,15 +1017,15 @@
     ]);
   }
 
-  async function togetherRoom() {
+  async function amensRoom() {
     let data;
     try {
       data = await api(`/me/refuge/wall?translation=${encodeURIComponent(translation())}`);
     } catch (err) {
       return failed(err);
     }
-    const rerender = () => togetherRoom();
-    show(room("One another", "Share what you're carrying, or something good, without your name. Others can pray or rejoice with you and send a few kind words, never a message of their own. Galatians 6:2, Romans 12:15.",
+    const rerender = () => amensRoom();
+    show(room("Amens", "Share what you're carrying, or something good, without your name. Others say amen, praying or rejoicing with you, and can send a few kind words, never a message of their own. Galatians 6:2, Romans 12:15.",
       shareBox(rerender),
       data.mine.length ? el("section", { class: "wall-section" }, [el("p", { class: "kicker", text: "What you've shared" }), ...data.mine.map((p) => mineCard(p, rerender))]) : null,
       el("section", { class: "wall-section" }, [
@@ -1026,6 +1035,63 @@
           : [el("p", { class: "muted", text: "Nothing on the wall right now. When someone shares, it'll appear here for you to carry with them." })]),
       ])
     ));
+  }
+
+  // ---------------------------------------------------------------------
+  // The Amens card on the home screen (web/cave.js::showHome)
+  // ---------------------------------------------------------------------
+  // `glance` is app/one_another.py::amens_glance: this week's amens across the
+  // whole wall, how many posts by other people still wait for this person's
+  // amen, and the newest of them. Nothing this person shared ever shows here.
+  function homeCard(glance) {
+    // The tally stays hidden on a quiet week: a big "0" reads as nobody here.
+    const tallyNumber = el("strong", { class: "amens-tally-n", text: String(glance.this_week) });
+    const tallyLabel = el("span", { text: glance.this_week === 1 ? "amen this week" : "amens this week" });
+    const tally = el("span", { class: "amens-tally", hidden: !glance.this_week }, [tallyNumber, tallyLabel]);
+    const head = el("div", { class: "card-head" }, [el("h2", { class: "kicker ember", text: "Amens" }), tally]);
+
+    const post = glance.post;
+    if (!post) {
+      const lede = glance.this_week
+        ? "You've said amen to everything on the wall. Share something of your own, without your name."
+        : "Share a burden or good news without your name, and others will say amen with you.";
+      return el("section", { class: "card amens-card fade-in" }, [
+        head,
+        el("p", { class: "muted amens-lede", text: lede }),
+        el("div", { class: "card-actions-row" }, el("a", { class: "btn btn-ghost btn-sm", href: "#amens", text: "Open Amens" })),
+      ]);
+    }
+
+    const spec = POST_KINDS[post.kind];
+    const others = glance.waiting - 1;
+    const amen = el("button", { class: "btn btn-ember btn-sm amen-btn", type: "button", title: spec.hint, html: `${ICON.together}<span>Amen</span>` });
+    amen.onclick = async () => {
+      amen.disabled = true;
+      try {
+        const res = await api(`/me/refuge/posts/${post.id}/react`, { method: "POST" });
+        const total = glance.this_week + 1;
+        tallyNumber.textContent = String(total);
+        tallyLabel.textContent = total === 1 ? "amen this week" : "amens this week";
+        tally.hidden = false;
+        tallyNumber.classList.add("is-bumped");
+        amen.replaceWith(el("span", { class: "amen-said", html: `${ICON.check}<span>${amenSaid(res.reactions)}</span>` }));
+      } catch (err) {
+        amen.disabled = false;
+        toast(err.message);
+      }
+    };
+    const body = post.body.length > 180 ? `${post.body.slice(0, 177).trimEnd()}...` : post.body;
+    return el("section", { class: "card amens-card fade-in" }, [
+      head,
+      el("article", { class: `amens-post burden-${post.kind}` }, [
+        el("p", { class: "burden-who", text: spec.who }),
+        el("p", { class: "amens-text", text: body }),
+      ]),
+      el("div", { class: "card-actions-row" }, [
+        amen,
+        el("a", { class: "act", href: "#amens", text: others > 0 ? `${others} more on the wall` : "Open Amens" }),
+      ]),
+    ]);
   }
 
   // ---------------------------------------------------------------------
@@ -1120,5 +1186,5 @@
     }
   }
 
-  window.Refuge = { renderTab, hide, renderDesk };
+  window.Refuge = { renderTab, hide, renderDesk, homeCard };
 })();

@@ -1,6 +1,10 @@
-"""One another: Refuge's wall, where people share a burden or good news
-without their name, and others carry it with them (Galatians 6:2, Romans
-12:15).
+"""Amens: Refuge's wall, where people share a burden or good news without
+their name, and others carry it with them (Galatians 6:2, Romans 12:15). It
+was called "One another" at first; the module and tables keep that name.
+
+Saying amen is the wall's one reaction. On a burden it means "I prayed for
+this", on good news "I'm rejoicing with you", and the count under a post is
+its amens.
 
 How a post reaches the wall:
 1. The automatic check (`screen`) runs as it's submitted. Links, emails,
@@ -236,6 +240,48 @@ def carried_summary(user: AuthUser) -> dict | None:
     return {"reactions": reactions, "kind_words": words, "kind": posts[0]["kind"], "latest": posts[0]["created_at"]}
 
 
+AMENS_WEEK_DAYS = 7
+
+
+def featured_post(posts: list[dict], amened: set[str]) -> dict | None:
+    """The newest post this person hasn't said amen to yet, or None once
+    they've said amen to everything. `posts` is newest first."""
+    return next((p for p in posts if p["id"] not in amened), None)
+
+
+def amens_glance(user: AuthUser) -> dict:
+    """For the home screen's Amens card: the wall's public side only.
+
+    Refuge promises that what someone keeps or shares there never follows
+    them onto another screen, so nothing here is about this person's own
+    posts. It's how many amens the whole wall said this week, how many posts
+    by other people are still waiting for this person's amen, and the newest
+    of those, which is already visible to everyone signed in on the wall.
+    """
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    week_ago = (now - timedelta(days=AMENS_WEEK_DAYS)).isoformat()
+    said_this_week = (
+        db.table("refuge_reactions").select("post_id", count="exact")
+        .gte("created_at", week_ago).limit(1).execute().count or 0
+    )
+    since = (now - timedelta(days=WALL_DAYS)).isoformat()
+    posts = (
+        db.table("refuge_posts").select("id, kind, body")
+        .eq("status", "approved").neq("user_id", user.id).gte("created_at", since)
+        .order("created_at", desc=True).limit(WALL_SIZE).execute().data
+    )
+    amened = _mine("refuge_reactions", user, [p["id"] for p in posts])
+    post = featured_post(posts, amened)
+    if post:
+        post = {**post, "amens": _counts("refuge_reactions", [post["id"]]).get(post["id"], 0)}
+    return {
+        "this_week": said_this_week,
+        "waiting": sum(1 for p in posts if p["id"] not in amened),
+        "post": post,
+    }
+
+
 # ---------------------------------------------------------------------------
 # /me/refuge: the wall
 # ---------------------------------------------------------------------------
@@ -317,7 +363,8 @@ def take_down(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dic
 
 @router.post("/me/refuge/posts/{post_id}/react")
 def react(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
-    """"I prayed for this" on a burden, "Rejoicing with you" on good news."""
+    """Say amen: "I prayed for this" on a burden, "Rejoicing with you" on
+    good news. Returns the post's amens so far."""
     _others_post(post_id, user)
     db = get_supabase()
     _db(lambda: db.table("refuge_reactions").upsert({"post_id": str(post_id), "user_id": user.id}, on_conflict="post_id,user_id", ignore_duplicates=True).execute())

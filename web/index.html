@@ -374,7 +374,7 @@
       <div class="page-head">
         <div>
           <h1 class="page-title">Admin desk</h1>
-          <p class="page-sub">Posts to Refuge's One another wall wait here until someone reads them. You never see who wrote them.</p>
+          <p class="page-sub">Posts to Refuge's Amens wall wait here until someone reads them. You never see who wrote them.</p>
         </div>
       </div>
       <div id="deskPanel"></div>
@@ -499,7 +499,7 @@ $$("[data-topics]").forEach((box) => {
 // =====================================================================
 // Routing. Routes are named in the hash (#home, #aquila, #cave...) and map to
 // the <section data-view> they show. #journal, #prayers, #refuge and #plans
-// open the cave on that tab; #remembers opens Settings at that section.
+// open the cave on that tab, and #amens opens Refuge inside the Amens room; #remembers opens Settings at that section.
 // #conversations, the old cave tab, now lands on Aquila, where past conversations live.
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
 // #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
@@ -511,10 +511,10 @@ $$("[data-topics]").forEach((box) => {
 // =====================================================================
 const VIEWS = {
   welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
-  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", prayers: "cave", refuge: "cave", plans: "cave",
+  notes: "bible", memorize: "bible", cave: "cave", journal: "cave", prayers: "cave", refuge: "cave", amens: "cave", plans: "cave",
   conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk",
 };
-const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "prayers", "refuge", "plans", "settings", "remembers", "desk"]);
+const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "prayers", "refuge", "amens", "plans", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
 
 // "bible/John/3/16" -> ["bible", "John/3/16"]

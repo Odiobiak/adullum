@@ -724,7 +724,7 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .still .scripture-lg { max-width: 520px; margin: 0 auto 6px; min-height: 1.5em; }
 .timer { font-variant-numeric: tabular-nums; color: var(--faint); font-size: 14px; margin-top: 18px; }
 
-/* One another */
+/* Amens: Refuge's wall, and its card on the home screen */
 .wall-section { display: grid; gap: 12px; }
 .wall-section .kicker { margin: 6px 0 0; }
 .burden { display: grid; gap: 12px; padding: 20px 22px; border-radius: var(--radius); background: var(--surface); border: 1px solid var(--line); animation: rise 0.25s ease both; }
@@ -741,6 +741,21 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .encouragement { font-size: 15px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .encouragement .scripture { font-size: 16px; }
 .share-box textarea { min-height: 110px; margin: 0; }
+/* The home card warms from the opposite corner to .card.warm, so it reads as
+   its own thing beside the verse of the day. */
+.amens-card { background: radial-gradient(120% 140% at 0% 0%, var(--glow) 0%, var(--surface) 60%); border-color: var(--ember-line); }
+.amens-tally { display: inline-flex; align-items: baseline; gap: 6px; font-size: 14px; color: var(--muted); }
+.amens-tally-n { display: inline-block; font-size: 24px; font-weight: 700; line-height: 1; color: var(--ember); font-variant-numeric: tabular-nums; }
+.amens-tally-n.is-bumped { animation: amen-bump 0.5s ease; }
+@keyframes amen-bump { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.amens-post { display: grid; gap: 8px; padding: 16px 18px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--ember); }
+.amens-post.burden-rejoice { border-left-color: var(--sage); }
+.amens-text { font-size: 16px; line-height: 1.6; white-space: pre-wrap; color: var(--soft); }
+.amens-lede { font-size: 15px; }
+.amen-btn { display: inline-flex; align-items: center; gap: 8px; }
+.amen-btn svg { width: 16px; height: 16px; flex: none; }
+.amen-said { display: inline-flex; align-items: center; gap: 6px; color: var(--sage); font-size: 14px; font-weight: 600; animation: rise 0.3s ease both; }
+.amen-said svg { width: 16px; height: 16px; flex: none; }
 .share-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--faint); }
 .share-send { display: inline-flex; gap: 12px; align-items: center; margin-left: auto; }
 .choice-list { display: grid; gap: 8px; margin: 6px 0 16px; }

@@ -10,7 +10,7 @@ Five ways in, each with its routes here or in app/one_another.py:
 - Grow: hopes, goals, habits and prayers to grow into (`refuge_seeds`), with
   the days a habit or prayer was tended (`refuge_checkins`).
 - Be still: entirely in the browser.
-- One another: the wall, app/one_another.py.
+- Amens: the wall, app/one_another.py.
 
 Nothing here appears on the home screen or feeds user_memories. Every query
 filters by the signed-in user's id in code, same rule as app/cave.py.

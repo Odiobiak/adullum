@@ -1,6 +1,6 @@
 """Signs that someone may not be safe, shared by Refuge's two places where a
 person writes freely: talking with Aquila (app/agent/nodes.py::listen) and
-posting to the One another wall (app/one_another.py).
+posting to the Amens wall (app/one_another.py).
 
 This is a backstop, never the whole judgment. Aquila also asks the model, and
 the wall also runs OpenAI's moderation check; a match here simply always counts.

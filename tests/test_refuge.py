@@ -330,3 +330,42 @@ def test_renaming_a_conversation_stays_inside_ones_own(monkeypatch):
 def test_refuge_requires_sign_in():
     assert client.get("/me/refuge").status_code == 401
     assert client.post("/me/refuge/talk", json={"messages": [{"role": "user", "content": "hi"}]}).status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# The home screen's Amens card
+# ---------------------------------------------------------------------------
+class TestAmensGlance:
+    """The home card is the one place the wall reaches outside Refuge, so it
+    must only ever show the wall's public side, never the person's own posts.
+    """
+
+    def test_featured_is_the_newest_post_still_waiting_for_an_amen(self):
+        posts = [{"id": "newest"}, {"id": "middle"}, {"id": "oldest"}]
+        assert one_another.featured_post(posts, {"newest"}) == {"id": "middle"}
+        assert one_another.featured_post(posts, {"newest", "middle", "oldest"}) is None
+        assert one_another.featured_post([], set()) is None
+
+    def test_glance_counts_the_week_and_features_someone_elses_post(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb(
+            rows={
+                "refuge_posts": [
+                    {"id": "said-amen", "kind": "burden", "body": "Pray for my mum."},
+                    {"id": "waiting", "kind": "rejoice", "body": "I got the job."},
+                ],
+                # The fake answers every reactions query with these rows, so
+                # this person has said amen to the first post only.
+                "refuge_reactions": [{"post_id": "said-amen"}],
+            },
+            counts={"refuge_reactions": 12},
+        ))
+
+        glance = one_another.amens_glance(USER)
+
+        assert glance["this_week"] == 12
+        assert glance["waiting"] == 1
+        assert glance["post"] == {"id": "waiting", "kind": "rejoice", "body": "I got the job.", "amens": 0}
+        # Only approved posts by other people, never the person's own.
+        assert db.filtered("refuge_posts", "user_id", USER.id, method="neq")
+        assert not db.filtered("refuge_posts", "user_id", USER.id)
+        assert db.filtered("refuge_posts", "status", "approved")

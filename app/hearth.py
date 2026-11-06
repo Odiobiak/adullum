@@ -2,8 +2,8 @@
 
 GET /me/home gathers the person's embers (a streak of days they came in),
 where they left off, today's reading, their prayer list at a glance, how many
-memory verses are due, a journal entry worth returning to, and a couple of
-things Aquila remembers. Each part is fetched on its own and
+memory verses are due, a glance at the Amens wall, a journal entry worth
+returning to, and a couple of things Aquila remembers. Each part is fetched on its own and
 degrades to null on failure, so a missing table (a migration not yet run)
 blanks one card instead of the whole screen.
 
@@ -27,6 +27,7 @@ from app.config import settings
 from app.days import parse_today as _parse_today  # re-exported: reading_plans and tests read it from here
 from app.db import get_supabase
 from app.memorize import memorize_summary
+from app.one_another import amens_glance
 from app.plan import plan_today  # re-exported: tests and callers read it from here
 from app.prayers import prayer_summary
 from app.retrieval import lookup_by_reference, parse_reference
@@ -158,6 +159,9 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         "plan": _part("plan", plan),
         "prayers": _part("prayers", prayers),
         "memorize": _part("memorize", memory_verses),
+        # The wall's public side only, never this person's own posts; see
+        # app/one_another.py::amens_glance.
+        "amens": _part("amens", lambda: amens_glance(user)),
         "revisit": (_part("revisit", lambda: revisit(user)) or {}).get("entry"),
         "memories": _part("memories", memories) or [],
     }
