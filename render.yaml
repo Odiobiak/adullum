@@ -4,7 +4,9 @@ services:
     runtime: python
     plan: free
     buildCommand: pip install -e .
-    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Trust Render's proxy headers, so request.base_url is https:// and magic
+    # links ask Supabase to return to the https address (app/cave.py::_redirect_to).
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /health
     envVars:
       - key: SUPABASE_URL

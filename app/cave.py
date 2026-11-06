@@ -60,7 +60,10 @@ def _now() -> str:
 
 def _redirect_to(request: Request) -> str:
     """Where a magic link should land: back on this same site. Supabase only
-    honors it if the URL is in the project's Auth > URL Configuration list."""
+    honors it if the URL is in the project's Auth > URL Configuration list,
+    and otherwise sends people to the Site URL there instead. Behind Render's
+    proxy this is https only because uvicorn trusts its forwarded headers
+    (render.yaml's startCommand)."""
     return str(request.base_url).rstrip("/") + "/"
 
 
@@ -142,7 +145,17 @@ def magic_link(body: EmailOnly, request: Request) -> dict:
 
 @router.post("/auth/verify")
 def verify(body: EmailCode) -> dict:
-    return {"status": "signed_in", "session": _auth_call(lambda: auth.verify_email_code(body.email, body.code.strip()))}
+    try:
+        session = auth.verify_email_code(body.email, body.code.strip())
+    except AuthError as err:
+        # Supabase says only "Token has expired or is invalid". The usual cause
+        # is that the code was spent: opening the email's link uses it, and
+        # each new email replaces the one before.
+        raise HTTPException(
+            status_code=400,
+            detail="That code has expired or was already used. Opening the link in the email uses it up too. Send a new one and use the newest email.",
+        ) from err
+    return {"status": "signed_in", "session": session}
 
 
 @router.post("/auth/refresh")
