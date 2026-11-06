@@ -7,7 +7,7 @@
 //   Write it out    nothing, unless "Keep it" is pressed (app/refuge.py)
 //   Talk with Aquila  nothing, unless "Keep this talk" is pressed; otherwise
 //                   the talk lives only in `talk` below and vanishes on leaving
-//   Grow            hopes, goals, habits and prayers (app/refuge.py seeds)
+//   Pebbles         hopes, goals, habits and prayers (app/refuge.py seeds)
 //   Be still        nothing at all
 //   Amens           posts, amens and kind words (app/one_another.py)
 // Nothing anyone keeps or shares here appears on the home screen or in
@@ -32,7 +32,8 @@
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
     talk: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
-    grow: svg('<path d="M12 21v-9"/><path d="M12 12c0-4 3-7 8-7 0 5-3 7-8 7z"/><path d="M12 14c0-3-2.5-5.5-7-5.5 0 4 2.5 5.5 7 5.5z"/>'),
+    // Pebbles: a small cairn of three stones, like the stones of remembrance in Joshua 4.
+    pebbles: svg('<ellipse cx="12" cy="18" rx="7.5" ry="3"/><ellipse cx="12" cy="12.2" rx="5.2" ry="2.6"/><ellipse cx="12" cy="7" rx="3.2" ry="2.1"/>'),
     still: svg('<path d="M3 12c3-3 6-3 9 0s6 3 9 0"/><path d="M3 17c3-3 6-3 9 0s6 3 9 0" opacity=".5"/><path d="M3 7c3-3 6-3 9 0s6 3 9 0" opacity=".5"/>'),
     together: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>'),
     person: svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
@@ -192,7 +193,7 @@
         el("div", { class: "refuge-doors" }, [
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
           door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
-          door(ICON.grow, "Grow", "Hopes, goals, habits and prayers to grow into with God.", growRoom),
+          door(ICON.pebbles, "Pebbles", "Hopes, goals, habits and prayers, carried with God one small step at a time.", growRoom),
           door(ICON.together, "Amens", "Share without your name. Others say amen with you.", amensRoom),
           door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
         ]),
@@ -315,7 +316,7 @@
       label: "When you're hoping", kept: "Hope",
       lede: "Bring what you're hoping for to God, and think it through with Him.",
       steps: [["What are you hoping for?", "Say it without shrinking it."], ["What would you ask God about it?", "For it, for wisdom, for patience."], ["What could a first small step be?", "Something you could do this week."]],
-      release: { title: "Placed in His hands.", line: "It wasn't saved. If you'd like to come back to it, plant it in Grow next time.", verse: "Proverbs 16:3" },
+      release: { title: "Placed in His hands.", line: "It wasn't saved. If you'd like to come back to it, plant it in Pebbles next time.", verse: "Proverbs 16:3" },
     },
   };
 
@@ -338,7 +339,7 @@
     const actions = [
       el("span", { class: "faint", text: "Nothing is saved unless you keep it." }),
       shape === "dream"
-        ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Plant it in Grow", onclick: () => {
+        ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Plant it in Pebbles", onclick: () => {
             const hope = steps[0].box.value.trim();
             if (!hope) return toast("Write what you're hoping for first.");
             plantSheet({ kind: "hope", title: hope.slice(0, 200), note: [steps[1].box.value.trim(), steps[2].box.value.trim()].filter(Boolean).join("\n\n") }, growRoom);
@@ -546,7 +547,7 @@
   }
 
   // ---------------------------------------------------------------------
-  // Grow: hopes, goals, habits and prayers
+  // Pebbles (once "Grow"): hopes, goals, habits and prayers
   // ---------------------------------------------------------------------
   const KIND_LABEL = { hope: "Hope", goal: "Goal", habit: "Habit", prayer: "Prayer" };
   const KINDS = {
@@ -769,7 +770,7 @@
     if (!groups[growFilter].length && growFilter !== "growing") growFilter = "growing";
     const list = groups[growFilter];
     const plant = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Plant something", onclick: () => plantSheet(null, rerender) });
-    show(room("Grow", "Hopes you're holding, goals you're working toward, habits and prayers you're building. Bring them to God one day at a time.",
+    show(room("Pebbles", "Hopes you're holding, goals you're working toward, habits and prayers you're building. Bring them to God one day at a time.",
       el("div", { class: "row-between", style: "flex-wrap:wrap;gap:10px" }, [filter, plant]),
       list.length
         ? el("div", { class: "entries seed-list" }, list.map((s) => seedCard(s, rerender)))

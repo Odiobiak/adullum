@@ -7,7 +7,7 @@ Five ways in, each with its routes here or in app/one_another.py:
   listen). A talk vanishes by default; it's stored (`refuge_talks`) only when
   the person presses Keep. These runs are never traced to Langfuse, and
   nothing said here reaches Aquila's memory.
-- Grow: hopes, goals, habits and prayers to grow into (`refuge_seeds`), with
+- Pebbles (once "Grow"): hopes, goals, habits and prayers (`refuge_seeds`), with
   the days a habit or prayer was tended (`refuge_checkins`).
 - Be still: entirely in the browser.
 - Amens: the wall, app/one_another.py.
@@ -231,7 +231,7 @@ def erase_talk(talk_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> di
 
 
 # ---------------------------------------------------------------------------
-# Grow: hopes, goals, habits and prayers
+# Pebbles (once "Grow"): hopes, goals, habits and prayers
 # ---------------------------------------------------------------------------
 _SEED_FIELDS = "id, kind, title, note, passage_ref, steps, status, outcome_note, fulfilled_at, created_at, updated_at"
 
