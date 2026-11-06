@@ -739,11 +739,12 @@
 
     const v = await versePromise;
     $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
-    // Amens sits with the main cards so it's seen on arrival. It is null
-    // until the Refuge migration has run.
+    // The Amens notice leads the main column so it's seen on arrival. It is
+    // null until the Refuge migration has run, and homeCard returns null
+    // itself when there's nothing to tell.
     main.replaceChildren(...[
-      continueCard(data.last_session),
       data.amens ? window.Refuge.homeCard(data.amens) : null,
+      continueCard(data.last_session),
       homePlanCard(data.plan),
     ].filter(Boolean));
     // The prayer and memory-verse cards are null until their migration has

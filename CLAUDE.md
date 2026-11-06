@@ -14,6 +14,8 @@ uvicorn app.main:app --reload --reload-dir app --reload-dir web   # one process:
                                                           # (--reload-dir keeps OneDrive syncing .venv from restarting the server mid-request)
 python scripts/fetch_translation.py --translation KJV   # download KJV/ASV/WEB/BSB to data/kjv.json in the shape ingest.py reads
 python scripts/ingest.py --file data/bsb.json --translation BSB   # load a translation into Supabase; only BSB (the search translation) is embedded, the rest go in as text
+python scripts/ingest_cross_references.py                # load classic cross-references for Connections (after its migration); downloads the data if needed
+python scripts/set_password.py someone@example.com      # set or reset an account's password from the terminal (prompts for it, never echoes)
 pytest                                                    # run the test suite (tests/)
 ```
 
@@ -126,7 +128,7 @@ A quiet room in the cave for every kind of season, not only hard ones. Run `supa
 - **Be still**: one minute of breathing with Psalm 46:10, read from the database.
 - **Amens** (first called "One another", which `app/one_another.py` and the `refuge_*` tables still say): share a burden or good news without a name. Saying amen is the one reaction (on a burden it means "I prayed", on good news "I'm rejoicing"), and a post's count is its amens. A post goes through `one_another.screen` (contact details refused; signs of risk are not posted and the writer is shown helplines; OpenAI moderation refuses hate, harassment, sexual and illicit content, while violence goes to a person since it also catches someone describing harm done to them), then waits as `pending` on the **admin desk** (`#desk`, `/admin/refuge`) until someone in `ADMIN_EMAILS` approves it. A report takes it off the wall at once and back to the desk. Others can only say amen, send one of `KIND_WORDS` (verses stored by reference and read from the database), or report. Nobody, the desk included, is ever sent who wrote a post; keep `user_id` out of every wall and desk select.
 
-Helplines live in `web/refuge.js::HELPLINES`, chosen by the browser's region and changeable. Nothing anyone keeps or shares in Refuge appears on the home screen. The one exception is deliberate and public: the home's Amens card (`one_another.py::amens_glance`, drawn by `refuge.js::homeCard`) shows this week's amens across the whole wall and the newest post by someone else still waiting for this person's amen, with an Amen button. Never put the person's own posts, or anything that shows they posted, on that card.
+Helplines live in `web/refuge.js::HELPLINES`, chosen by the browser's region and changeable. Nothing anyone keeps or shares in Refuge appears on the home screen. The one exception is deliberate and public: the home's Amens notice (`one_another.py::amens_glance`, drawn by `refuge.js::homeCard`) sits at the top of the home screen as one tappable line, like a notification: how many posts by other people are waiting for this person's amen (a count on the icon) and this week's amens across the whole wall. It opens `#amens`, and it stays hidden when there is nothing to tell. Never put the person's own posts, or anything that shows they posted, on that card.
 
 ### The Bible reader, notes and highlights (`app/bible.py`, `app/notes.py`, `app/highlights.py`, `web/reader.js`)
 
@@ -152,7 +154,12 @@ Run `supabase/migrations/20261111_sermon_notes.sql` once (it also creates the pr
 
 On screen it is "Connections" (it was "Map" at first, which read as a geographic map). The nav item, the phone tab and the verse bar all use that name.
 
-`GET /connections` feeds each seed verse's stored embedding (read from the search translation's copy of that verse) back through `match_verses` to find its nearest neighbours in other chapters. No new SQL and no LLM call. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
+`GET /connections` draws two kinds of link from each seed verse, and every edge says which in `kinds`:
+- **Close in meaning** (`"meaning"`, solid lines): the seed's stored embedding (read from the search translation's copy of that verse) fed back through `match_verses` for its nearest neighbours in other chapters. No new SQL and no LLM call.
+- **Classic cross-references** (`"cross_ref"`, dashed accent lines): the seed's best-voted rows in `cross_references` (`supabase/migrations/20261111_cross_references.sql`, loaded by `scripts/ingest_cross_references.py`). The data is OpenBible.info's, CC BY, built on the public-domain Treasury of Scripture Knowledge; the licence asks for credit, which the graph's legend and the cross-reference panel give, so keep it. A link to a run of verses is drawn to its first verse and carries the run as `passage`. Until the migration runs the table is simply skipped.
+A pair that is both is drawn solid in the accent colour. The legend toggles each kind.
+
+Tapping a line (or "Why?" beside a neighbour in a verse's panel) calls `POST /connections/explain`: `app/agent/nodes.py::explain_link` gives two or three sentences on how the two passages connect, from those two passages only (a reply naming any other verse is rewritten, then replaced by a plain sentence), cached per link with `lru_cache`. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
 
 ### Web client (`web/index.html`, `web/cave.js`, `web/graph.js`, `web/app.css`)
 

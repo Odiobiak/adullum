@@ -2,10 +2,13 @@
 // how passages connect in meaning. Not a geographic map.
 //
 // Seeds come from an answer's citations, a journal entry, or the search box.
-// Each seed's neighbours come from GET /connections (app/connections.py),
-// which finds the verses nearest in meaning anywhere else in the canon.
-// Clicking a node opens it in the side panel; "Follow this thread" fetches
-// that verse's own neighbours and grows the graph from there.
+// Each seed's neighbours come from GET /connections (app/connections.py): its
+// classic cross-references (dashed lines) and the verses nearest in meaning
+// anywhere else in the canon (solid lines); a pair that is both is drawn
+// solid in the accent colour. Clicking a node opens it in the side panel;
+// "Follow this thread" fetches that verse's own neighbours and grows the
+// graph from there. Clicking a line, or a neighbour listed in the panel,
+// asks Aquila why the two connect (POST /connections/explain).
 //
 // d3 is only fetched the first time the graph opens, so the chat page itself
 // pays nothing for it.
@@ -66,7 +69,7 @@
       <div class="graph-top">
         <div>
           <h3>How Scripture connects</h3>
-          <div class="graph-sub">Each line joins two verses close in meaning. Thicker means closer.</div>
+          <div class="graph-sub">Dashed lines are classic cross-references, solid lines join verses close in meaning. Tap a line to ask why.</div>
         </div>
         <form class="graph-search">
           <input type="text" placeholder="Add a passage, e.g. Psalm 23:1" aria-label="Add a passage" />
@@ -78,7 +81,7 @@
       </div>
       <div class="graph-stage">
         <svg aria-label="Graph of connected verses"></svg>
-        <div class="graph-hint">Drag to move · scroll or pinch to zoom · tap a verse to read it</div>
+        <div class="graph-hint">Drag to move · scroll or pinch to zoom · tap a verse or a line</div>
         <div class="graph-status"></div>
         <div class="graph-legend"></div>
       </div>`;
@@ -93,6 +96,28 @@
       span.append(dot, document.createTextNode(g));
       legend.append(span);
     }
+    // The two kinds of line, each a toggle, and the credit the
+    // cross-reference data's licence (CC BY) asks for.
+    const kinds = document.createElement("div");
+    kinds.className = "graph-kinds";
+    for (const [kind, label] of LINK_KINDS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = `graph-kind kind-${kind}`;
+      b.setAttribute("aria-pressed", "true");
+      b.innerHTML = `<svg viewBox="0 0 28 8" aria-hidden="true"><line x1="1" y1="4" x2="27" y2="4"/></svg>`;
+      b.append(document.createTextNode(label));
+      b.addEventListener("click", () => toggleKind(kind, b));
+      kinds.append(b);
+    }
+    const credit = document.createElement("a");
+    credit.className = "graph-credit";
+    credit.href = "https://www.openbible.info/labs/cross-references/";
+    credit.target = "_blank";
+    credit.rel = "noopener";
+    credit.textContent = "Cross-references: OpenBible.info, CC BY";
+    kinds.append(credit);
+    legend.append(kinds);
 
     const onKey = (e) => e.key === "Escape" && close();
     document.addEventListener("keydown", onKey);
@@ -118,8 +143,23 @@
       expanded: new Set(),
       selected: null,
       sim: null,
+      // Which kinds of line are showing (the legend's toggles).
+      shown: { cross_ref: true, meaning: true },
     };
   }
+
+  const LINK_KINDS = [["cross_ref", "Cross-reference"], ["meaning", "Close in meaning"]];
+
+  function toggleKind(kind, button) {
+    if (!ui) return;
+    ui.shown[kind] = !ui.shown[kind];
+    button.setAttribute("aria-pressed", String(ui.shown[kind]));
+    if (window.d3 && ui.linkLayer) paintLinks(window.d3);
+  }
+
+  const idOf = (end) => end.id || end;
+  const isCrossRef = (l) => l.kinds.includes("cross_ref");
+  const isMeaning = (l) => l.kinds.includes("meaning");
 
   function setStatus(text) {
     if (ui) ui.status.textContent = text || "";
@@ -152,8 +192,17 @@
     }
     for (const e of data.edges) {
       const key = [e.source, e.target].sort().join("|");
+      const kinds = e.kinds || ["meaning"];
       const prev = ui.links.get(key);
-      if (!prev || prev.weight < e.weight) ui.links.set(key, { source: e.source, target: e.target, weight: e.weight, key });
+      if (!prev) {
+        ui.links.set(key, { source: e.source, target: e.target, weight: e.weight, kinds: [...kinds], votes: e.votes || 0, passage: e.passage || null, key });
+        continue;
+      }
+      // The same pair seen again (from another seed): keep everything known about it.
+      kinds.forEach((k) => prev.kinds.includes(k) || prev.kinds.push(k));
+      if (e.weight != null && (prev.weight == null || prev.weight < e.weight)) prev.weight = e.weight;
+      if (e.votes) prev.votes = Math.max(prev.votes, e.votes);
+      if (e.passage && !prev.passage) prev.passage = e.passage;
     }
     const { width, height } = ui.svgEl.getBoundingClientRect();
     for (const id of added) {
@@ -173,7 +222,26 @@
   }
 
   function closeness(weight) {
+    if (weight == null) return 0.4;
     return Math.min(1, Math.max(0, (weight - 0.35) / 0.35));
+  }
+
+  // How strong a line looks: meaning by similarity, a cross-reference by how
+  // many readers voted for it (most useful links have tens to hundreds).
+  function strength(l) {
+    const votes = isCrossRef(l) ? Math.min(1, Math.log10(1 + l.votes) / 2.3) : 0;
+    return Math.max(isMeaning(l) ? closeness(l.weight) : 0, votes);
+  }
+
+  function linkClass(l) {
+    const kind = isCrossRef(l) && isMeaning(l) ? "both" : isCrossRef(l) ? "cross-ref" : "meaning";
+    const hidden = !l.kinds.some((k) => ui.shown[k]);
+    return `graph-link ${kind}${hidden ? " is-hidden" : ""}`;
+  }
+
+  function paintLinks() {
+    ui.linkLayer.selectAll("line.graph-link").attr("class", linkClass);
+    ui.linkLayer.selectAll("line.graph-link-hit").attr("class", (l) => `graph-link-hit${l.kinds.some((k) => ui.shown[k]) ? "" : " is-hidden"}`);
   }
 
   function shortLabel(n) {
@@ -196,14 +264,25 @@
     const links = [...ui.links.values()];
 
     const linkSel = ui.linkLayer
-      .selectAll("line")
+      .selectAll("line.graph-link")
       .data(links, (d) => d.key)
       .join("line")
-      .attr("class", "graph-link")
+      .attr("class", linkClass)
       // Cosine similarity between verses mostly lands in 0.35-0.7, so the
       // scale is stretched over that band rather than the full 0-1.
-      .attr("stroke-width", (d) => 0.8 + closeness(d.weight) * 4)
-      .attr("stroke-opacity", (d) => 0.3 + closeness(d.weight) * 0.6);
+      .attr("stroke-width", (d) => 0.9 + strength(d) * 3.6)
+      .attr("stroke-opacity", (d) => 0.35 + strength(d) * 0.55);
+    // A wide invisible line over each one, so a thin line is easy to tap.
+    const hitSel = ui.linkLayer
+      .selectAll("line.graph-link-hit")
+      .data(links, (d) => d.key)
+      .join((enter) =>
+        enter.append("line").on("click", (ev, d) => {
+          ev.stopPropagation();
+          selectLink(d);
+        })
+      )
+      .attr("class", (l) => `graph-link-hit${l.kinds.some((k) => ui.shown[k]) ? "" : " is-hidden"}`);
 
     const nodeSel = ui.nodeLayer
       .selectAll("g.graph-node")
@@ -265,9 +344,11 @@
     }
     ui.sim
       .nodes(nodes)
-      .force("link", d3.forceLink(links).id((d) => d.id).distance((d) => 60 + (1 - d.weight) * 220).strength(0.6))
+      .force("link", d3.forceLink(links).id((d) => d.id).distance((d) => 60 + (1 - strength(d)) * 200).strength(0.6))
       .on("tick", () => {
-        linkSel.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y).attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
+        for (const sel of [linkSel, hitSel]) {
+          sel.attr("x1", (d) => d.source.x).attr("y1", (d) => d.source.y).attr("x2", (d) => d.target.x).attr("y2", (d) => d.target.y);
+        }
         nodeSel.attr("transform", (d) => `translate(${d.x},${d.y})`);
       })
       .alpha(0.9)
@@ -294,12 +375,129 @@
     }
   }
 
-  function select(d) {
-    if (!ui) return;
-    ui.selected = d ? d.id : null;
-    window.d3 && window.d3.select(ui.svgEl).selectAll("g.graph-node").classed("selected", (n) => ui.selected === n.id);
+  // Marks the chosen node or line, and clears the side panel.
+  function mark({ node = null, link = null } = {}) {
+    ui.selected = node;
+    if (window.d3) {
+      const svg = window.d3.select(ui.svgEl);
+      svg.selectAll("g.graph-node").classed("selected", (n) => ui.selected === n.id);
+      svg.selectAll("line.graph-link").classed("selected", (l) => link === l.key);
+    }
     const old = ui.stage.querySelector(".graph-panel");
     if (old) old.remove();
+  }
+
+  // A link's two ends as passages. A cross-reference to a run of verses
+  // ("Proverbs 8:22-30") is drawn to its first verse but explained whole.
+  function linkEnds(l) {
+    const end = (id) => (l.passage && (l.passage === id || l.passage.startsWith(`${id}-`)) ? l.passage : id);
+    return [end(idOf(l.source)), end(idOf(l.target))];
+  }
+
+  function kindTags(l) {
+    const tags = [];
+    if (isCrossRef(l)) tags.push(l.votes ? `Cross-reference · ${l.votes} votes` : "Cross-reference");
+    if (isMeaning(l)) tags.push("Close in meaning");
+    return tags;
+  }
+
+  function panelButton(actions, label, fn, cls = "chip-btn") {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = cls;
+    b.textContent = label;
+    b.addEventListener("click", fn);
+    actions.append(b);
+    return b;
+  }
+
+  // "Why are these connected?": both passages and Aquila's few sentences on
+  // the link, asked once per link and kept for the rest of the visit.
+  const explained = new Map();
+  async function selectLink(l) {
+    if (!ui) return;
+    mark({ link: l.key });
+    const [a, b] = linkEnds(l);
+    const panel = document.createElement("div");
+    panel.className = "graph-panel";
+    const h = document.createElement("h4");
+    h.textContent = `${a} and ${b}`;
+    const meta = document.createElement("div");
+    meta.className = "panel-tags";
+    for (const t of kindTags(l)) {
+      const tag = document.createElement("span");
+      tag.className = `panel-tag${t.startsWith("Cross") ? " cross-ref" : ""}`;
+      tag.textContent = t;
+      meta.append(tag);
+    }
+    panel.append(h, meta);
+
+    for (const end of [l.source, l.target]) {
+      const n = ui.nodes.get(idOf(end));
+      if (!n) continue;
+      const quote = document.createElement("button");
+      quote.type = "button";
+      quote.className = "panel-quote";
+      quote.title = `Open ${n.id}`;
+      quote.innerHTML = "<strong></strong><span></span>";
+      quote.querySelector("strong").textContent = n.id;
+      quote.querySelector("span").textContent = n.text;
+      quote.addEventListener("click", () => select(n));
+      panel.append(quote);
+    }
+
+    const why = document.createElement("div");
+    why.className = "panel-why";
+    why.innerHTML = '<p class="panel-why-label">Why they connect</p><p class="panel-why-text"></p>';
+    const whyText = why.querySelector(".panel-why-text");
+    panel.append(why);
+
+    const actions = document.createElement("div");
+    actions.className = "card-actions";
+    panelButton(actions, "Ask Aquila more", () => {
+      close();
+      window.AdullumApp && window.AdullumApp.submitQuery(`How do ${a} and ${b} connect?`);
+    });
+    panelButton(actions, `Read ${a}`, () => {
+      close();
+      if (window.Reader && window.AdullumApp) window.AdullumApp.go(window.Reader.href(a));
+    });
+    panel.append(actions);
+    if (isCrossRef(l)) {
+      const credit = document.createElement("p");
+      credit.className = "panel-credit";
+      credit.innerHTML = 'Cross-reference from <a href="https://www.openbible.info/labs/cross-references/" target="_blank" rel="noopener">OpenBible.info</a> (CC BY), built on the Treasury of Scripture Knowledge.';
+      panel.append(credit);
+    }
+    ui.stage.append(panel);
+
+    const key = `${a}|${b}|${translation()}`;
+    if (explained.has(key)) {
+      whyText.textContent = explained.get(key);
+      return;
+    }
+    whyText.textContent = "Asking Aquila...";
+    why.classList.add("is-loading");
+    try {
+      const resp = await fetch(`${apiBase()}/connections/explain`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ a, b, translation: translation(), kinds: l.kinds }),
+      });
+      const body = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Aquila couldn't explain this one right now.");
+      explained.set(key, body.explanation);
+      if (panel.isConnected) whyText.textContent = body.explanation;
+    } catch (err) {
+      if (panel.isConnected) whyText.textContent = err.message;
+    } finally {
+      why.classList.remove("is-loading");
+    }
+  }
+
+  function select(d) {
+    if (!ui) return;
+    mark({ node: d ? d.id : null });
     if (!d) return;
 
     const panel = document.createElement("div");
@@ -340,7 +538,34 @@
     });
     btn("Save to journal", () => window.Cave && window.Cave.openJournal({ passage_ref: ref, verse_text: d.text }));
 
-    panel.append(h, meta, p, actions);
+    // Everything this verse is joined to, each a way into "why".
+    const joined = [...ui.links.values()]
+      .filter((l) => (idOf(l.source) === d.id || idOf(l.target) === d.id) && l.kinds.some((k) => ui.shown[k]))
+      .sort((x, y) => strength(y) - strength(x));
+    let list = null;
+    if (joined.length) {
+      list = document.createElement("div");
+      list.className = "panel-links";
+      const label = document.createElement("p");
+      label.className = "panel-why-label";
+      label.textContent = "Connected to";
+      list.append(label);
+      for (const l of joined) {
+        // linkEnds follows [source, target], so the far end is the one that isn't d.
+        const [start, end] = linkEnds(l);
+        const other = idOf(l.source) === d.id ? end : start;
+        const row = document.createElement("button");
+        row.type = "button";
+        row.className = "panel-link";
+        row.innerHTML = "<strong></strong><span></span><em>Why?</em>";
+        row.querySelector("strong").textContent = other;
+        row.querySelector("span").textContent = kindTags(l).map((t) => t.split(" ·")[0]).join(" · ");
+        row.addEventListener("click", () => selectLink(l));
+        list.append(row);
+      }
+    }
+
+    panel.append(...[h, meta, p, actions, list].filter(Boolean));
     ui.stage.append(panel);
   }
 

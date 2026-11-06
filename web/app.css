@@ -484,7 +484,41 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .graph-node:focus-visible circle { stroke: var(--ember); stroke-width: 3.5px; }
 .graph-node text { font: 500 11px/1 var(--body); fill: var(--muted); cursor: pointer; paint-order: stroke; stroke: var(--ground); stroke-width: 3px; }
 .graph-node.seed text { fill: var(--text); font-size: 12.5px; font-weight: 600; }
+/* Lines: soft solid for close in meaning, dashed accent for a classic
+   cross-reference, solid accent when a pair is both (web/graph.js::linkClass). */
 .graph-link { stroke: var(--faint); }
+.graph-link.cross-ref { stroke: var(--ember); stroke-dasharray: 5 4; }
+.graph-link.both { stroke: var(--ember); }
+.graph-link.selected { stroke: var(--ember-hi); stroke-opacity: 1; stroke-width: 4px; }
+.graph-link.is-hidden, .graph-link-hit.is-hidden { display: none; }
+/* A wide invisible line over each one, so a thin line is easy to tap. */
+.graph-link-hit { stroke: transparent; stroke-width: 14px; cursor: pointer; }
+.graph-kinds { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding-top: 6px; border-top: 1px solid var(--divider); }
+.graph-kind { display: inline-flex; align-items: center; gap: 6px; background: none; border: 0; padding: 2px 0; color: var(--soft); font-size: 13px; font-weight: 500; }
+.graph-kind svg { width: 26px; height: 8px; }
+.graph-kind line { stroke-width: 2.5; stroke-linecap: round; }
+.graph-kind.kind-cross_ref line { stroke: var(--ember); stroke-dasharray: 4 3; }
+.graph-kind.kind-meaning line { stroke: var(--faint); }
+.graph-kind[aria-pressed="false"] { opacity: 0.45; text-decoration: line-through; }
+.graph-credit { margin-left: auto; font-size: 12px; color: var(--faint); }
+/* The side panel for a line: both passages and why they connect. */
+.panel-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 12px; }
+.panel-tag { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: var(--pill); background: var(--raised); color: var(--muted); }
+.panel-tag.cross-ref { background: var(--ember-bg); color: var(--ember-hi); }
+.panel-quote { display: block; width: 100%; text-align: left; background: var(--well); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 8px; color: var(--text); }
+.panel-quote:hover { border-color: var(--ember-line); }
+.panel-quote strong { display: block; font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+.panel-quote span { font-family: var(--scripture); font-size: 15px; line-height: 1.5; }
+.graph-panel .panel-why-label { font: 600 13px/1.3 var(--body); color: var(--muted); margin: 14px 0 4px; }
+.graph-panel .panel-why-text { font-family: var(--body); font-size: 15px; line-height: 1.6; color: var(--text); }
+.panel-why.is-loading .panel-why-text { color: var(--faint); animation: pulse 1.4s ease-in-out infinite; }
+.panel-links { margin-top: 6px; }
+.panel-link { display: flex; align-items: baseline; gap: 8px; width: 100%; background: none; border: 0; border-top: 1px solid var(--divider); padding: 8px 0; text-align: left; color: var(--text); font-size: 14px; }
+.panel-link strong { font-weight: 600; white-space: nowrap; }
+.panel-link span { color: var(--faint); font-size: 12px; }
+.panel-link em { margin-left: auto; font-style: normal; color: var(--ember); font-weight: 600; font-size: 13px; }
+.panel-link:hover em { color: var(--ember-hi); }
+.graph-panel .panel-credit { font-family: var(--body); font-size: 12px; color: var(--faint); margin: 12px 0 0; line-height: 1.5; }
 .graph-legend { position: absolute; left: 16px; bottom: 16px; display: flex; flex-wrap: wrap; gap: 6px 14px; max-width: min(36rem, calc(100% - 32px)); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 13px; color: var(--muted); }
 .graph-legend span { display: inline-flex; align-items: center; gap: 6px; text-transform: capitalize; }
 .graph-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
@@ -751,21 +785,20 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .encouragement { font-size: 15px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .encouragement .scripture { font-size: 16px; }
 .share-box textarea { min-height: 110px; margin: 0; }
-/* The home card warms from the opposite corner to .card.warm, so it reads as
-   its own thing beside the verse of the day. */
-.amens-card { background: radial-gradient(120% 140% at 0% 0%, var(--glow) 0%, var(--surface) 60%); border-color: var(--ember-line); }
-.amens-tally { display: inline-flex; align-items: baseline; gap: 6px; font-size: 14px; color: var(--muted); }
-.amens-tally-n { display: inline-block; font-size: 24px; font-weight: 700; line-height: 1; color: var(--ember); font-variant-numeric: tabular-nums; }
-.amens-tally-n.is-bumped { animation: amen-bump 0.5s ease; }
-@keyframes amen-bump { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
-.amens-post { display: grid; gap: 8px; padding: 16px 18px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--ember); }
-.amens-post.burden-rejoice { border-left-color: var(--sage); }
-.amens-text { font-size: 16px; line-height: 1.6; white-space: pre-wrap; color: var(--soft); }
-.amens-lede { font-size: 15px; }
-.amen-btn { display: inline-flex; align-items: center; gap: 8px; }
-.amen-btn svg { width: 16px; height: 16px; flex: none; }
-.amen-said { display: inline-flex; align-items: center; gap: 6px; color: var(--sage); font-size: 14px; font-weight: 600; animation: rise 0.3s ease both; }
-.amen-said svg { width: 16px; height: 16px; flex: none; }
+/* The home screen's Amens notice: one tappable line, like a notification,
+   with the count of posts waiting sitting on the icon. */
+.amens-note { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--ember-line); background: radial-gradient(120% 220% at 0% 0%, var(--glow) 0%, var(--surface) 70%); color: var(--text); text-decoration: none; transition: border-color 0.15s ease, transform 0.15s ease; }
+.amens-note:hover { border-color: var(--ember); color: var(--text); }
+.amens-note:active { transform: scale(0.99); }
+.amens-note:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.amens-note-icon { position: relative; display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember); }
+.amens-note-icon svg { width: 20px; height: 20px; display: block; }
+.amens-note-count { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--pill); background: linear-gradient(135deg, var(--ember) 0%, var(--ember-hi) 100%); color: var(--ember-ink); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
+.amens-note-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.amens-note-text strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amens-note-text small { font-size: 13px; color: var(--muted); }
+.amens-note-go { flex: none; color: var(--faint); }
+.amens-note-go svg { width: 18px; height: 18px; display: block; }
 .share-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--faint); }
 .share-send { display: inline-flex; gap: 12px; align-items: center; margin-left: auto; }
 .choice-list { display: grid; gap: 8px; margin: 6px 0 16px; }
@@ -849,7 +882,11 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
   .book-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
   .graph-search { margin-left: 0; width: 100%; order: 3; }
   .graph-search input { flex: 1; width: auto; }
-  .graph-top .graph-sub, .graph-legend, .graph-hint { display: none; }
+  .graph-top .graph-sub, .graph-hint { display: none; }
+  /* Phones keep the line key (and the credit) but drop the colour key. */
+  .graph-legend > span { display: none; }
+  .graph-legend { padding: 6px 10px; }
+  .graph-kinds { border-top: 0; padding-top: 0; }
   .graph-panel { top: auto; bottom: 16px; max-height: 48%; }
   .msg-me { max-width: 92%; }
   .quick-exit { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 12px; }
