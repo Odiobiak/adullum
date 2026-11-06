@@ -54,8 +54,11 @@
         <a href="#join" class="btn btn-ember btn-sm">Create account</a>
       </div>
       <div class="row" data-auth="in" style="position:relative;gap:8px">
-        <span class="streak" id="streakPill" title="Days in a row" hidden><svg viewBox="0 0 24 24" fill="#F4A14C" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg><span id="streakCount">0</span></span>
-        <button type="button" class="me" id="meBtn" aria-label="Account menu" aria-expanded="false" aria-haspopup="true">A</button>
+        <!-- The account chip: initials on a soft avatar, and a chevron that turns when the menu opens. -->
+        <button type="button" class="me" id="meBtn" aria-label="Account menu" aria-expanded="false" aria-haspopup="true">
+          <span class="me-avatar" id="meInitials" aria-hidden="true">A</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </button>
         <div class="menu" id="menu" role="menu" hidden>
           <div class="menu-head"><strong id="menuName">Your account</strong><span id="menuEmail"></span></div>
           <a role="menuitem" href="#cave">Your cave</a>
@@ -289,7 +292,8 @@
       <article class="reader-chapter" id="readerText" aria-live="polite"></article>
       <section class="reader-notes" id="readerNotes" aria-label="Your notes on this chapter"></section>
     </div>
-    <!-- The person's own pages beside the text: My notes (#bible/notes) and
+    <!-- The Bible tab's front page (#bible, web/reader.js::showHub), and the
+         person's own pages beside the text: My notes (#bible/notes) and
          Memorize (#bible/memorize), opened by web/reader.js::showMine -->
     <div class="wrap page reader" id="readerMine" hidden></div>
     <div class="verse-bar" id="verseBar" role="toolbar" aria-label="Selected verses" hidden>
@@ -320,8 +324,8 @@
       <div class="tabs" role="tablist" aria-label="Your cave">
         <button type="button" role="tab" aria-selected="true" data-cave-tab="journal">Journal</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="sermons">Sermons</button>
-        <button type="button" role="tab" aria-selected="false" data-cave-tab="prayers">Prayers</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="refuge">Refuge</button>
+        <button type="button" role="tab" aria-selected="false" data-cave-tab="prayers">Prayers</button>
         <button type="button" role="tab" aria-selected="false" data-cave-tab="plans">Plans</button>
       </div>
       <div id="cavePanel"></div>

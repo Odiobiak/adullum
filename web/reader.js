@@ -29,6 +29,7 @@
     prev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>',
     next: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
     close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+    heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>',
   };
 
@@ -189,21 +190,38 @@
   let loadToken = 0;
   let notesSignedIn = null; // whether this chapter's notes were fetched signed in
 
-  // "read" (a chapter), or one of the person's own pages kept beside the text:
-  // "notes" (My notes, #bible/notes) or "memorize" (#bible/memorize). The
-  // reader bar and page swap between them; the open chapter stays loaded
-  // underneath, so going back is instant.
+  // "hub" (the Bible tab's front page, #bible), "read" (a chapter), or one of
+  // the person's own pages kept beside the text: "notes" (My notes,
+  // #bible/notes) or "memorize" (#bible/memorize). The reader bar and page
+  // swap between them; the open chapter stays loaded underneath, so going
+  // back is instant.
   let mode = "read";
   function setMode(next) {
     mode = next;
     const reading = next === "read";
+    // The front page is its own menu, so it has no use for the reader bar.
+    $(".reader-bar").hidden = next === "hub";
     $("#readerPage").hidden = !reading;
     $("#readerMine").hidden = reading;
     $("#readerBack").hidden = reading;
     ["#readerPick", "#readerNotesLink", "#readerLearnLink", "#readerTranslation", ".reader-arrows"].forEach((s) => ($(s).hidden = !reading));
   }
 
+  // Where "Bible" on the front page picks up: the chapter open now, else the
+  // last one read on this device, else the very beginning.
+  function lastPlace() {
+    if (current) return { book: current.book, chapter: current.chapter, read: true };
+    try {
+      const saved = JSON.parse(recall(POS_KEY) || "null");
+      if (saved && saved.book) return { book: saved.book, chapter: Number(saved.chapter) || 1, read: true };
+    } catch {
+      /* nothing saved */
+    }
+    return { book: "Genesis", chapter: 1, read: false };
+  }
+
   async function show(param) {
+    if (!param) return showHub();
     if (MINE[param]) return showMine(param);
     setMode("read");
     const parts = (param || "").split("/").filter(Boolean).map((p) => decodeURIComponent(p).replace(/-/g, " "));
@@ -216,14 +234,9 @@
     let chapter = Number(parts[1]) || 1;
     const verse = Number(parts[2]) || null;
     if (!book) {
-      let last = null;
-      try {
-        last = JSON.parse(recall(POS_KEY) || "null");
-      } catch {
-        /* nothing saved */
-      }
-      book = (last && findBook(last.book)) || books[0];
-      chapter = (last && last.chapter) || 1;
+      const last = lastPlace();
+      book = findBook(last.book) || books[0];
+      chapter = last.chapter;
     }
     chapter = Math.min(Math.max(chapter, 1), book.chapters);
     // Coming back to the chapter already open (from Connections, say) only moves to the verse.
@@ -744,6 +757,73 @@
     },
   };
 
+  // ---------------------------------------------------------------------
+  // The front page (#bible)
+  // ---------------------------------------------------------------------
+  // The Bible tab opens here rather than straight into a chapter, so it's
+  // plain that notes and memorizing live in this tab too. "Bible" carries
+  // on where the person left off; the other two open MINE. For someone
+  // signed in, small counts arrive afterwards (notes kept, verses due), each
+  // left off quietly if its request fails.
+  function door({ href, icon, title, text, primary = false }) {
+    const count = el("span", { class: "bible-door-count", hidden: true });
+    const link = el("a", { class: `bible-door${primary ? " is-primary" : ""}`, href }, [
+      el("span", { class: "bible-door-icon", html: icon }),
+      el("span", { class: "bible-door-text" }, [el("strong", { text: title }), el("small", { text })]),
+      count,
+      el("span", { class: "bible-door-go", html: ICON.next }),
+    ]);
+    return { link, count };
+  }
+
+  function showHub() {
+    setMode("hub");
+    clearSelection();
+    document.title = "The Bible, Adullum";
+    window.scrollTo({ top: 0 });
+
+    const place = lastPlace();
+    const read = door({
+      href: `#${hashFor(place.book, place.chapter)}`,
+      icon: ICON.book,
+      title: "Bible",
+      text: place.read ? `Carry on at ${place.book} ${place.chapter}` : "Start at Genesis 1, or open any book",
+      primary: true,
+    });
+    const mine = door({ href: "#bible/notes", icon: ICON.note, title: MINE.notes.title, text: "Your highlights and notes, kept beside the verses" });
+    const learn = door({ href: "#bible/memorize", icon: ICON.heart, title: "Memorize", text: "Learn verses by heart, a few minutes a day" });
+
+    $("#readerMine").replaceChildren(
+      el("div", { class: "page-head" }, el("div", {}, [
+        el("h1", { class: "page-title", text: "The Bible" }),
+        el("p", { class: "page-sub", text: "Read, keep notes as you go, and learn the verses you want to carry with you." }),
+      ])),
+      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, mine.link, learn.link]),
+    );
+    if (cave().signedIn()) fillHubCounts(mine, learn);
+  }
+
+  async function fillHubCounts(mine, learn) {
+    const setCount = ({ count, link }, n, label) => {
+      if (!n) return;
+      count.textContent = String(n);
+      count.hidden = false;
+      link.setAttribute("aria-label", `${link.querySelector("strong").textContent}, ${label}`);
+    };
+    const [notesRows, marks, verses] = await Promise.allSettled([
+      cave().api("/me/notes"),
+      cave().api("/me/highlights"),
+      cave().api(`/me/memorize?today=${cave().localToday()}`),
+    ]);
+    const kept = (notesRows.status === "fulfilled" ? notesRows.value.length : 0) + (marks.status === "fulfilled" ? marks.value.length : 0);
+    setCount(mine, kept, `${kept} kept`);
+    if (verses.status === "fulfilled") {
+      const due = verses.value.due;
+      setCount(learn, due, `${due} due today`);
+      if (due) learn.count.classList.add("is-due");
+    }
+  }
+
   // Opens one of MINE, with the way back to the chapter that was open.
   async function showMine(kind) {
     const page = MINE[kind];
@@ -751,7 +831,7 @@
     clearSelection();
     document.title = `${page.title}, Adullum`;
     window.scrollTo({ top: 0 });
-    $("#readerBack span").textContent = current ? `Back to ${current.book} ${current.chapter}` : "Back to reading";
+    $("#readerBack span").textContent = current ? `Back to ${current.book} ${current.chapter}` : "Back to the Bible";
     $("#readerBack").href = current ? `#${hashFor(current.book, current.chapter)}` : "#bible";
     const box = $("#readerMine");
     const head = el("div", { class: "page-head" }, el("div", {}, [

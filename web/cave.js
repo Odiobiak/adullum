@@ -318,10 +318,20 @@
     return (profile && profile.email) || (session && session.user && session.user.email) || "";
   }
 
-  function updateChrome(embers) {
+  // Up to two initials for the account chip: "Odiche Obiakarije" is "OO",
+  // "Ruth" is "R", and with no name yet, the first letter of the email.
+  function initials(name, fallback) {
+    const words = (name || "").trim().split(/\s+/).filter(Boolean);
+    const letters = words.length > 1 ? words[0][0] + words[words.length - 1][0] : (words[0] || fallback || "A")[0];
+    return letters.toUpperCase();
+  }
+
+  function updateChrome() {
     const name = displayName();
+    const initialsNode = $("#meInitials");
+    if (initialsNode) initialsNode.textContent = initials(name, email());
     const me = $("#meBtn");
-    if (me) me.textContent = ((name || email() || "A").trim()[0] || "A").toUpperCase();
+    if (me) me.title = name || email() || "Your account";
     if ($("#menuName")) $("#menuName").textContent = name || "Your account";
     if ($("#menuEmail")) $("#menuEmail").textContent = email();
     // The admin desk link is only there for the people in ADMIN_EMAILS.
@@ -330,16 +340,6 @@
       desk.hidden = !(profile && profile.is_admin);
       const waiting = profile && profile.desk_waiting;
       desk.textContent = waiting ? `Admin desk (${waiting} waiting)` : "Admin desk";
-    }
-    if (embers !== undefined) {
-      const pill = $("#streakPill");
-      if (embers && embers.streak > 0) {
-        $("#streakCount").textContent = embers.streak;
-        pill.title = `${embers.streak} ${embers.streak === 1 ? "day" : "days"} in a row`;
-        pill.hidden = false;
-      } else {
-        pill.hidden = true;
-      }
     }
   }
 
@@ -735,7 +735,7 @@
     // fills in the name rather than waiting for it.
     if (data.profile) profile = { ...(profile || {}), ...data.profile };
     setGreeting();
-    updateChrome(data.embers);
+    updateChrome();
 
     const v = await versePromise;
     $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
