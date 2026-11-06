@@ -133,11 +133,17 @@ def find_references(text: str) -> list[ParsedReference]:
     (app/agent/nodes.py::listen)."""
     text = _SONG_OF_RE.sub("Song", text)
     found = []
-    for match in _REFERENCE_RE.finditer(text):
+    pos = 0
+    while match := _REFERENCE_RE.search(text, pos):
         key = match.group("book").replace(" ", "").lower()
         canonical = _ALIAS_TO_CANONICAL.get(key)
         if not canonical:
+            # Not a book, so look again from the next word rather than past
+            # this whole match: in "Compare 1 Peter 5:7" the first match is
+            # "Compare 1", and skipping it would swallow the "1" of "1 Peter".
+            pos = match.start() + 1
             continue
+        pos = match.end()
         vstart = match.group("vstart")
         vend = match.group("vend")
         found.append(

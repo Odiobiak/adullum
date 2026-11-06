@@ -1,13 +1,13 @@
 // The Bible reader: pick a book and chapter, read it in any translation that
 // has been loaded, and tap verses to keep a note, highlight them, learn them by
-// heart, ask Aquila about them, or follow them on the map. Every note and
+// heart, ask Aquila about them, or follow them in Connections. Every note and
 // highlight together is "My notes" (#bible/notes), and the verses being
 // learned are "Memorize" (#bible/memorize, drawn by web/memorize.js). Both open
 // from the reader bar through showMine below, so they live beside the text.
 //
 // This file also owns the translation preference. The hidden #translation
 // input in index.html stays the one place every script reads it from (Aquila's
-// answers, the verse of the day, the map), so changing it here changes it
+// answers, the verse of the day, Connections), so changing it here changes it
 // everywhere. It is remembered on this device, and on the profile when signed in.
 //
 // Loaded after web/cave.js, whose helpers (el, overlay, api, toast) it borrows
@@ -226,7 +226,7 @@
       chapter = (last && last.chapter) || 1;
     }
     chapter = Math.min(Math.max(chapter, 1), book.chapters);
-    // Coming back to the chapter already open (from the map, say) only moves to the verse.
+    // Coming back to the chapter already open (from Connections, say) only moves to the verse.
     if (current && current.book === book.name && current.chapter === chapter && current.translation === translation()) {
       if (verse) focusVerse(verse);
       if (notesSignedIn !== cave().signedIn()) loadPersonal(loadToken);

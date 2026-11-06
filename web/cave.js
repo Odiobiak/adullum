@@ -974,11 +974,11 @@
         el("div", { class: "connect fade-in" }, [
           el("strong", { text: `Close to ${ref}:` }),
           el("span", { class: "muted", text: near.join(" · ") }),
-          el("button", { class: "linkish", type: "button", style: "padding:0", text: "Open the map", onclick: () => window.Graph.open([ref]) }),
+          el("button", { class: "linkish", type: "button", style: "padding:0", text: "See all connections", onclick: () => window.Graph.open([ref]) }),
         ])
       );
     } catch {
-      /* the map line is extra */
+      /* the connections line is extra */
     }
   }
 

@@ -518,3 +518,58 @@ def pray_with(state: AgentState, config: RunnableConfig) -> AgentState:
 
     cited = [v for v in verses if f"{v.book} {v.chapter}:{v.verse}" in answer]
     return {"answer": answer, "verses": verses, "citations": cited, "translation": translation}
+
+
+# ---------------------------------------------------------------------------
+# explain_link: "Why are these connected?" in Connections (web/graph.js).
+# Not a graph node: one short, cached call from app/connections.py, kept here
+# so every word Aquila says is written in one file. Same rule as everywhere:
+# she may only quote or name the two passages she was given.
+# ---------------------------------------------------------------------------
+EXPLAIN_LINK_PROMPT = """You are Aquila, a warm and steadfast companion who loves God and \
+knows Scripture well. Someone is looking at two Bible passages joined on a picture of how \
+Scripture connects, and asked why they're linked. They're linked {reason}.
+
+In two or three plain sentences, tell them how these passages connect: a shared word or \
+image, a promise and its keeping, a quotation or an echo, or the same truth seen from two \
+angles. Use only the two passages given. Don't quote or name any other verse. If the link \
+is loose, say so honestly instead of forcing one.
+
+Write like a person talking to a friend, not like an AI assistant. Never use an em dash, \
+and don't restate the question."""
+
+_LINK_REASONS = {
+    (True, True): "both in the classic cross-references and by how close they are in meaning",
+    (True, False): "in the classic cross-references (the Treasury of Scripture Knowledge)",
+    (False, True): "because their wording and ideas are close in meaning",
+    (False, False): "on the picture",
+}
+
+
+def _passage_ref(verses: list[Verse]) -> str:
+    first, last = verses[0], verses[-1]
+    span = f"{first.verse}" if first.verse == last.verse else f"{first.verse}-{last.verse}"
+    return f"{first.book} {first.chapter}:{span}"
+
+
+def explain_link(
+    a: list[Verse], b: list[Verse], *, cross_ref: bool, close_in_meaning: bool, config: RunnableConfig | None = None
+) -> str:
+    """Two or three sentences on how passage `a` connects to passage `b`.
+
+    A reply that names any other verse is written again once; if it still
+    does, a plain sentence about the link is returned instead, because a
+    shorter answer is better than one that points at an unlisted verse."""
+    system = EXPLAIN_LINK_PROMPT.format(reason=_LINK_REASONS[(cross_ref, close_in_meaning)])
+    prompt = "\n\n".join(
+        f"{label} ({_passage_ref(vs)}, {vs[0].translation}): " + " ".join(v.text for v in vs)
+        for label, vs in (("First passage", a), ("Second passage", b))
+    )
+    answer = _llm.invoke([SystemMessage(system), HumanMessage(prompt)], config=config).content
+    if unlisted_references(answer, a + b):
+        system += "\n\nYour last draft named a verse that isn't one of these two. Name only these two."
+        answer = _llm.invoke([SystemMessage(system), HumanMessage(prompt)], config=config).content
+        if unlisted_references(answer, a + b):
+            how = "are linked in the classic cross-references" if cross_ref else "are close in wording and meaning"
+            answer = f"{_passage_ref(a)} and {_passage_ref(b)} {how}. Read them side by side and notice what each one brings out in the other."
+    return answer

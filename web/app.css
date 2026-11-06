@@ -678,7 +678,17 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .talk-actions { display: flex; gap: 8px; }
 .soft-thread { display: flex; flex-direction: column; gap: 18px; padding: 4px 0; }
 .soft-aq { display: flex; gap: 12px; align-items: flex-start; max-width: 92%; animation: rise 0.3s ease both; }
-.soft-aq .dot { width: 30px; height: 30px; flex: none; border-radius: 50%; background: radial-gradient(circle at 35% 30%, var(--ember-hi), var(--ember)); box-shadow: 0 0 22px var(--ember-glow); margin-top: 2px; }
+/* Aquila in Refuge: her wing mark (.avatar-a), a little larger than in a
+   study answer, ringed by a soft halo of the theme's glow so she reads as
+   present rather than as a badge. */
+.refuge-aq { width: 34px; height: 34px; margin-top: 2px; box-shadow: 0 0 0 5px color-mix(in srgb, var(--glow) 75%, transparent), 0 10px 24px -8px var(--ember-glow); }
+.refuge-aq.is-listening { animation: aq-breathe 2.4s ease-in-out infinite; }
+@keyframes aq-breathe {
+  0%, 100% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--glow) 60%, transparent), 0 10px 24px -8px var(--ember-glow); }
+  50% { box-shadow: 0 0 0 9px color-mix(in srgb, var(--glow) 90%, transparent), 0 12px 30px -6px var(--ember-glow); }
+}
+/* The Talk with Aquila door shows the same mark on its warm circle. */
+.door-icon svg path[d^="M5 18"] { stroke-width: 2.2; }
 .soft-aq .words { background: var(--card-warm); border: 1px solid var(--ember-line); border-radius: 6px 20px 20px 20px; padding: 13px 18px; font-size: 16.5px; line-height: 1.65; min-width: 0; }
 .soft-aq .words > * + * { margin-top: 10px; }
 .soft-aq .words .verse-ref { display: inline-block; margin-right: 12px; }
@@ -687,7 +697,7 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .soft-composer textarea { flex: 1; border: 0; background: transparent; resize: none; padding: 10px 0; font-size: 16px; min-height: 44px; max-height: 160px; }
 .soft-composer textarea:focus { outline: none; }
 .soft-composer:focus-within { border-color: var(--ember-line); box-shadow: 0 0 0 4px var(--ring); }
-.listening { padding-left: 42px; }
+.listening { display: flex; gap: 12px; align-items: center; }
 .care-card { padding: 6px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--sage-line); display: grid; }
 .care-line { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 15px; }
 .care-line:first-child { border-top: 0; }

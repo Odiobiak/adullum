@@ -1,10 +1,11 @@
-// The knowledge graph: a force-directed map of how passages connect.
+// Connections (the nav item, once called "Map"): a force-directed graph of
+// how passages connect in meaning. Not a geographic map.
 //
 // Seeds come from an answer's citations, a journal entry, or the search box.
 // Each seed's neighbours come from GET /connections (app/connections.py),
 // which finds the verses nearest in meaning anywhere else in the canon.
 // Clicking a node opens it in the side panel; "Follow this thread" fetches
-// that verse's own neighbours and grows the map from there.
+// that verse's own neighbours and grows the graph from there.
 //
 // d3 is only fetched the first time the graph opens, so the chat page itself
 // pays nothing for it.
@@ -60,7 +61,7 @@
     root.className = "graph-overlay";
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
-    root.setAttribute("aria-label", "Knowledge graph");
+    root.setAttribute("aria-label", "Connections");
     root.innerHTML = `
       <div class="graph-top">
         <div>
@@ -128,7 +129,7 @@
     const params = new URLSearchParams({ refs: refs.join(";"), translation: translation(), k: "6" });
     const resp = await fetch(`${apiBase()}/connections?${params}`);
     const body = await resp.json().catch(() => ({}));
-    if (!resp.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Couldn't map those passages.");
+    if (!resp.ok) throw new Error(typeof body.detail === "string" ? body.detail : "Couldn't find connections for those passages.");
     return body;
   }
 

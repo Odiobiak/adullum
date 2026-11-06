@@ -9,3 +9,5 @@ data/*.csv
 .DS_Store
 *.egg-info/
 .claude/settings.local.json
+data/*.txt
+data/*.zip

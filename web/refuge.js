@@ -22,6 +22,10 @@
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
   const toast = (text) => cave().toast(text);
+  // Aquila's wing mark, shared with the rest of the app (AQUILA_MARK in index.html).
+  const aquilaMark = () => (app() && app().aquilaMark) || "";
+  // Her mark in its gradient circle, as she appears beside what she says.
+  const aquilaAvatar = (extra = "") => el("span", { class: `avatar-a refuge-aq${extra}`, "aria-hidden": "true", html: aquilaMark() });
 
   const svg = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
   const ICON = {
@@ -186,7 +190,7 @@
         el("h2", { class: "refuge-q", text: "What's on your heart today?" }),
         el("div", { class: "refuge-doors" }, [
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
-          door(ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
+          door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
           door(ICON.grow, "Grow", "Hopes, goals, habits and prayers to grow into with God.", growRoom),
           door(ICON.together, "Amens", "Share without your name. Others say amen with you.", amensRoom),
           door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
@@ -397,7 +401,7 @@
 
   function aquilaBubble(text, extra) {
     return el("div", { class: "soft-aq" }, [
-      el("span", { class: "dot", "aria-hidden": "true" }),
+      aquilaAvatar(),
       el("div", { class: "words" }, [...text.split(/\n{2,}/).map((p) => el("p", { text: p })), extra || null]),
     ]);
   }
@@ -492,7 +496,11 @@
       talk.messages.push(mine);
       list.append(messageNode(mine));
       box.value = "";
-      const wait = el("div", { class: "listening", "aria-label": "Aquila is listening", html: '<span class="thinking"><span></span><span></span><span></span></span>' });
+      // While she replies, her mark breathes slowly beside three soft dots.
+      const wait = el("div", { class: "listening", role: "status", "aria-label": "Aquila is listening" }, [
+        aquilaAvatar(" is-listening"),
+        el("span", { class: "thinking", html: "<span></span><span></span><span></span>" }),
+      ]);
       list.append(wait);
       wait.scrollIntoView({ behavior: "smooth", block: "nearest" });
       const current = talk;
@@ -944,7 +952,7 @@
         el("span", { text: amenCount(post.reactions) }),
         el("span", { text: plural(post.kind_words.length, "kind word", "kind words") }),
       ]) : null,
-      post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "A person reads everything before it's shared. It'll appear on the wall once they have." }) : null,
+      post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "This is approved before it's shared. It'll appear on the wall once it is." }) : null,
       post.status === "not_shared" ? el("p", { class: "faint", style: "font-size:14px", text: "This one wasn't shared on the wall. It's still here for you, and you can take it down." }) : null,
       post.kind_words.length ? el("div", { class: "encouragements" }, post.kind_words.map(kindWordNode)) : null,
       el("div", { class: "burden-actions" }, el("button", { class: "act danger", type: "button", text: "Take it down", onclick: async () => {
@@ -975,7 +983,7 @@
     }));
     const msg = cave().formMessage();
     const care = el("div", { hidden: true });
-    const send = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Share without my name" });
+    const send = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Share anonymously" });
     send.onclick = async () => {
       const body = box.value.trim();
       if (!body) return msg.say("Write a little first.", true);
@@ -998,7 +1006,7 @@
         }
         box.value = "";
         count.textContent = "280 left";
-        toast("Thank you. Once a person has read it, others will start carrying it with you.");
+        toast("Thank you. Once it's approved, others can say amen with you.");
         rerender();
       } catch (err) {
         msg.say(err.message, true);
@@ -1010,7 +1018,7 @@
       el("h3", { class: "section-title", text: "Share something" }),
       kinds, box, msg.node,
       el("div", { class: "share-foot" }, [
-        el("span", { text: "A person reads everything before it's shared. You can take it down any time." }),
+        el("span", { text: "This is approved before it's shared. You can take it down any time." }),
         el("span", { class: "share-send" }, [count, send]),
       ]),
       care,
@@ -1025,7 +1033,7 @@
       return failed(err);
     }
     const rerender = () => amensRoom();
-    show(room("Amens", "Share what you're carrying, or something good, without your name. Others say amen, praying or rejoicing with you, and can send a few kind words, never a message of their own. Galatians 6:2, Romans 12:15.",
+    show(room("Amens", "Share what you're carrying or something good, anonymously. People say amen, praying or rejoicing with you, and can send a few kind words.",
       shareBox(rerender),
       data.mine.length ? el("section", { class: "wall-section" }, [el("p", { class: "kicker", text: "What you've shared" }), ...data.mine.map((p) => mineCard(p, rerender))]) : null,
       el("section", { class: "wall-section" }, [
