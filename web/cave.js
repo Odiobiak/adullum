@@ -1172,54 +1172,44 @@
     const u = new SpeechSynthesisUtterance(plainAnswer(text));
     u.rate = 0.97;
     const label = btn.querySelector("span");
+    // The button may show only its icon (under an answer), so its state is
+    // also in its name and colour, not just the word.
+    const show = (playing) => {
+      label.textContent = playing ? "Stop" : "Listen";
+      btn.setAttribute("aria-label", playing ? "Stop reading" : "Listen");
+      btn.title = playing ? "Stop reading" : "Listen";
+      btn.classList.toggle("is-playing", playing);
+    };
     u.onend = u.onerror = () => {
       if (speaking === btn) speaking = null;
-      label.textContent = "Listen";
+      show(false);
     };
     speaking = btn;
-    label.textContent = "Stop";
+    show(true);
     speechSynthesis.speak(u);
-  }
-
-  async function connectionsFor(msg, ref) {
-    try {
-      const params = new URLSearchParams({ refs: ref, translation: translation(), k: "3" });
-      const res = await fetch(`${apiBase()}/connections?${params}`);
-      if (!res.ok) return;
-      const data = await res.json();
-      const near = data.edges.sort((a, b) => b.weight - a.weight).slice(0, 3).map((e) => (e.source === ref ? e.target : e.source));
-      if (!near.length) return;
-      msg.querySelector(".answer-actions").after(
-        el("div", { class: "connect fade-in" }, [
-          el("strong", { text: `Close to ${ref}:` }),
-          el("span", { class: "muted", text: near.join(" · ") }),
-          el("button", { class: "linkish", type: "button", style: "padding:0", text: "See all connections", onclick: () => window.Graph.open([ref]) }),
-        ])
-      );
-    } catch {
-      /* the connections line is extra */
-    }
   }
 
   function decorateAnswer(msg, data) {
     if (!msg || msg.querySelector(".answer-actions") || !data.answer) return;
     const refs = (data.citations || []).map((c) => `${c.book} ${c.chapter}:${c.verse}`);
-    const saveBtn = el("button", { class: "act", type: "button", html: `${ICON.bookmark}<span>Save to journal</span>` });
+    const saveBtn = el("button", { class: "act", type: "button", title: "Save to journal", "aria-label": "Save to journal", html: `${ICON.bookmark}<span>Save</span>` });
     saveBtn.onclick = () =>
       openJournal({ question: data.query, answer: data.answer, citations: data.citations }, () => {
         saveBtn.classList.add("is-done");
         saveBtn.innerHTML = `${ICON.check}<span>Saved</span>`;
       });
-    const listenBtn = el("button", { class: "act", type: "button", html: `${ICON.speaker}<span>Listen</span>` });
+    const listenBtn = el("button", { class: "act act-icon", type: "button", title: "Listen", "aria-label": "Listen", html: `${ICON.speaker}<span>Listen</span>` });
     listenBtn.onclick = () => listen(listenBtn, data.answer);
+    // One quiet line of actions: the Bible first, since that's where an answer
+    // should lead. How a verse links to others lives in Connections alone.
     const row = el("div", { class: "answer-actions" }, [
-      saveBtn,
-      refs.length ? el("a", { class: "act", href: `#${window.Reader.href(refs[0])}`, title: `Open ${refs[0]} in the Bible`, html: `${ICON.book}<span>Read in context</span>` }) : null,
+      refs.length ? el("a", { class: "act", href: `#${window.Reader.href(refs[0])}`, title: `Open ${refs[0]} in the Bible`, html: `${ICON.book}<span>Bible</span>` }) : null,
       refs.length ? el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open(refs.slice(0, 4)) }) : null,
+      saveBtn,
       listenBtn,
       refs.length
         ? el("button", {
-            class: "act", type: "button", html: `${ICON.share}<span>Share</span>`,
+            class: "act act-icon", type: "button", title: "Share", "aria-label": "Share", html: `${ICON.share}<span>Share</span>`,
             onclick: async () => {
               try {
                 shareCard(await verseText(refs[0]));
@@ -1232,7 +1222,6 @@
     ]);
     const cites = msg.querySelector(".cites");
     (cites || msg).after(row);
-    if (refs.length) connectionsFor(msg, refs[0]);
   }
 
   function markMemory(msg) {

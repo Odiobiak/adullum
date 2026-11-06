@@ -74,9 +74,25 @@ you touch it.
 
 ### The shape of an answer
 
-`SYNTHESIZE_SYSTEM_PROMPT` asks for four Markdown headings (`## The passage`,
-`## Context`, `## What it means`, `## To sit with`), which the web client renders
-as ruled section headings and `suggest_followups` extends with a "Continue" block.
+`SYNTHESIZE_SYSTEM_PROMPT` asks for three Markdown headings (`## The passage`,
+`## Context`, `## To think about`), which the web client renders as ruled section
+headings and `suggest_followups` extends with a "Keep going" block.
+
+**Fact is stated; meaning is offered.** This is the product's stance, not a style
+choice: Aquila is a place to rest and learn, never one that presses a meaning on
+anyone. What the text says and what the verses themselves show (who speaks, to
+whom, what happens) goes in "The passage" and "Context", plainly and cited.
+Every reading of a passage (what it means, teaches or asks of someone) goes only
+in "To think about", offered as threads to consider and ending with a question,
+never as a conclusion ("this means", "this teaches us" are out). There was a
+"What it means" heading once; it was removed for exactly this reason, so don't
+bring it back. `GROUND_CHECK_PROMPT` knows a reflection offered as a question is
+not a claim, while an interpretation stated as fact still has to be supported.
+
+Under each answer stay two quiet lines and nothing more: the references as plain
+links (they open Connections), then Bible, Connections, Save, and Listen and
+Share as icons (`cave.js::decorateAnswer`). The "Close to..." strip of related
+verses was removed, since Connections already shows them.
 Two things depend on that format, so changing the headings means changing both:
 `web/index.html::renderAnswerHtml` (which strips the surrounding newlines so the
 Markdown's blank lines don't stack on top of the heading's own margin) and
@@ -142,7 +158,7 @@ Anyone can read; notes, highlights and memorizing need an account. Run `supabase
 - **Highlights follow the same rule**, one colour per verse (gold, green, blue, rose), stored a row per verse so overlapping highlights never conflict. The server reads each verse's text from the verses table when it saves one, and `highlights.py::group_highlights` joins neighbouring verses of one colour back into a passage for My notes. The colours are `--hl-*` tokens in all four themes.
 - **Asking Aquila about a verse or note is an ordinary question** composed by `reader.js::askQuery` with the reference first (`On John 3:16-18: ...`), so `parse_reference` pulls exactly those verses and nothing in the graph changes. A note goes in quoted as the person's own words; the synthesize prompt still grounds only on retrieved verses, so a note can't become a citation.
 - **The Bible tab opens on a front page** (`#bible`, `reader.js::showHub`) with four ways in: Bible (carrying on at the chapter last read on this device), Reading plans, My notes and Memorize, so it's plain the tab holds more than the text. Signed in, the last three show how many plans still have today's reading to do, how many notes and highlights are kept and how many verses are due. A bare `#bible` link always lands there; anything that should open a chapter links to one.
-- Reader links are `#bible/<Book-with-hyphens>/<chapter>[/<verse>]`; `Reader.href("John 3:16")` builds one. "Read in context" under each answer and in the Connections side panel uses it.
+- Reader links are `#bible/<Book-with-hyphens>/<chapter>[/<verse>]`; `Reader.href("John 3:16")` builds one. "Bible" under each answer and "Read in context" in the Connections side panel use it.
 
 ### Sermon notes (`app/sermons.py`, `app/sermon_export.py`, `web/sermons.js`)
 
@@ -165,7 +181,7 @@ The Church tab (`#church`, nav label "Church", a phone tab between Aquila and Ca
 - **Times**: gatherings are stored in the church's own IANA time zone, `{label, day (0 = Sunday), time "HH:MM"}`, and `church.js::nextAt` shows each in the person's time. Each event and gathering has a bell (Reminders below); an event's bell also offers its own calendar as an .ics file.
 - **Notices and the info icon**: each notice keeps when Adullum first saw it (`added`); the icon's count is the notices newer than `notices_seen_at`, cleared by `POST /me/churches/{id}/seen` when the icon or the News tab is opened.
 - **Live**: a church's YouTube `/live` page is checked at most every two minutes per channel (no API key: the canonical watch link plus `"isLiveNow":true`). Home shows a card only while a church is live and its "Tell me when it's live" is on, and nothing else about churches; the same switch sends a notification once per stream (see Reminders below). `#church/live/<id>` plays it with notes beside it, kept in the browser until "Save to Sermons".
-- **Sermons and Listen** come from each church's public YouTube feed (the channel id is found and kept on save) and podcast feed (Apple Podcasts links resolve to their feed; Spotify has none). Listen tags each sermon with seasons (weary, anxious, grateful, grieving, deciding, joyful) by the model once, kept in `sermon_moods`, which holds no personal data. Videos play in a docked youtube-nocookie player.
+- **Sermons and Listen** come from each church's public YouTube feed (the channel id is found and kept on save) and podcast feed (Apple Podcasts links resolve to their feed; Spotify has none). Listen (`app/listen.py`) offers those sermons and Adullum's catalog, a short hand-chosen list of official public sermon podcasts across the traditions (`listen.py::CATALOG`, each feed checked to open and parse; keep it balanced across traditions if you add to it). Each sermon is tagged with seasons (weary, anxious, grateful, grieving, deciding, joyful) by the model once, kept in `sermon_moods`, which holds no personal data; one batch is tagged before the answer and the rest after it (`pending`, and the page looks again). The season and the source (everywhere, your churches or one of them, the catalog or one source) are two compact dropdowns on one line, with what Listen is behind the info button; keep pills off this page. Videos play in a docked youtube-nocookie player.
 - **Notes from a link** (`POST /me/sermons/from-link`): the video's transcript (youtube-transcript-api, which YouTube often refuses to cloud servers) or else its description, drafted into `SermonDraft`. `churches.py::note_from_draft` keeps only passages the reference parser accepts, as verse blocks (text read from the database when shown), drops a "quote" that is really a verse, and adds timestamps only when there's a video. The draft is an ordinary sermon note after that.
 - **The week after** (`#church/week/<id>`, `week_steps`): reread the main passage, learn a verse (to Memorize), one question (the answer kept in `week`), do the thing (the note's first to-do), pray. The Churches part shows it as "This week" for a sermon from the last eight days.
 

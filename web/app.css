@@ -509,13 +509,18 @@ button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
 /* The four study headings from SYNTHESIZE_SYSTEM_PROMPT, as ruled section headings. */
 .answer .heading { display: block; font: 600 15px/1.3 var(--body); color: var(--text); margin: 24px 0 6px; padding-top: 16px; border-top: 1px solid var(--divider); }
 .answer .heading:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
-.cites { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 20px; align-items: center; }
-.cites:not(:empty)::before { content: "References (" attr(data-translation) ")"; flex-basis: 100%; font-size: 13px; color: var(--faint); font-weight: 500; }
-.citation { font-size: 13px; padding: 4px 11px; border-radius: var(--pill); background: var(--raised); border: 1px solid var(--line); color: var(--text); transition: border-color 0.15s ease, color 0.15s ease, transform 0.12s ease; }
-.citation:hover { border-color: var(--ember); color: var(--ember-hi); transform: translateY(-1px); }
-.answer-actions { display: flex; flex-wrap: wrap; gap: 6px; margin: 16px 0 0; }
-.connect { display: flex; gap: 6px 12px; align-items: baseline; flex-wrap: wrap; margin-top: 16px; padding: 14px 18px; border-radius: 18px; background: radial-gradient(120% 160% at 0% 100%, var(--glow) 0%, var(--well) 60%); border: 1px solid var(--line); font-size: 14px; }
-.connect strong { font-weight: 600; }
+/* Under an answer: two quiet lines, the references and then the actions,
+   with no pills, so the answer itself keeps the space. */
+.cites { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 18px; align-items: baseline; }
+.cites:not(:empty)::before { content: attr(data-translation); font-size: 12px; font-weight: 700; color: var(--faint); }
+.citation { font-size: 13.5px; font-weight: 600; padding: 2px 0; border: 0; background: none; color: var(--ember-hi); }
+.citation:hover { text-decoration: underline; }
+.answer-actions { display: flex; flex-wrap: wrap; gap: 0; margin: 6px 0 0 -6px; }
+.answer-actions .act { gap: 5px; border-color: transparent; padding: 4px 6px; color: var(--muted); font-weight: 500; }
+.answer-actions .act:hover { border-color: transparent; background: var(--hover); color: var(--text); }
+.answer-actions .act.is-done { border-color: transparent; background: transparent; color: var(--sage); }
+.answer-actions .act.is-playing { color: var(--ember); }
+.answer-actions .act-icon { min-width: var(--h-chip); justify-content: center; }
 .followups { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--divider); }
 .followups:empty { display: none; }
 .followups .kicker { margin-bottom: 4px; }
@@ -2011,9 +2016,23 @@ button.refl-status-pill { cursor: pointer; }
 .church-sheet-head h3 { margin: 0; }
 
 /* Listen and sermons */
-.church-moods { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 0 0 12px; padding-bottom: 2px; }
-.church-moods::-webkit-scrollbar { display: none; }
-.church-moods .mood { flex: none; text-transform: none; font-size: 14px; }
+/* Listen: one line with the count and its info button, and two compact
+   dropdowns (season, source). On a phone the dropdowns share a line of
+   their own, half each. */
+.church-listen-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 14px; }
+.church-listen-count { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.church-listen-filters { display: flex; gap: 6px; margin-left: auto; min-width: 0; }
+.church-listen-filters .filter-select { max-width: 220px; min-width: 0; }
+.church-listen-list { display: grid; gap: 18px; }
+.church-listen-group { display: grid; gap: 8px; }
+.church-listen-head { font-size: 15px; font-weight: 600; margin: 0; }
+.church-listen-empty { font-size: 14px; color: var(--muted); margin: 0; padding: 4px 2px; }
+.church-listen-empty a { color: var(--ember); font-weight: 600; }
+.church-listen-pending { font-size: 13px; color: var(--faint); margin: 0; }
+@media (max-width: 560px) {
+  .church-listen-filters { width: 100%; margin-left: 0; }
+  .church-listen-filters .filter-select { flex: 1 1 0; max-width: none; }
+}
 .church-new-row { display: flex; gap: 8px; margin-bottom: 12px; }
 .church-new-row .btn { display: inline-flex; align-items: center; gap: 6px; }
 .church-new-row svg { width: 16px; height: 16px; }

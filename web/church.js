@@ -8,7 +8,8 @@
 // Routes, all inside the one view:
 //   #church             your churches, each with its info icon for notices
 //   #church/sermons     sermon notes (drawn by web/sermons.js); #sermons lands here
-//   #church/listen      sermons from your churches, picked by how you feel
+//   #church/listen      sermons for how you feel, from your churches and
+//                       Adullum's catalog (app/listen.py)
 //   #church/add         add a church from a link, or by hand
 //   #church/c/<id>      one church: sermons, times, news, about
 //   #church/live/<id>   a live stream with notes beside it
@@ -51,7 +52,7 @@
   let root = null;        // #churchPage while the view is open
   let churches = null;    // the list, once loaded
   let live = [];          // churches streaming right now
-  let mood = "weary";
+  let mood = "";          // Listen's season; empty is any season
   let sermonsReady = null;
   let showing = "";       // which part of the view is drawn
 
@@ -759,39 +760,130 @@
   }
 
   // ---------------------------------------------------------------------
-  // Listen
+  // Listen: sermons for how you feel, from the person's churches and from
+  // Adullum's catalog of public sermon podcasts (app/listen.py). The season
+  // and the source are two compact dropdowns on one line, and what Listen
+  // is sits behind the info button, so the sermons get the room.
   // ---------------------------------------------------------------------
+  const LISTEN_ABOUT = [
+    "Sermons for how you feel, from your churches and from Adullum's catalog of public sermon podcasts across the Christian traditions.",
+    "Adullum sorts each sermon into seasons with AI, so one can sit under more than one, and now and then one won't quite fit.",
+  ];
+  const CATALOG_ABOUT = "Chosen by Adullum from public sermon podcasts across the traditions and around the world: Catholic, Orthodox, Anglican, Presbyterian, Baptist and Pentecostal, from the UK, the US and Nigeria. Each is the preacher's or ministry's own feed.";
+  // How many times a list still being sorted is looked at again, and how often.
+  const LISTEN_RETRIES = 3;
+  const LISTEN_RETRY_MS = 8000;
+
+  let listenSource = "all";   // "all", "mine", "church:<id>", "catalog" or "catalog:<key>"
+  let listenSources = null;   // { churches, catalog }, for the source dropdown
+  let listenTimer = null;
+
+  // The source dropdown: everywhere, then the person's churches, then the
+  // catalog, each group with a way to choose all of it or one source.
+  function sourceSelect(onPick) {
+    const { churches = [], catalog = [] } = listenSources || {};
+    const option = (value, text) => el("option", { value, text, selected: value === listenSource });
+    const select = el("select", { class: "filter-select", "aria-label": "Where from" }, [
+      option("all", "Everywhere"),
+      churches.length ? el("optgroup", { label: "Your churches" }, [
+        option("mine", "All your churches"),
+        ...churches.map((c) => option(`church:${c.id}`, c.name)),
+      ]) : null,
+      el("optgroup", { label: "Adullum's catalog" }, [
+        option("catalog", "The whole catalog"),
+        ...catalog.map((c) => option(`catalog:${c.key}`, `${c.name} (${c.tradition})`)),
+      ]),
+    ].filter(Boolean));
+    // A church removed since, or a source no longer offered, falls back to everywhere.
+    if (select.value !== listenSource) listenSource = select.value = "all";
+    select.addEventListener("change", () => onPick(select.value));
+    return select;
+  }
+
   async function showListen() {
-    const list = el("div", { class: "church-listen-list" });
-    const chips = el("div", { class: "moods church-moods", role: "group", "aria-label": "How you feel" }, MOODS.map(([key, label]) => el("button", {
-      class: "mood", type: "button", "aria-pressed": String(key === mood), text: label,
-      onclick: (e) => {
-        mood = key;
-        chips.querySelectorAll(".mood").forEach((b) => b.setAttribute("aria-pressed", String(b === e.currentTarget)));
-        load();
-      },
-    })));
-    fill(head("listen"), chips, list);
-    async function load() {
-      const asked = mood;
-      list.replaceChildren(el("div", { class: "empty", text: "Finding sermons..." }));
-      let items;
+    clearTimeout(listenTimer);
+    const count = el("span", { class: "list-count" });
+    const filters = el("div", { class: "church-listen-filters" });
+    const list = el("div", { class: "church-listen-list" }, el("div", { class: "empty", text: "Finding sermons..." }));
+    fill(
+      head("listen"),
+      el("div", { class: "church-listen-bar" }, [
+        el("div", { class: "church-listen-count" }, [count, cave().info(LISTEN_ABOUT, { label: "About Listen" })]),
+        filters,
+      ]),
+      list,
+    );
+
+    // Read each time, so a church added or removed since shows straight away.
+    try {
+      listenSources = await api("/me/listen/sources");
+    } catch {
+      listenSources = listenSources || { churches: [], catalog: [] };
+    }
+    if (showing !== "listen") return;
+    const drawFilters = () => filters.replaceChildren(
+      cave().filterSelect("How you feel", [["", "Any season"], ...MOODS], mood, (value) => { mood = value; load(); }),
+      sourceSelect((value) => { listenSource = value; load(); }),
+    );
+    drawFilters();
+
+    let tries = 0;
+    async function load({ quietly = false } = {}) {
+      clearTimeout(listenTimer);
+      const asked = `${mood}|${listenSource}`;
+      if (!quietly) {
+        tries = 0;
+        count.textContent = "";
+        list.replaceChildren(el("div", { class: "empty", text: "Finding sermons..." }));
+      }
+      const query = new URLSearchParams({ source: listenSource });
+      if (mood) query.set("mood", mood);
+      let data;
       try {
-        const mine = await loadChurches();
-        if (!mine.length) {
-          list.replaceChildren(el("div", { class: "empty church-quiet" }, ["Add your churches to hear their sermons here.", el("div", {}, el("a", { class: "btn btn-ghost btn-sm", href: "#church/add", text: "Add a church" }))]));
-          return;
-        }
-        items = await api(`/me/listen?mood=${asked}`);
+        data = await api(`/me/listen?${query}`);
       } catch (err) {
-        list.replaceChildren(failed(err));
+        if (!quietly) list.replaceChildren(failed(err));
         return;
       }
-      if (asked !== mood) return;
-      list.replaceChildren(items.length
-        ? el("div", { class: "card church-list" }, items.map((i) => sermonRow(i, { showChurch: true })))
-        : el("div", { class: "empty church-quiet", text: "Nothing for this from your churches' recent sermons yet." }));
+      if (showing !== "listen" || asked !== `${mood}|${listenSource}`) return;
+      drawList(data);
+      // Sermons not yet sorted into seasons are sorted after the answer, so
+      // look again a few times while the person is still here.
+      if (data.pending && tries < LISTEN_RETRIES) {
+        tries += 1;
+        listenTimer = setTimeout(() => load({ quietly: true }), LISTEN_RETRY_MS);
+      }
     }
+
+    function drawList(data) {
+      const total = data.mine.length + data.catalog.length;
+      count.textContent = `${total} ${total === 1 ? "sermon" : "sermons"}`;
+      const both = listenSource === "all";
+      const wantsMine = both || listenSource === "mine" || listenSource.startsWith("church:");
+      const wantsCatalog = both || listenSource.startsWith("catalog");
+      const hasChurches = (listenSources.churches || []).length > 0;
+      list.replaceChildren(...[
+        wantsMine ? group(both ? "From your churches" : null, null, data.mine, hasChurches
+          ? "Nothing for this in your churches' recent sermons yet."
+          : el("p", { class: "church-listen-empty" }, ["Add your church to hear its sermons here too. ", el("a", { href: "#church/add", text: "Add a church" })])) : null,
+        wantsCatalog ? group(both ? "From Adullum's catalog" : null, CATALOG_ABOUT, data.catalog, "Nothing for this in the catalog yet.") : null,
+        data.pending ? el("p", { class: "church-listen-pending", text: "Still sorting some sermons into seasons. More will appear in a moment." }) : null,
+      ].filter(Boolean));
+    }
+
+    // One group of sermons, under a small heading when both groups show.
+    function group(title, about, items, empty) {
+      let heading = null;
+      if (title) {
+        heading = el("h2", { class: "church-listen-head", text: title });
+        if (about) heading = cave().titleInfo(heading, about);
+      }
+      const body = items.length
+        ? el("div", { class: "card church-list" }, items.map((i) => sermonRow(i, { showChurch: true })))
+        : typeof empty === "string" ? el("p", { class: "church-listen-empty", text: empty }) : empty;
+      return el("section", { class: "church-listen-group fade-in" }, [heading, body]);
+    }
+
     load();
   }
 
@@ -1087,6 +1179,7 @@
   }
 
   function hide() {
+    clearTimeout(listenTimer);
     if (showing === "sermons") window.Sermons.hide();
     showing = "";
     closePlayer();

@@ -18,8 +18,8 @@ A church can be added two ways:
 
 What's live comes from each church's YouTube channel, checked at most every
 two minutes per channel. Sermons come from the channel's public feed and from
-a podcast feed. Listen tags those sermons by season (weary, anxious, ...)
-with the model once per sermon, kept in `sermon_moods`.
+a podcast feed. Listen (app/listen.py) tags those sermons by season (weary,
+anxious, ...) with the model once per sermon, kept in `sermon_moods`.
 
 A sermon note can be drafted from a link (POST /me/sermons/from-link): the
 video's transcript when YouTube allows it, otherwise its description, turned
@@ -47,7 +47,7 @@ from typing import Literal
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field, field_validator
@@ -718,16 +718,8 @@ def sermons_of(church_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> 
     return [{k: v for k, v in s.items() if k != "description"} for s in church_sermons(church)][:20]
 
 
-@router.get("/me/listen")
-def listen(mood: Literal["weary", "anxious", "grateful", "grieving", "deciding", "joyful"] = Query(...), user: AuthUser = Depends(require_user)) -> list[dict]:
-    """Sermons from the person's own churches that speak to `mood`."""
-    churches = [_ensure_channel_id(c, user) for c in _all(user)]
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        items = [s for batch in pool.map(church_sermons, churches) for s in batch[:15]]
-    tags = tag_moods(items)
-    picked = [s for s in items if mood in (tags.get(s["id"]) or [])]
-    picked.sort(key=lambda s: s.get("published") or "", reverse=True)
-    return [{k: v for k, v in s.items() if k != "description"} for s in picked][:30]
+# Listen, which picks from these sermons and Adullum's catalog by season, is
+# app/listen.py.
 
 
 # ---------------------------------------------------------------------------
