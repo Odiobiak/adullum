@@ -186,6 +186,29 @@ class TestExport:
         assert "[Recording](https://example.com/watch)" in md
         assert "*[Photo: Her slide]*" in md  # a lone .md can't carry the photo
 
+    def test_markdown_keeps_line_breaks_and_lists(self):
+        text = "Three things to hold:\n• Pray first\n• Give thanks\nThen rest.\n1. Read it\n2. Live it"
+        assert sermon_export.markdown_text(text) == [
+            "Three things to hold:  ",
+            "",
+            "- Pray first",
+            "- Give thanks",
+            "",
+            "Then rest.  ",
+            "",
+            "1. Read it",
+            "2. Live it",
+        ]
+
+    def test_markdown_reads_typed_dashes_as_bullets_but_not_a_minus(self):
+        assert sermon_export.markdown_text("- one\n* two") == ["- one", "- two"]
+        assert sermon_export.markdown_text("-5 degrees outside") == ["-5 degrees outside  "]
+
+    def test_lists_render_in_pdf_and_word(self):
+        note = {**self.note(), "blocks": [{"id": "t9", "type": "text", "text": "• Pray first\n• Give thanks\n1. Read it"}]}
+        assert sermon_export.render_pdf(note, {}, "BSB", {}).startswith(b"%PDF")
+        assert sermon_export.render_docx(note, {}, "BSB", {}).startswith(b"PK")
+
     def test_pdf_and_word_render(self):
         texts = {"Philippians 4:6-7": "Be anxious for nothing."}
         assert sermon_export.render_pdf(self.note(), texts, "BSB", {}).startswith(b"%PDF")

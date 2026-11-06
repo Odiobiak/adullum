@@ -58,6 +58,42 @@ def filename(note: dict, extension: str) -> str:
     return f"{when} {stem}.{extension}".strip()
 
 
+# A text block's list lines, as the editor writes them (web/sermons.js):
+# "• " for a bullet, "1. " or "1) " for a numbered item. "- " and "* " are
+# read as bullets too, for notes typed before the editor converted them.
+_BULLET_LINE = re.compile(r"^\s*[•*-]\s+")
+_NUMBER_LINE = re.compile(r"^\s*\d+[.)]\s+")
+
+
+def markdown_text(text: str) -> list[str]:
+    """A text block as Markdown lines.
+
+    Markdown would run a block's lines together, so each ordinary line ends
+    in a hard break (two spaces), bullets become "- " list items, numbered
+    items are kept, and a blank line separates a list from the text around
+    it so neither swallows the other.
+    """
+    out: list[str] = []
+    previous = None  # "list" or "text", for the line before
+    for raw in text.strip().split("\n"):
+        line = raw.strip()
+        if not line:
+            out.append("")
+            previous = None
+            continue
+        if _BULLET_LINE.match(line):
+            kind, line = "list", _BULLET_LINE.sub("- ", line, count=1)
+        elif _NUMBER_LINE.match(line):
+            kind = "list"
+        else:
+            kind, line = "text", f"{line}  "
+        if previous and previous != kind:
+            out.append("")
+        out.append(line)
+        previous = kind
+    return out
+
+
 def _verse_line(block: dict, verse_texts: dict[str, str]) -> str | None:
     """The verse's text for an export, or None when there isn't one to show
     (no reference yet, or a whole chapter, which is left as a reference)."""
@@ -84,7 +120,7 @@ def to_markdown(note: dict, verse_texts: dict[str, str], translation: str, image
     for block in note.get("blocks") or []:
         kind = block.get("type")
         if kind == "text" and block.get("text", "").strip():
-            lines += [block["text"].strip(), ""]
+            lines += [*markdown_text(block["text"]), ""]
         elif kind == "heading" and block.get("text", "").strip():
             lines += [f"## {block['text'].strip()}", ""]
         elif kind == "verse" and block.get("ref"):

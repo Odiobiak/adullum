@@ -41,6 +41,10 @@
     forward: svg('<path d="M9 6l6 6-6 6"/>'),
     send: svg('<path d="M5 12h13M13 6l6 6-6 6"/>'),
     check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>'),
+    // Hands pressed together, thumbs showing, for praying over a burden.
+    pray: svg('<path d="M12 4.5V15"/><path d="M12 4.5c-.6-1.3-2.2-1.2-2.6.1L8 10v3.5l-4 5 2.5 2 5.5-5"/><path d="M12 4.5c.6-1.3 2.2-1.2 2.6.1L16 10v3.5l4 5-2.5 2-5.5-5"/><path d="M8 13.5l2-1.5M16 13.5l-2-1.5"/>'),
+    // A small sun, for rejoicing over good news.
+    rejoice: svg('<circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.5M12 18.5V21M3 12h2.5M18.5 12H21M5.6 5.6l1.8 1.8M16.6 16.6l1.8 1.8M5.6 18.4l1.8-1.8M16.6 7.4l1.8-1.8"/>'),
   };
 
   // Real numbers, checked when this was written. The country is guessed from
@@ -172,7 +176,7 @@
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
           door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
           door(ICON.pebbles, "Pebbles", "Hopes, goals, habits and prayers, carried with God one small step at a time.", growRoom),
-          door(ICON.together, "Amens", "Share your burdens or joys anonymously. Let people say amen with you.", amensRoom),
+          door(ICON.together, "Amens", "Share your burdens or joys anonymously. Let people pray and rejoice with you.", amensRoom),
           door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
         ]),
         el("button", { class: "refuge-help-link", type: "button", html: `${ICON.person}<span>Need a person? Someone to talk to, a Christian counsellor, or a church nearby</span>`, onclick: helpRoom }),
@@ -816,16 +820,48 @@
   // ---------------------------------------------------------------------
   // Amens (app/one_another.py; it was "One another" at first)
   // ---------------------------------------------------------------------
-  // Saying amen is the wall's one reaction. `hint` says what it means on each
-  // kind of post, since the button itself just says "Say amen".
-  const amenCount = (n) => plural(n, "amen", "amens");
-  const amenSaid = (n) => (n > 1 ? `Amen, with ${plural(n - 1, "other", "others")}` : "Amen");
+  // Saying amen is the wall's one reaction, counted once per person by the
+  // server (app/one_another.py), but it reads as what it means on each kind
+  // of post. On a burden you say a prayer, and once you have, the button
+  // turns to "Amen", agreeing with it; on good news you rejoice, and it
+  // turns to "Amen" the same way. Each kind has its words for the button,
+  // the line under a post ("You and 4 others prayed for this"), the count
+  // on a bubble, and what the person who shared it sees.
+  const REACTIONS = {
+    burden: {
+      icon: ICON.pray,
+      action: "Say a prayer",
+      verb: "Pray",
+      hint: "Pray for them in your own words, then tap to say amen.",
+      short: (n) => plural(n, "prayer", "prayers"),
+      others: (n) => (n ? `${plural(n, "person has", "people have")} prayed for this` : "Be the first to pray for this"),
+      withYou: (n) => (n > 1 ? `You and ${plural(n - 1, "other", "others")} prayed for this` : "You prayed for this"),
+      forMine: (n) => (n ? `${plural(n, "person", "people")} prayed for you` : "No prayers yet"),
+    },
+    rejoice: {
+      icon: ICON.rejoice,
+      action: "Rejoice with them",
+      verb: "Rejoice",
+      hint: "Thank God with them, then tap to say amen.",
+      short: (n) => `${n} rejoicing`,
+      others: (n) => (n ? `${plural(n, "person is", "people are")} rejoicing` : "Be the first to rejoice with them"),
+      withYou: (n) => (n > 1 ? `You and ${plural(n - 1, "other", "others")} are rejoicing` : "You're rejoicing with them"),
+      forMine: (n) => (n ? `${plural(n, "person", "people")} rejoiced with you` : "No amens yet"),
+    },
+  };
+
+  // A few anonymous faces for the people who said amen: never who they are,
+  // just a sense that real people are here. Three at most.
+  function amenFaces(n) {
+    return el("span", { class: "amen-faces", "aria-hidden": "true" },
+      Array.from({ length: Math.min(n, 3) }, (_, i) => el("span", { class: `amen-face amen-face-${i + 1}` })));
+  }
   // The share box's prompt, the same for a burden or good news. It stands in
   // for a description under the room's title.
   const SHARE_PROMPT = "Share your burdens or joys anonymously. Let people pray and rejoice with you, and send a few kind words.";
   const POST_KINDS = {
-    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", hint: "Say amen once you've prayed for this", placeholder: SHARE_PROMPT },
-    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", hint: "Say amen to rejoice with them", placeholder: SHARE_PROMPT },
+    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", placeholder: SHARE_PROMPT },
+    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", placeholder: SHARE_PROMPT },
   };
   const MINE_STATUS = { waiting: ["Waiting to be read", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
 
@@ -904,17 +940,31 @@
   // so the bubble it was opened from can show them too.
   function wallCard(post, rerender, onChange) {
     const spec = POST_KINDS[post.kind];
-    const react = el("button", { class: `act${post.reacted ? " is-done" : ""}`, type: "button", title: spec.hint, disabled: post.reacted, text: post.reacted ? amenSaid(post.reactions) : "Say amen" });
+    const r = REACTIONS[post.kind];
+    const people = el("span");
+    const tally = el("p", { class: "amen-people", "aria-live": "polite" });
+    const react = el("button", { class: "amen-btn", type: "button" });
+    const paint = () => {
+      const n = post.reactions || 0;
+      tally.replaceChildren(amenFaces(n), people);
+      people.textContent = post.reacted ? r.withYou(n) : r.others(n);
+      react.classList.toggle("is-done", !!post.reacted);
+      react.disabled = !!post.reacted;
+      react.title = post.reacted ? "" : r.hint;
+      react.innerHTML = post.reacted ? `${ICON.check}<span>Amen</span>` : `${r.icon}<span>${r.action}</span>`;
+    };
+    paint();
     react.onclick = async () => {
+      react.disabled = true;
       try {
         const res = await api(`/me/refuge/posts/${post.id}/react`, { method: "POST" });
-        react.classList.add("is-done");
-        react.disabled = true;
-        react.textContent = amenSaid(res.reactions);
         post.reacted = true;
         post.reactions = res.reactions;
+        paint();
+        react.classList.add("is-saying"); // the one-off glow as it turns to Amen
         if (onChange) onChange("amen");
       } catch (err) {
+        react.disabled = false;
         toast(err.message);
       }
     };
@@ -929,6 +979,7 @@
     return el("article", { class: `burden burden-${post.kind} fade-in` }, [
       el("p", { class: "burden-who", text: spec.who }),
       el("p", { class: "burden-text", text: post.body }),
+      tally,
       el("div", { class: "burden-actions" }, [
         react, words,
         el("button", { class: "report", type: "button", text: "Report", onclick: () => reportSheet(post, rerender) }),
@@ -956,9 +1007,11 @@
       el("span", { class: "bubble-text", text: post.body }),
       count,
     ]);
+    const r = REACTIONS[post.kind];
     const paint = () => {
-      count.innerHTML = post.reacted ? `${ICON.check}<span></span>` : "<span></span>";
-      count.lastChild.textContent = post.reactions ? amenCount(post.reactions) : "Say amen";
+      const n = post.reactions || 0;
+      count.innerHTML = `${post.reacted ? ICON.check : r.icon}<span></span>`;
+      count.lastChild.textContent = post.reacted ? (n > 1 ? `Amen · ${r.short(n)}` : "Amen") : (n ? r.short(n) : r.verb);
       node.classList.toggle("is-amened", !!post.reacted);
     };
     paint();
@@ -982,13 +1035,21 @@
 
   function mineCard(post, rerender) {
     const spec = POST_KINDS[post.kind];
+    const r = REACTIONS[post.kind];
     const [statusText, statusClass] = MINE_STATUS[post.status];
+    const n = post.reactions || 0;
+    const words = post.kind_words.length;
     return el("article", { class: "burden is-mine fade-in" }, [
       el("div", { class: "entry-meta" }, [el("span", { class: `badge ${statusClass}`, text: statusText }), el("span", { text: `${spec.mineWho} · ${shortDate(post.created_at)}` })]),
       el("p", { class: "burden-text", text: post.body }),
-      post.status === "shared" ? el("div", { class: "carried-count" }, [
-        el("span", { text: amenCount(post.reactions) }),
-        el("span", { text: plural(post.kind_words.length, "kind word", "kind words") }),
+      // What came back to them: the amens as people, and the kind words.
+      post.status === "shared" ? el("div", { class: `amen-summary${n ? " has-amens" : ""}` }, [
+        el("span", { class: "amen-summary-icon", html: r.icon }),
+        el("div", { class: "amen-summary-text" }, [
+          el("strong", { text: r.forMine(n) }),
+          el("span", { text: words ? `${n ? "and " : ""}${plural(words, "kind word", "kind words")} sent to you` : n ? "Each one is someone who stopped for you." : "It's on the wall, and people will see it." }),
+        ]),
+        n ? amenFaces(n) : null,
       ]) : null,
       post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "This is approved before it's shared. It'll appear on the wall once it is." }) : null,
       post.status === "not_shared" ? el("p", { class: "faint", style: "font-size:14px", text: "This one wasn't shared on the wall. It's still here for you, and you can take it down." }) : null,
@@ -1044,7 +1105,7 @@
         }
         box.value = "";
         count.textContent = "280 left";
-        toast("Thank you. Once it's approved, others can say amen with you.");
+        toast("Thank you. Once it's approved, people can pray and rejoice with you.");
         rerender();
       } catch (err) {
         msg.say(err.message, true);
@@ -1079,7 +1140,7 @@
         ...(data.posts.length
           ? [
               el("div", { class: "bubble-wall" }, data.posts.map((p, i) => bubble(p, i, rerender))),
-              el("p", { class: "bubble-hint", text: "Tap a bubble to read it, say amen, or send a few kind words." }),
+              el("p", { class: "bubble-hint", text: "Tap a bubble to read it, pray or rejoice with them, or send a few kind words." }),
             ]
           : [el("p", { class: "muted", text: "Nothing on the wall right now. When someone shares, it'll appear here for you to carry with them." })]),
       ])

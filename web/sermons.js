@@ -42,10 +42,14 @@
     graph: svg('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.2 7.2l7.6.6M7 8.3l2.2 7.3M16.6 10l-4.9 6.3"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/>'),
     back: svg('<path d="M15 6l-6 6 6 6"/>'),
+    list: svg('<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/>'),
+    numbers: svg('<path d="M10 6h10M10 12h10M10 18h10"/><path d="M4 4.5h1.2V9"/><path d="M3.6 13.6c.3-.5.8-.8 1.4-.8.8 0 1.3.5 1.3 1.1 0 1-2.7 1.8-2.7 3.1h2.8"/>'),
   };
 
+  // "list" isn't a block of its own: it's a text block that starts with a
+  // bullet (see "Lists inside a text block" below).
   const ADD = [
-    ["text", "Text"], ["heading", "Point"], ["verse", "Verse"], ["image", "Photo"],
+    ["text", "Text"], ["list", "List"], ["heading", "Point"], ["verse", "Verse"], ["image", "Photo"],
     ["quote", "Quote"], ["todo", "To do"], ["link", "Link"],
   ];
 
@@ -344,7 +348,9 @@
     renderBlocks();
   }
 
-  function blockTools(block) {
+  // `area` is the block's textarea when it's a text block, which also gets
+  // the two list buttons.
+  function blockTools(block, area = null) {
     const move = (dir) => {
       const i = current.blocks.indexOf(block);
       const j = i + dir;
@@ -353,7 +359,15 @@
       renderBlocks();
       changed();
     };
+    // mousedown is stopped so the text keeps its focus and selection.
+    const listButton = (kind, label, icon) => el("button", {
+      type: "button", title: label, "aria-label": label, html: icon,
+      onmousedown: (e) => e.preventDefault(),
+      onclick: () => toggleList(area, kind),
+    });
     return el("div", { class: "sermon-tools" }, [
+      area ? listButton("bullet", "Bullet list", ICON.list) : null,
+      area ? listButton("number", "Numbered list", ICON.numbers) : null,
       el("button", { type: "button", title: "Move up", "aria-label": "Move up", html: ICON.up, onclick: () => move(-1) }),
       el("button", { type: "button", title: "Move down", "aria-label": "Move down", html: ICON.down, onclick: () => move(1) }),
       el("button", { type: "button", title: "Remove", "aria-label": "Remove this block", html: ICON.trash, onclick: () => {
@@ -362,6 +376,83 @@
         changed();
       } }),
     ]);
+  }
+
+  // ---------------------------------------------------------------------
+  // Lists inside a text block
+  // ---------------------------------------------------------------------
+  // Notes stay plain text: a bullet is a line starting "• " and a numbered
+  // item a line starting "1. ". They read the same in the editor, on a
+  // shared page and in every export, and the server needs nothing new.
+  // In a text block, Enter on a list line starts the next item, Enter on an
+  // empty item ends the list, and "- " or "* " typed at the start of a line
+  // becomes a bullet. The block's tools toggle either kind on the lines
+  // that are selected.
+  const BULLET = "• ";
+  const BULLET_LINE = /^• /;
+  const NUMBER_LINE = /^(\d+)([.)]) /;
+  const ANY_MARKER = /^(?:• |\d+[.)] )/;
+
+  // Replaces part of a textarea's text the way typing would, so the block
+  // saves and resizes as usual.
+  function replaceText(area, text, start, end, caret = "end") {
+    area.setRangeText(text, start, end, caret);
+    area.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  const lineStartBefore = (value, index) => value.lastIndexOf("\n", index - 1) + 1;
+  const lineEndFrom = (value, index) => {
+    const i = value.indexOf("\n", index);
+    return i === -1 ? value.length : i;
+  };
+
+  // Bullets or numbers on every line the selection touches, or off again
+  // when they all have that kind already. Blank lines are left alone.
+  function toggleList(area, kind) {
+    const { value, selectionStart, selectionEnd } = area;
+    const start = lineStartBefore(value, selectionStart);
+    const end = lineEndFrom(value, selectionEnd);
+    const lines = value.slice(start, end).split("\n");
+    const isKind = (line) => (kind === "bullet" ? BULLET_LINE : NUMBER_LINE).test(line);
+    const filled = lines.filter((line) => line.trim());
+    const removing = filled.length > 0 && filled.every(isKind);
+    let n = 0;
+    const next = lines.map((line) => {
+      const bare = line.replace(ANY_MARKER, "");
+      if (removing || !line.trim()) return bare;
+      n += 1;
+      return (kind === "bullet" ? BULLET : `${n}. `) + bare;
+    }).join("\n");
+    area.focus();
+    // An empty line gets its marker with the caret after it, ready to type.
+    replaceText(area, next, start, end, value.slice(start, end).trim() ? "select" : "end");
+  }
+
+  function onListKeys(area, e) {
+    if (e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+    const { value, selectionStart: caret, selectionEnd } = area;
+    if (caret !== selectionEnd) return;
+    const start = lineStartBefore(value, caret);
+    const before = value.slice(start, caret);
+
+    if (e.key === " " && (before === "-" || before === "*")) {
+      e.preventDefault();
+      replaceText(area, BULLET, start, caret);
+      return;
+    }
+    if (e.key !== "Enter" || e.shiftKey) return;
+    const bullet = BULLET_LINE.test(before);
+    const number = NUMBER_LINE.exec(before);
+    if (!bullet && !number) return;
+    e.preventDefault();
+    const marker = bullet ? BULLET : number[0];
+    if (!value.slice(start + marker.length, lineEndFrom(value, caret)).trim()) {
+      // Enter on an empty item ends the list: the marker goes, the line stays.
+      replaceText(area, "", start, start + marker.length);
+      return;
+    }
+    const nextMarker = bullet ? BULLET : `${Number(number[1]) + 1}${number[2]} `;
+    replaceText(area, `\n${nextMarker}`, caret, caret);
   }
 
   function textArea(cls, value, placeholder, max, onText) {
@@ -537,7 +628,10 @@
   function renderBlock(block) {
     const wrap = el("div", { class: `sermon-block sermon-block-${block.type}`, "data-id": block.id });
     let body;
-    if (block.type === "text") body = textArea("sermon-text", block.text, "Write what you're hearing...", 20000, (v) => { block.text = v; });
+    if (block.type === "text") {
+      body = textArea("sermon-text", block.text, "Write what you're hearing. Start a line with - for a bullet.", 20000, (v) => { block.text = v; });
+      body.addEventListener("keydown", (e) => onListKeys(body, e));
+    }
     else if (block.type === "heading") body = textArea("sermon-heading", block.text, "A point or heading", 300, (v) => { block.text = v; });
     else if (block.type === "verse") body = verseBody(block);
     else if (block.type === "image") body = photoBody(block);
@@ -547,7 +641,7 @@
     ]);
     else if (block.type === "todo") body = todoBody(block);
     else if (block.type === "link") body = linkBody(block);
-    wrap.append(body, el("div", { class: "ref-chips sermon-refs", "data-refs-for": block.id }), blockTools(block));
+    wrap.append(body, el("div", { class: "ref-chips sermon-refs", "data-refs-for": block.id }), blockTools(block, block.type === "text" ? body : null));
     return wrap;
   }
 
@@ -571,9 +665,10 @@
     renderPassages();
   }
 
-  function addBlock(type) {
+  function addBlock(kind) {
+    const type = kind === "list" ? "text" : kind;
     const block = { id: newId(), type };
-    if (type === "text" || type === "heading") block.text = "";
+    if (type === "text" || type === "heading") block.text = kind === "list" ? BULLET : "";
     if (type === "verse") block.ref = "";
     if (type === "image") { block.path = null; block.caption = ""; }
     if (type === "quote") { block.text = ""; block.who = current.speaker || ""; }
@@ -584,6 +679,8 @@
     const last = panel.querySelector("#sermonBlocks").lastChild;
     const target = last.querySelector("textarea, input:not([type=file]):not([type=checkbox]), label");
     if (target) target.focus({ preventScroll: true });
+    // A new list starts with its bullet, so the caret goes after it.
+    if (target && target.tagName === "TEXTAREA") target.setSelectionRange(target.value.length, target.value.length);
     last.scrollIntoView({ behavior: "smooth", block: "center" });
     changed();
   }
