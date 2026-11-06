@@ -18,6 +18,7 @@
   --glow: #FBE1C6; --glow-strong: #F6CFA6; --well: #F6EEE2; --hover: #F1E6D6; --card-warm: #FFF3E6; --divider: #EADFCF;
   --danger: #B3261E; --shadow: rgba(80, 50, 20, 0.16); --ember-glow: rgba(181, 84, 28, 0.32); --ring: rgba(181, 84, 28, 0.18);
   --art-dim: #D6B48C;
+  --shine: rgba(255, 255, 255, 0.9); /* the glossy highlight on an Amens bubble */
   /* Verse highlights: a fill behind the words, and a stronger edge for dots and card borders. */
   --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
   --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
@@ -36,6 +37,7 @@
   --glow: #DDE7C6; --glow-strong: #CBDBA9; --well: #EEF1E4; --hover: #E9EEDD; --card-warm: #F6F8EC; --divider: #DDE3CF;
   --danger: #A3261E; --shadow: rgba(40, 55, 30, 0.16); --ember-glow: rgba(85, 107, 47, 0.32); --ring: rgba(85, 107, 47, 0.2);
   --art-dim: #A9B98A;
+  --shine: rgba(255, 255, 255, 0.9);
   --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
   --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
   --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
@@ -49,6 +51,7 @@
   --glow: #4A3A55; --glow-strong: #5B4560; --well: #1C1D30; --hover: #33344F; --card-warm: #33304A; --divider: #3A3B5A;
   --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.4); --ember-glow: rgba(242, 179, 94, 0.4); --ring: rgba(242, 179, 94, 0.22);
   --art-dim: #6E6488;
+  --shine: rgba(255, 255, 255, 0.16);
   --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
   --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
@@ -62,6 +65,7 @@
   --glow: #3F2813; --glow-strong: #4F3015; --well: #1F1813; --hover: #2A211A; --card-warm: #261B12; --divider: #33281F;
   --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.45); --ember-glow: rgba(244, 161, 76, 0.5); --ring: rgba(244, 161, 76, 0.2);
   --art-dim: #7A5530;
+  --shine: rgba(255, 255, 255, 0.14);
   --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
   --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
@@ -528,6 +532,16 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .graph-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
 .graph-hint { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 13px; color: var(--faint); background: var(--surface); border: 1px solid var(--line); border-radius: var(--pill); padding: 6px 14px; white-space: nowrap; }
 .graph-status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--faint); text-align: center; padding: 16px; pointer-events: none; }
+/* The empty graph's starting points (graph.js::showStarters). */
+.graph-starters { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px; padding: 24px 16px 96px; text-align: center; overflow-y: auto; }
+.graph-starters p { color: var(--muted); font-size: 15px; max-width: 30rem; }
+.graph-starter-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: min(36rem, 100%); }
+.graph-starter { display: grid; align-content: start; gap: 2px; text-align: left; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease; }
+.graph-starter:hover { border-color: var(--ember-line); }
+.graph-starter:active { transform: scale(0.98); }
+.graph-starter:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.graph-starter strong { font-size: 15px; font-weight: 600; }
+.graph-starter small { font-size: 13px; color: var(--muted); }
 .graph-panel { position: absolute; top: 16px; right: 16px; width: min(22rem, calc(100% - 32px)); max-height: calc(100% - 32px); overflow-y: auto; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: 0 16px 36px var(--shadow); animation: appear 0.2s ease both; }
 .graph-panel h4 { font-size: 17px; margin: 0 0 4px; }
 .graph-panel .panel-meta { font-size: 13px; color: var(--faint); margin-bottom: 10px; text-transform: capitalize; }
@@ -823,6 +837,49 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .amens-note-go svg { width: 18px; height: 18px; display: block; }
 .share-foot { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--faint); }
 .share-send { display: inline-flex; gap: 12px; align-items: center; margin-left: auto; }
+/* The wall as bubbles (web/refuge.js::bubble): each post a small sphere lit
+   from the top left, ember for a burden and sage for good news, sized by the
+   post's length and drifting on its own rhythm. Drift moves `translate` and
+   hover and the amen pulse move `scale`, so they never fight over transform. */
+.bubble-wall { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px 18px; padding: 8px 0 16px; }
+.bubble-hint { text-align: center; font-size: 13px; color: var(--faint); }
+.bubble {
+  --size: 196px;
+  position: relative; width: var(--size); height: var(--size); max-width: 100%; flex: none;
+  border: 0; border-radius: 50%; padding: 0 calc(var(--size) * 0.16);
+  display: grid; align-content: center; justify-items: center; gap: 6px; text-align: center; color: var(--text); cursor: pointer;
+  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--card-warm) 34%, var(--ember-bg) 68%, var(--ember-line) 100%);
+  box-shadow: inset -10px -14px 26px -8px color-mix(in srgb, var(--ember) 22%, transparent), inset 8px 10px 18px -10px var(--shine), 0 18px 34px -20px var(--shadow);
+  animation: bubble-drift var(--drift-time, 7s) ease-in-out var(--drift-delay, 0s) infinite;
+  transition: scale 0.25s ease;
+}
+.bubble::before { content: ""; position: absolute; top: 5%; left: 13%; width: 30%; height: 15%; border-radius: 50%; background: radial-gradient(ellipse at center, var(--shine) 0%, transparent 70%); transform: rotate(-24deg); pointer-events: none; }
+.bubble-rejoice {
+  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--sage-bg) 52%, var(--sage-line) 100%);
+  box-shadow: inset -10px -14px 26px -8px color-mix(in srgb, var(--sage) 24%, transparent), inset 8px 10px 18px -10px var(--shine), 0 18px 34px -20px var(--shadow);
+}
+.bubble-s { --size: 164px; }
+.bubble-l { --size: 232px; }
+.bubble:hover, .bubble:focus-visible { scale: 1.05; z-index: 1; }
+.bubble:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; }
+.bubble-who { font-size: 11.5px; font-weight: 700; color: var(--ember-hi); }
+.bubble-rejoice .bubble-who { color: var(--sage); }
+.bubble-text { font-size: 13.5px; line-height: 1.4; color: var(--soft); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
+.bubble-s .bubble-text { -webkit-line-clamp: 4; line-clamp: 4; }
+.bubble-l .bubble-text { -webkit-line-clamp: 6; line-clamp: 6; font-size: 14px; }
+.bubble-count { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 600; color: var(--muted); }
+.bubble-count svg { width: 13px; height: 13px; flex: none; }
+.bubble.is-amened .bubble-count { color: var(--sage); }
+.bubble.is-popping { animation: bubble-pop 0.6s ease, bubble-drift var(--drift-time, 7s) ease-in-out var(--drift-delay, 0s) infinite; }
+@keyframes bubble-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+@keyframes bubble-pop { 0% { scale: 1; } 35% { scale: 1.14; } 65% { scale: 0.97; } 100% { scale: 1; } }
+.bubble-sheet .burden { padding: 0; border: 0; background: none; animation: none; }
+@media (max-width: 520px) {
+  .bubble { --size: 168px; }
+  .bubble-s { --size: 146px; }
+  .bubble-l { --size: 196px; }
+  .bubble-text { font-size: 13px; }
+}
 .choice-list { display: grid; gap: 8px; margin: 6px 0 16px; }
 .choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); cursor: pointer; font-size: 15px; }
 .choice:has(input:checked) { border-color: var(--ember); background: var(--ember-bg); }
@@ -837,10 +894,6 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .help-line span { font-size: 14px; color: var(--muted); }
 .say-this { font-size: 16px; line-height: 1.6; padding: 14px 18px; border-left: 3px solid var(--ember); background: var(--well); border-radius: 0 14px 14px 0; }
 
-/* Leave quickly: always there in Refuge, and the Escape key */
-.quick-exit { position: fixed; right: 18px; bottom: 18px; z-index: 50; display: inline-flex; gap: 8px; align-items: center; padding: 10px 16px; border-radius: var(--pill); background: var(--surface); border: 1px solid var(--line-2); color: var(--soft); font-size: 14px; font-weight: 600; box-shadow: 0 10px 26px var(--shadow); }
-.quick-exit:hover { border-color: var(--text); color: var(--text); }
-.quick-exit kbd { font: 600 11px/1 var(--body); padding: 3px 6px; border-radius: 6px; border: 1px solid var(--line-2); color: var(--faint); }
 
 /* The admin desk */
 .desk-note { font-size: 14px; color: var(--soft); padding: 8px 12px; border-radius: 12px; background: var(--well); }
@@ -910,9 +963,13 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
   .graph-legend { padding: 6px 10px; }
   .graph-kinds { border-top: 0; padding-top: 0; }
   .graph-panel { top: auto; bottom: 16px; max-height: 48%; }
+  /* The graph stops above the tab bar so the tabs stay in reach. The bar is
+     hidden on the welcome and sign-in screens, and then the graph fills the
+     screen as before. */
+  #tabbar:not([hidden]) ~ .graph-overlay { bottom: calc(60px + env(safe-area-inset-bottom, 0px)); }
+  body:has(> .graph-overlay) .tabbar { z-index: 51; }
+  .graph-starter-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .msg-me { max-width: 92%; }
-  .quick-exit { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); right: 12px; }
-  .quick-exit kbd { display: none; }
   .reader-notes-link span, .reader-learn-link span { display: none; }
   .reader-notes-link, .reader-learn-link { padding-left: 10px; padding-right: 10px; }
   .refuge-doors, .kind-choices { grid-template-columns: 1fr; }
@@ -931,6 +988,17 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .ref-chip svg { width: 13px; height: 13px; flex: none; }
 
 .sermons { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 18px; align-items: start; }
+/* Before a note is picked the list stands alone, its notes laid out as cards. */
+.sermons.is-list { grid-template-columns: minmax(0, 1fr); }
+.sermons.is-list .sermon-main { display: none; }
+.sermons.is-list .sermon-list { position: static; max-height: none; }
+.sermons.is-list .sermon-items { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.sermons.is-list .sermon-item { border-color: var(--line); background: var(--surface); padding: 14px 16px; }
+.sermons.is-list .sermon-item:hover { border-color: var(--ember-line); background: var(--surface); }
+.sermon-back { justify-self: start; }
+/* Scrolled to on a phone; the margin keeps them clear of the sticky header. */
+.sermons, .sermon-main { scroll-margin-top: 72px; }
+.sermon-back svg { width: 16px; height: 16px; }
 .sermon-list { padding: 12px; display: grid; gap: 10px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow: auto; min-width: 0; }
 .sermon-search { margin: 0; padding: 9px 14px; font-size: 14px; border-radius: var(--pill); background: var(--well); }
 .sermon-items { display: grid; gap: 4px; }
@@ -1039,6 +1107,8 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 @media (max-width: 820px) {
   .sermons { grid-template-columns: minmax(0, 1fr); }
   .sermon-list { position: static; max-height: none; }
+  /* On a phone an open note takes the list's place; All sermons goes back. */
+  .sermons:not(.is-list) .sermon-list { display: none; }
   .sermon-items { grid-auto-flow: column; grid-auto-columns: minmax(200px, 75%); overflow-x: auto; padding-bottom: 4px; }
 }
 

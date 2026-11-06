@@ -41,6 +41,7 @@
     aquila: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
     graph: svg('<circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.2 7.2l7.6.6M7 8.3l2.2 7.3M16.6 10l-4.9 6.3"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/>'),
+    back: svg('<path d="M15 6l-6 6 6 6"/>'),
   };
 
   const ADD = [
@@ -180,7 +181,8 @@
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") save(); });
 
   // ---------------------------------------------------------------------
-  // The tab: list on the left, the open note on the right
+  // The tab: the list of notes first; a note opens only when it's picked,
+  // then sits beside the list (on a phone, in its place, with a way back)
   // ---------------------------------------------------------------------
   async function renderTab(p) {
     panel = p;
@@ -191,8 +193,21 @@
       return;
     }
     if (!notes.length) return renderEmpty();
-    const keep = current && notes.find((n) => n.id === current.id);
-    await openNote((keep || notes[0]).id);
+    showList();
+  }
+
+  // Just the list, full width, with no note open.
+  function showList() {
+    current = null;
+    layout().classList.add("is-list");
+    renderList();
+  }
+
+  async function backToList() {
+    await save();
+    if (!panel) return;
+    showList();
+    panel.querySelector(".sermons").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   function renderEmpty() {
@@ -213,6 +228,7 @@
     shell = el("div", { class: "sermons" }, [
       el("aside", { class: "card sermon-list", "aria-label": "Your sermon notes" }, [search, el("div", { class: "sermon-items", id: "sermonItems" })]),
       el("div", { class: "sermon-main" }, [
+        el("button", { class: "act sermon-back", type: "button", html: `${ICON.back}<span>All sermons</span>`, onclick: backToList }),
         el("section", { class: "card sermon-editor", id: "sermonEditor", "aria-label": "Sermon note" }),
         el("div", { class: "sermon-connected", id: "sermonConnected" }),
       ]),
@@ -260,11 +276,13 @@
     if (!panel) return;
     current = note;
     dirty = false;
-    layout();
+    layout().classList.remove("is-list");
     renderList();
     renderEditor();
     renderConnected();
-    if (scroll && window.innerWidth <= 820) panel.querySelector("#sermonEditor").scrollIntoView({ behavior: "smooth", block: "start" });
+    // On a phone the note takes the list's place, so bring its top (and the
+    // way back to the list) into view.
+    if (scroll && window.innerWidth <= 820) panel.querySelector(".sermon-main").scrollIntoView({ behavior: "smooth", block: "start" });
     if (focusTitle) panel.querySelector(".sermon-title").focus();
   }
 
@@ -580,7 +598,7 @@
       current = null;
       toast("Deleted.");
       if (!notes.length) return renderEmpty();
-      await openNote(notes[0].id);
+      showList();
     } catch (err) {
       toast(err.message);
     }

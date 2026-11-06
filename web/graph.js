@@ -16,6 +16,18 @@
   const D3_URL = "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js";
   const GENRES = ["law", "history", "poetry", "prophecy", "gospel", "epistle", "apocalyptic"];
 
+  // Ways in when the graph opens with nothing to show yet. Each is a theme
+  // and the passage that starts it; the labels are themes, not quotations,
+  // since verse text on screen always comes from the database.
+  const STARTERS = [
+    ["Creation", "Genesis 1:1"],
+    ["The Shepherd", "Psalm 23:1"],
+    ["The suffering servant", "Isaiah 53:5"],
+    ["The Word", "John 1:1"],
+    ["God's love", "John 3:16"],
+    ["Hope in hard times", "Romans 8:28"],
+  ];
+
   let d3Promise = null;
   function loadD3() {
     if (window.d3) return Promise.resolve(window.d3);
@@ -55,8 +67,31 @@
     ui.sim && ui.sim.stop();
     ui.root.remove();
     document.removeEventListener("keydown", ui.onKey);
+    window.removeEventListener("hashchange", close);
+    markTab(false);
     document.body.style.overflow = "";
     ui = null;
+  }
+
+  // On phones the graph stops short of the tab bar (app.css), so the tabs
+  // stay in reach. While it's open, Connections is the lit tab; tapping any
+  // other tab, or anything else that changes the route, closes it.
+  function markTab(open) {
+    const bar = document.getElementById("tabbar");
+    if (!bar || !ui) return;
+    const mapTab = bar.querySelector("[data-open-map]");
+    if (open) {
+      ui.prevTab = bar.querySelector("[aria-current]");
+      if (ui.prevTab) ui.prevTab.removeAttribute("aria-current");
+      if (mapTab) mapTab.setAttribute("aria-current", "page");
+      ui.onTab = (e) => e.target.closest("a") && close();
+      bar.addEventListener("click", ui.onTab);
+      return;
+    }
+    bar.removeEventListener("click", ui.onTab);
+    if (mapTab) mapTab.removeAttribute("aria-current");
+    // A route change has already lit its own tab; otherwise light the old one again.
+    if (ui.prevTab && !bar.querySelector("[aria-current]")) ui.prevTab.setAttribute("aria-current", "page");
   }
 
   function build() {
@@ -83,6 +118,7 @@
         <svg aria-label="Graph of connected verses"></svg>
         <div class="graph-hint">Drag to move · scroll or pinch to zoom · tap a verse or a line</div>
         <div class="graph-status"></div>
+        <div class="graph-starters" hidden></div>
         <div class="graph-legend"></div>
       </div>`;
     document.body.append(root);
@@ -138,6 +174,7 @@
       svgEl: root.querySelector(".graph-stage svg"),
       stage: root.querySelector(".graph-stage"),
       status: root.querySelector(".graph-status"),
+      starters: root.querySelector(".graph-starters"),
       nodes: new Map(),
       links: new Map(),
       expanded: new Set(),
@@ -163,6 +200,31 @@
 
   function setStatus(text) {
     if (ui) ui.status.textContent = text || "";
+  }
+
+  // The empty graph's first screen: a line of guidance (or what went wrong)
+  // and the STARTERS, each of which grows the graph from its passage.
+  function showStarters(message) {
+    if (!ui) return;
+    setStatus("");
+    const intro = document.createElement("p");
+    intro.textContent = message || "Pick a place to start, or add any passage above.";
+    const list = document.createElement("div");
+    list.className = "graph-starter-list";
+    for (const [theme, ref] of STARTERS) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "graph-starter";
+      const title = document.createElement("strong");
+      title.textContent = theme;
+      const where = document.createElement("small");
+      where.textContent = ref;
+      b.append(title, where);
+      b.addEventListener("click", () => grow([ref]));
+      list.append(b);
+    }
+    ui.starters.replaceChildren(intro, list);
+    ui.starters.hidden = false;
   }
 
   async function fetchConnections(refs) {
@@ -357,6 +419,7 @@
 
   async function grow(refs, focusId) {
     if (!ui) return;
+    ui.starters.hidden = true;
     setStatus(ui.nodes.size ? "" : "Tracing the threads...");
     try {
       const [d3, data] = await Promise.all([loadD3(), fetchConnections(refs)]);
@@ -370,7 +433,7 @@
       if (ui.nodes.size) {
         window.Cave ? window.Cave.toast(err.message) : alert(err.message);
       } else {
-        setStatus(err.message);
+        showStarters(err.message);
       }
     }
   }
@@ -570,12 +633,15 @@
   }
 
   function open(refs) {
+    const seeds = (refs || []).filter(Boolean);
+    // Tapping the Connections tab again keeps the graph as it is.
+    if (ui && !seeds.length) return;
     close();
     ui = build();
-    const seeds = (refs || []).filter(Boolean);
+    window.addEventListener("hashchange", close);
+    markTab(true);
     if (!seeds.length) {
-      setStatus("Add a passage above to begin. Try John 1:1, Psalm 23:1, or Romans 8:28.");
-      setTimeout(() => ui && ui.root.querySelector(".graph-search input").focus(), 50);
+      showStarters();
       return;
     }
     grow(seeds);

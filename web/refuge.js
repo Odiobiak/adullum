@@ -1,9 +1,9 @@
 // Refuge: the quiet room in the cave, for every kind of season. The cave's
-// Refuge tab, its five rooms, the Leave quickly button, and the admin desk.
+// Refuge tab, its five rooms, and the admin desk.
 //
 // The rooms are drawn in place inside the tab rather than given their own
-// hash routes, so Leave quickly (or Escape) can replace the one history entry
-// and Back never leads back in. What each room keeps:
+// hash routes, so Refuge is one history entry and Back never leads from one
+// room into another. What each room keeps:
 //   Write it out    nothing, unless "Keep it" is pressed (app/refuge.py)
 //   Talk with Aquila  nothing, unless "Keep this talk" is pressed; otherwise
 //                   the talk lives only in `talk` below and vanishes on leaving
@@ -89,46 +89,24 @@
   }
 
   // ---------------------------------------------------------------------
-  // Being in Refuge: the settled page, Leave quickly, and leaving
+  // Being in Refuge: the settled page, and leaving
   // ---------------------------------------------------------------------
   let panel = null;
   let talk = null; // { messages, keptId } while a talk is open; null otherwise
 
-  const exitButton = el("button", { class: "quick-exit", type: "button", title: "Go straight to a plain screen. Back won't return here." }, [
-    "Leave quickly ", el("kbd", { text: "Esc" }),
-  ]);
-  exitButton.addEventListener("click", leaveQuickly);
-
   function enter(p) {
     panel = p;
     document.body.classList.add("in-refuge");
-    if (!exitButton.isConnected) document.body.append(exitButton);
   }
 
   // Called by web/cave.js whenever another tab or view takes over. A talk that
   // wasn't kept vanishes here, as Refuge promises.
   function hide() {
     document.body.classList.remove("in-refuge");
-    exitButton.remove();
     talk = null;
     stopStill();
     panel = null;
   }
-
-  function leaveQuickly() {
-    document.querySelectorAll(".sheet-overlay").forEach((o) => o.remove());
-    if (panel) panel.replaceChildren();
-    hide();
-    location.replace("#home");
-  }
-
-  // Escape leaves, unless a sheet or the account menu is open (Escape closes those first).
-  document.addEventListener("keydown", (e) => {
-    if (e.key !== "Escape" || !panel) return;
-    const menu = document.getElementById("menu");
-    if (document.querySelector(".sheet-overlay") || (menu && !menu.hidden)) return;
-    leaveQuickly();
-  });
 
   function show(...nodes) {
     if (!panel) return;
@@ -194,7 +172,7 @@
           door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
           door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
           door(ICON.pebbles, "Pebbles", "Hopes, goals, habits and prayers, carried with God one small step at a time.", growRoom),
-          door(ICON.together, "Amens", "Share without your name. Others say amen with you.", amensRoom),
+          door(ICON.together, "Amens", "Share your burdens or joys anonymously. Let people say amen with you.", amensRoom),
           door(ICON.still, "Be still", "One quiet minute, when words won't come.", stillRoom),
         ]),
         el("button", { class: "refuge-help-link", type: "button", html: `${ICON.person}<span>Need a person? Someone to talk to, a Christian counsellor, or a church nearby</span>`, onclick: helpRoom }),
@@ -842,9 +820,12 @@
   // kind of post, since the button itself just says "Say amen".
   const amenCount = (n) => plural(n, "amen", "amens");
   const amenSaid = (n) => (n > 1 ? `Amen, with ${plural(n - 1, "other", "others")}` : "Amen");
+  // The share box's prompt, the same for a burden or good news. It stands in
+  // for a description under the room's title.
+  const SHARE_PROMPT = "Share your burdens or joys anonymously. Let people pray and rejoice with you, and send a few kind words.";
   const POST_KINDS = {
-    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", hint: "Say amen once you've prayed for this", placeholder: "What are you carrying? No names, places or links." },
-    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", hint: "Say amen to rejoice with them", placeholder: "What's the good news? No names, places or links." },
+    burden: { choose: "Carrying something", who: "Someone is carrying this", mineWho: "You're carrying this", hint: "Say amen once you've prayed for this", placeholder: SHARE_PROMPT },
+    rejoice: { choose: "Something good", who: "Someone has good news", mineWho: "Your good news", hint: "Say amen to rejoice with them", placeholder: SHARE_PROMPT },
   };
   const MINE_STATUS = { waiting: ["Waiting to be read", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
 
@@ -919,7 +900,9 @@
     });
   }
 
-  function wallCard(post, rerender) {
+  // A post with its actions. `onChange` hears about an amen or kind words,
+  // so the bubble it was opened from can show them too.
+  function wallCard(post, rerender, onChange) {
     const spec = POST_KINDS[post.kind];
     const react = el("button", { class: `act${post.reacted ? " is-done" : ""}`, type: "button", title: spec.hint, disabled: post.reacted, text: post.reacted ? amenSaid(post.reactions) : "Say amen" });
     react.onclick = async () => {
@@ -928,12 +911,21 @@
         react.classList.add("is-done");
         react.disabled = true;
         react.textContent = amenSaid(res.reactions);
+        post.reacted = true;
+        post.reactions = res.reactions;
+        if (onChange) onChange("amen");
       } catch (err) {
         toast(err.message);
       }
     };
     const words = el("button", { class: `act${post.sent_kind_word ? " is-done" : ""}`, type: "button", disabled: post.sent_kind_word, text: post.sent_kind_word ? "Kind words sent" : "Send kind words" });
-    words.onclick = () => kindWordsSheet(post, () => { words.classList.add("is-done"); words.disabled = true; words.textContent = "Kind words sent"; });
+    words.onclick = () => kindWordsSheet(post, () => {
+      words.classList.add("is-done");
+      words.disabled = true;
+      words.textContent = "Kind words sent";
+      post.sent_kind_word = true;
+      if (onChange) onChange("words");
+    });
     return el("article", { class: `burden burden-${post.kind} fade-in` }, [
       el("p", { class: "burden-who", text: spec.who }),
       el("p", { class: "burden-text", text: post.body }),
@@ -942,6 +934,50 @@
         el("button", { class: "report", type: "button", text: "Report", onclick: () => reportSheet(post, rerender) }),
       ]),
     ]);
+  }
+
+  // On the wall, each post is a bubble. Its size follows the post's length,
+  // it drifts on its own rhythm (staggered by `index`), and tapping it opens
+  // the whole post with its actions. Saying amen makes the bubble pulse.
+  function bubbleSize(text) {
+    return text.length <= 70 ? "s" : text.length <= 170 ? "m" : "l";
+  }
+
+  function bubble(post, index, rerender) {
+    const spec = POST_KINDS[post.kind];
+    const count = el("span", { class: "bubble-count" });
+    const node = el("button", {
+      class: `bubble bubble-${post.kind} bubble-${bubbleSize(post.body)}`,
+      type: "button",
+      style: `--drift-delay:${-((index * 1.7) % 7).toFixed(1)}s;--drift-time:${6 + (index % 4)}s`,
+      "aria-label": `${spec.who}: ${post.body}`,
+    }, [
+      el("span", { class: "bubble-who", text: post.kind === "rejoice" ? "Good news" : "Carrying this" }),
+      el("span", { class: "bubble-text", text: post.body }),
+      count,
+    ]);
+    const paint = () => {
+      count.innerHTML = post.reacted ? `${ICON.check}<span></span>` : "<span></span>";
+      count.lastChild.textContent = post.reactions ? amenCount(post.reactions) : "Say amen";
+      node.classList.toggle("is-amened", !!post.reacted);
+    };
+    paint();
+    node.onclick = () => openBubble(post, rerender, (what) => {
+      paint();
+      if (what !== "amen") return;
+      node.classList.remove("is-popping");
+      void node.offsetWidth; // restart the pulse if it ran before
+      node.classList.add("is-popping");
+    });
+    return node;
+  }
+
+  function openBubble(post, rerender, onChange) {
+    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].who }, [
+      // A report takes the post off the wall, so the wall is drawn again.
+      wallCard(post, () => { close(); rerender(); }, onChange),
+      el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
+    ]));
   }
 
   function mineCard(post, rerender) {
@@ -1020,7 +1056,7 @@
       el("h3", { class: "section-title", text: "Share something" }),
       kinds, box, msg.node,
       el("div", { class: "share-foot" }, [
-        el("span", { text: "This is approved before it's shared. You can take it down any time." }),
+        el("span", { text: "This is approved before it's shared publicly. You can take it down any time." }),
         el("span", { class: "share-send" }, [count, send]),
       ]),
       care,
@@ -1035,13 +1071,16 @@
       return failed(err);
     }
     const rerender = () => amensRoom();
-    show(room("Amens", "Share what you're carrying or something good, anonymously. People say amen, praying or rejoicing with you, and can send a few kind words.",
+    show(room("Amens", null,
       shareBox(rerender),
       data.mine.length ? el("section", { class: "wall-section" }, [el("p", { class: "kicker", text: "What you've shared" }), ...data.mine.map((p) => mineCard(p, rerender))]) : null,
       el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "On the wall" }),
         ...(data.posts.length
-          ? data.posts.map((p) => wallCard(p, rerender))
+          ? [
+              el("div", { class: "bubble-wall" }, data.posts.map((p, i) => bubble(p, i, rerender))),
+              el("p", { class: "bubble-hint", text: "Tap a bubble to read it, say amen, or send a few kind words." }),
+            ]
           : [el("p", { class: "muted", text: "Nothing on the wall right now. When someone shares, it'll appear here for you to carry with them." })]),
       ])
     ));

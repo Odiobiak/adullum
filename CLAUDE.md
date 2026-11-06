@@ -121,7 +121,7 @@ Run `supabase/migrations/20261109_prayers_highlights_memorize.sql` once, after t
 
 ### Refuge and the admin desk (`app/refuge.py`, `app/one_another.py`, `app/care.py`, `web/refuge.js`)
 
-A quiet room in the cave for every kind of season, not only hard ones. Run `supabase/migrations/20261110_refuge.sql` once, after the others; until then the tab shows the setup message. Five rooms, drawn in place inside the tab (not hash routes, so Leave quickly can replace the one history entry and Back never leads back in):
+A quiet room in the cave for every kind of season, not only hard ones. Run `supabase/migrations/20261110_refuge.sql` once, after the others; until then the tab shows the setup message. Five rooms, drawn in place inside the tab (not hash routes, so Refuge is one history entry and Back never leads from one room into another):
 - **Write it out**: a blank page or a guided shape (lament, thanks, hoping). "Let it go" never touches the server; only "Keep it" stores anything (`refuge_writings`). "Plant it in Pebbles" turns a hope into a seed.
 - **Talk with Aquila**: the graph's `listen` node through `POST /me/refuge/talk`. The browser holds the talk, and it vanishes when the person leaves Refuge (`Refuge.hide`, called by `cave.js` on any other tab or view) unless they press Keep (`refuge_talks`). These runs pass `callbacks: []`, so they are never traced to Langfuse, and nothing here reaches `user_memories`. Keep both true.
 - **Pebbles** (once "Grow"; the code still says seeds): hopes, goals (with steps), habits and prayers (tended day by day, shown as a week of dots, never as a streak count). `refuge_seeds` and `refuge_checkins`, local days via `parse_today`.
@@ -144,6 +144,7 @@ Anyone can read; notes, highlights and memorizing need an account. Run `supabase
 ### Sermon notes (`app/sermons.py`, `app/sermon_export.py`, `web/sermons.js`)
 
 Run `supabase/migrations/20261111_sermon_notes.sql` once (it also creates the private `sermon-images` storage bucket). Until then the Sermons tab says what to run.
+- **The tab opens on the list.** A note opens only when it's picked (`sermons.js::showList` and `openNote`), then sits beside the list; on a phone it takes the list's place, with "All sermons" to go back.
 - **A note is details plus blocks.** Title, speaker, church, date, series and main passage, then an ordered list of blocks (`text`, `heading`, `verse`, `image`, `quote`, `todo`, `link`) stored as JSON and validated by the pydantic models at the top of `app/sermons.py`. The page saves the whole note about a second after each edit.
 - **The server finds the references, not the page.** Each save runs every block through `retrieval.find_references` and returns `passages` (the whole note, main passage first) and `block_refs` (per block), which the page shows as chips linking to the reader. Verse blocks store only the reference; their text is always read from the database in the reader's translation, on screen and in exports.
 - **Photos** are shrunk in the browser to 1600 pixels, sent as base64, checked by their first bytes, and stored under `<user id>/<note id>/` in the `sermon-images` bucket. A block keeps only the path, `clean_blocks` refuses any path outside the note's own folder, and the server signs an hour-long link each time the note is read. Photos dropped from a note, or in a deleted note, are removed from storage.
@@ -159,6 +160,8 @@ On screen it is "Connections" (it was "Map" at first, which read as a geographic
 - **Close in meaning** (`"meaning"`, solid lines): the seed's stored embedding (read from the search translation's copy of that verse) fed back through `match_verses` for its nearest neighbours in other chapters. No new SQL and no LLM call.
 - **Classic cross-references** (`"cross_ref"`, dashed accent lines): the seed's best-voted rows in `cross_references` (`supabase/migrations/20261111_cross_references.sql`, loaded by `scripts/ingest_cross_references.py`). The data is OpenBible.info's, CC BY, built on the public-domain Treasury of Scripture Knowledge; the licence asks for credit, which the graph's legend and the cross-reference panel give, so keep it. A link to a run of verses is drawn to its first verse and carries the run as `passage`. Until the migration runs the table is simply skipped.
 A pair that is both is drawn solid in the accent colour. The legend toggles each kind.
+
+Opened with nothing to show (the nav item, the phone tab), the graph offers `graph.js::STARTERS`, a few themes each with the passage that starts it; the labels are themes, never quoted verse text. On phones the graph stops above the tab bar, Connections is the lit tab while it's open, and tapping another tab or any route change closes it.
 
 Tapping a line (or "Why?" beside a neighbour in a verse's panel) calls `POST /connections/explain`: `app/agent/nodes.py::explain_link` gives two or three sentences on how the two passages connect, from those two passages only (a reply naming any other verse is rewritten, then replaced by a plain sentence), cached per link with `lru_cache`. `web/graph.js` lazy-loads d3 from cdnjs the first time the graph opens.
 
