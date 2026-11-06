@@ -171,7 +171,8 @@ def test_the_scheduled_send_needs_the_secret(monkeypatch):
     assert client.post("/internal/send-reminders", headers={"X-Cron-Secret": "wrong"}).status_code == 403
     monkeypatch.setattr(reminders, "run_due", lambda: 2)
     monkeypatch.setattr(reminders, "run_live", lambda: 0)
-    assert client.post("/internal/send-reminders", headers={"X-Cron-Secret": "s3cret"}).json() == {"sent": 2, "live": 0}
+    monkeypatch.setattr(reminders, "_run_digest", lambda: 1)
+    assert client.post("/internal/send-reminders", headers={"X-Cron-Secret": "s3cret"}).json() == {"sent": 2, "live": 0, "digests": 1}
 
 
 def test_push_key_is_null_until_set_up(monkeypatch):

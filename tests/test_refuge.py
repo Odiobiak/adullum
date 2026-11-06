@@ -3,7 +3,7 @@ desk's gate, Aquila's listening mode, and renaming a conversation. Supabase,
 auth, OpenAI and the agent are all faked out; nothing here makes a real
 network call."""
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -20,6 +20,8 @@ USER = AuthUser(id="11111111-1111-1111-1111-111111111111", email="ruth@example.c
 ADMIN = AuthUser(id="33333333-3333-3333-3333-333333333333", email="keeper@example.com")
 HEADERS = {"Authorization": "Bearer t"}
 POST_ID = "22222222-2222-2222-2222-222222222222"
+# A post that went up yesterday and is on the wall for a while yet.
+LIVE = {"approved_at": "2026-01-01T00:00:00+00:00", "expires_at": "2999-01-01T00:00:00+00:00"}
 
 
 class FakeQuery:
@@ -52,6 +54,14 @@ class FakeDb:
 
     def table(self, name):
         return FakeQuery(self, name)
+
+    def rpc(self, name, params):
+        """A database function: answered from rows["rpc:<name>"]."""
+        self.calls.append(("rpc", name, params))
+        return FakeQuery(self, f"rpc:{name}")
+
+    def rpc_params(self, name):
+        return [params for kind, called, params in self.calls if kind == "rpc" and called == name]
 
     def filtered(self, table, column, value, method="eq"):
         return (table, method, (column, value)) in self.calls
@@ -120,6 +130,24 @@ class TestPebbles:
         assert [m["done"] for m in rows["h"]["week"]] == [True, False, False, True, False, False, False]
         assert rows["g"]["measure"]["fraction"] == 0.25 and rows["g"]["due_in"] == 5
         assert db.filtered("refuge_seeds", "user_id", USER.id)
+
+    def test_home_shows_only_active_habits_and_whether_they_prayed_today(self, monkeypatch, signed_in):
+        from app import hearth
+
+        habit = {"id": "h", "kind": "habit", "title": "Walk", "per_week": 5, "status": "growing", "steps": [], "target": None, "due_on": None}
+        set_aside = {"id": "s", "kind": "habit", "title": "Run", "per_week": 3, "status": "set_aside", "steps": [], "target": None, "due_on": None}
+        goal = {"id": "g", "kind": "goal", "title": "Read Ruth", "status": "growing", "steps": [], "target": None, "due_on": None}
+        db = use_db(monkeypatch, FakeDb({
+            "profiles": [{"id": USER.id, "display_name": "Ruth"}],
+            "refuge_seeds": [habit, set_aside, goal],
+            "prayer_days": [{"day": "2026-11-05"}],
+        }))
+        monkeypatch.setattr(hearth, "get_supabase", lambda: db)
+        body = client.get("/me/home?today=2026-11-05", headers=HEADERS).json()
+        assert [p["id"] for p in body["pebbles"]] == ["h"]
+        assert body["prayers"]["prayed_today"] is True
+        # Only the general "I prayed today", the same mark the Prayers tab's button keeps.
+        assert db.filtered("prayer_days", "user_id", USER.id) and db.filtered("prayer_days", "prayer_id", "null", "is_")
 
     def test_only_habits_are_marked_day_by_day(self, monkeypatch, signed_in):
         use_db(monkeypatch, FakeDb({"refuge_seeds": [{"id": SEED_ID, "kind": "goal"}]}))
@@ -201,26 +229,56 @@ class TestWallRoutes:
         assert resp.json() == {"outcome": "care"}
         assert not db.written
 
-    def test_a_good_post_waits_on_the_desk(self, monkeypatch):
+    def test_a_post_the_check_is_clear_about_goes_up_straight_away(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb())
         monkeypatch.setattr(one_another, "moderate", lambda text: {"flagged": [], "self_harm_intent": False, "error": None})
         resp = self.share("  Got the all clear from the doctor!  ", kind="rejoice")
-        assert resp.json()["outcome"] == "waiting"
+        assert resp.json()["outcome"] == "shared"
         table, method, row = db.written[-1]
         assert (table, method) == ("refuge_posts", "insert")
-        assert row["status"] == "pending" and row["user_id"] == USER.id and row["kind"] == "rejoice"
+        assert row["status"] == "approved" and row["approved_at"] and row["user_id"] == USER.id and row["kind"] == "rejoice"
         assert row["body"] == "Got the all clear from the doctor!"
+
+    @pytest.mark.parametrize("check", [
+        {"flagged": ["violence"], "self_harm_intent": False, "error": None},  # someone describing harm done to them
+        {"flagged": [], "self_harm_intent": False, "error": "APIError"},      # the check didn't run
+    ])
+    def test_a_post_the_check_isnt_sure_of_waits_for_a_person(self, monkeypatch, check):
+        db = use_db(monkeypatch, FakeDb())
+        monkeypatch.setattr(one_another, "moderate", lambda text: check)
+        assert self.share("He hit me again last night.").json()["outcome"] == "waiting"
+        assert db.written[-1][2]["status"] == "pending" and "approved_at" not in db.written[-1][2]
+
+    def test_with_going_up_straight_away_off_every_post_waits(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb())
+        monkeypatch.setattr(settings, "amens_auto_approve", False)
+        monkeypatch.setattr(one_another, "moderate", lambda text: {"flagged": [], "self_harm_intent": False, "error": None})
+        assert self.share("Pray for my exams").json()["outcome"] == "waiting"
+        assert db.written[-1][2]["status"] == "pending"
 
     def test_three_a_day(self, monkeypatch):
         use_db(monkeypatch, FakeDb(counts={"refuge_posts": one_another.POSTS_PER_DAY}))
         monkeypatch.setattr(one_another, "moderate", lambda text: pytest.fail("shouldn't reach moderation"))
         assert self.share("one more").status_code == 429
 
-    def test_the_wall_is_approved_posts_by_other_people(self, monkeypatch):
+    def test_the_wall_is_this_persons_fair_page_and_never_says_who_wrote(self, monkeypatch):
+        page = [{"id": f"p{i}", "kind": "burden", "body": "x", "created_at": "now", "amen_count": i, "reacted": False, "sent_kind_word": False}
+                for i in range(one_another.WALL_PAGE + 1)]
+        db = use_db(monkeypatch, FakeDb(rows={"rpc:amens_wall": page}))
+        body = client.get("/me/refuge/wall?page=1", headers=HEADERS).json()
+        params = db.rpc_params("amens_wall")[0]
+        assert params["viewer"] == USER.id and params["skip"] == one_another.WALL_PAGE
+        assert len(body["posts"]) == one_another.WALL_PAGE and body["has_more"] is True
+        assert body["posts"][3]["reactions"] == 3
+        assert all("user_id" not in p for p in body["posts"])
+        # Later pages carry only the wall, not the person's own posts.
+        assert "mine" not in body
+
+    def test_opening_the_wall_marks_when_they_last_looked(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb())
-        assert client.get("/me/refuge/wall", headers=HEADERS).status_code == 200
-        assert db.filtered("refuge_posts", "status", "approved")
-        assert db.filtered("refuge_posts", "user_id", USER.id, method="neq")
+        client.get("/me/refuge/wall", headers=HEADERS)
+        visit = next(row for table, method, row in db.written if table == "refuge_wall_visits")
+        assert visit["user_id"] == USER.id
 
     def test_the_writer_never_sees_the_desks_words(self, monkeypatch):
         mine = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "removed", "created_at": "2026-11-01T00:00:00+00:00"}]
@@ -229,8 +287,16 @@ class TestWallRoutes:
         assert body["mine"][0]["status"] == "not_shared"
         assert "review_note" not in body["mine"][0]
 
+    def test_kind_words_come_back_counted_by_word(self, monkeypatch):
+        mine = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "approved", "created_at": "now", "amen_count": 40, "kind_word_count": 3}]
+        tally = [{"post_id": POST_ID, "choice": "not-alone", "n": 2}, {"post_id": POST_ID, "choice": "god-sees", "n": 1}]
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": mine, "rpc:kind_word_tally": tally}))
+        post = client.get("/me/refuge/wall", headers=HEADERS).json()["mine"][0]
+        assert post["reactions"] == 40 and post["kind_word_count"] == 3
+        assert [(w["id"], w["count"]) for w in post["kind_words"]] == [("not-alone", 2), ("god-sees", 1)]
+
     def test_nobody_can_pray_for_their_own_post(self, monkeypatch):
-        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved"}]}))
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", **LIVE}]}))
         assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 400
 
     def test_posts_waiting_on_the_desk_cant_be_responded_to(self, monkeypatch):
@@ -238,9 +304,20 @@ class TestWallRoutes:
         assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 404
 
     def test_kind_words_must_match_the_post(self, monkeypatch):
-        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}]}))
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", **LIVE}]}))
         resp = client.post(f"/me/refuge/posts/{POST_ID}/kind-words", json={"choice": "rejoicing"}, headers=HEADERS)
         assert resp.status_code == 422
+
+    def test_an_answered_prayer_takes_good_news_words(self, monkeypatch):
+        post = {"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", "answered_at": "2026-11-01T00:00:00+00:00", **LIVE}
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/kind-words", json={"choice": "rejoicing"}, headers=HEADERS).status_code == 200
+        assert client.post(f"/me/refuge/posts/{POST_ID}/kind-words", json={"choice": "not-alone"}, headers=HEADERS).status_code == 422
+
+    def test_a_post_that_has_left_the_wall_cant_be_responded_to(self, monkeypatch):
+        post = {"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", "approved_at": "2026-01-01T00:00:00+00:00", "expires_at": "2026-01-15T00:00:00+00:00"}
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 404
 
     def test_a_report_takes_it_off_the_wall(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}]}))
@@ -266,9 +343,13 @@ class TestDesk:
     def test_approving_puts_it_on_the_wall(self, monkeypatch):
         monkeypatch.setattr(auth, "_verify", lambda token: ADMIN)
         monkeypatch.setattr(settings, "admin_emails", "keeper@example.com")
-        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID}]}))
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "kind": "rejoice"}]}))
         assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve"}, headers=HEADERS).json() == {"status": "approved"}
-        assert db.written[-1][2]["status"] == "approved"
+        patch = db.written[-1][2]
+        assert patch["status"] == "approved"
+        # Good news gets its week from the moment it goes up.
+        went_up, ends = datetime.fromisoformat(patch["approved_at"]), datetime.fromisoformat(patch["expires_at"])
+        assert (ends - went_up).days == one_another.LIFETIME_DAYS["rejoice"]
 
     def test_nobody_is_an_admin_by_default(self, monkeypatch):
         monkeypatch.setattr(settings, "admin_emails", "")
@@ -404,25 +485,135 @@ class TestAmensGlance:
         assert one_another.featured_post([], set()) is None
 
     def test_glance_counts_the_week_and_features_someone_elses_post(self, monkeypatch):
-        db = use_db(monkeypatch, FakeDb(
-            rows={
-                "refuge_posts": [
-                    {"id": "said-amen", "kind": "burden", "body": "Pray for my mum."},
-                    {"id": "waiting", "kind": "rejoice", "body": "I got the job."},
-                ],
-                # The fake answers every reactions query with these rows, so
-                # this person has said amen to the first post only.
-                "refuge_reactions": [{"post_id": "said-amen"}],
-            },
-            counts={"refuge_reactions": 12},
-        ))
+        db = use_db(monkeypatch, FakeDb(rows={
+            "refuge_amen_days": [{"amens": 5}, {"amens": 7}],
+            "rpc:amens_waiting": 3,
+            "rpc:amens_wall": [{"id": "first", "kind": "rejoice", "body": "I got the job.", "amen_count": 2, "reacted": False}],
+        }))
 
         glance = one_another.amens_glance(USER)
 
         assert glance["this_week"] == 12
-        assert glance["waiting"] == 1
-        assert glance["post"] == {"id": "waiting", "kind": "rejoice", "body": "I got the job.", "amens": 0}
-        # Only approved posts by other people, never the person's own.
-        assert db.filtered("refuge_posts", "user_id", USER.id, method="neq")
+        assert glance["waiting"] == 3
+        assert glance["post"] == {"id": "first", "kind": "rejoice", "body": "I got the job.", "amens": 2}
+        # Both read the wall as this person sees it: other people's posts only
+        # (amens_wall and amens_waiting leave out the viewer's own).
+        assert db.rpc_params("amens_waiting")[0]["viewer"] == USER.id
+        assert db.rpc_params("amens_wall")[0]["viewer"] == USER.id
         assert not db.filtered("refuge_posts", "user_id", USER.id)
-        assert db.filtered("refuge_posts", "status", "approved")
+
+    def test_a_post_already_prayed_for_isnt_featured(self, monkeypatch):
+        use_db(monkeypatch, FakeDb(rows={"rpc:amens_wall": [{"id": "done", "kind": "burden", "body": "x", "amen_count": 9, "reacted": True}]}))
+        assert one_another.amens_glance(USER)["post"] is None
+
+
+# ---------------------------------------------------------------------------
+# The evening digest
+# ---------------------------------------------------------------------------
+class TestDigest:
+    def test_the_words_fit_what_came_back(self):
+        assert one_another.digest_message(0, 0, 0) is None
+        one = one_another.digest_message(1, 0, 0)
+        assert one["title"] == "Someone prayed for you today" and one["body"] == "1 person prayed for you."
+        many = one_another.digest_message(12, 0, 3)
+        assert many["title"] == "People prayed for you today"
+        assert many["body"] == "12 people prayed for you and 3 kind words were sent to you."
+        both = one_another.digest_message(2, 5, 0)
+        assert both["title"] == "From the Amens wall" and both["body"] == "2 people prayed for you and 5 people rejoiced with you."
+        assert both["url"] == "#amens"
+
+    def test_it_waits_for_the_writers_evening(self):
+        six_utc = datetime(2026, 11, 6, 18, 30, tzinfo=timezone.utc)
+        assert one_another.is_evening("Africa/Lagos", six_utc.replace(hour=17))      # 6:30pm in Lagos
+        assert not one_another.is_evening("America/New_York", six_utc)              # 1:30pm in New York
+        assert one_another.is_evening(None, six_utc) and one_another.is_evening("Not/AZone", six_utc)
+
+    def test_each_writer_is_claimed_before_sending(self, monkeypatch):
+        from app import push
+
+        due = [
+            {"user_id": "a", "time_zone": None, "prayed": 3, "rejoiced": 0, "kind_words": 0},
+            {"user_id": "b", "time_zone": None, "prayed": 1, "rejoiced": 0, "kind_words": 0},  # the other sender claimed it
+            {"user_id": "c", "time_zone": None, "prayed": 0, "rejoiced": 0, "kind_words": 0},  # nothing came back
+        ]
+        claims = {"a": True, "b": False}
+        sent = []
+        monkeypatch.setattr(push, "configured", lambda: True)
+        monkeypatch.setattr(push, "notify_user", lambda user_id, payload: sent.append((user_id, payload["body"])) or 1)
+        monkeypatch.setattr(one_another, "_rpc", lambda name, params: due if name == "amens_digest_due" else claims[params["writer"]])
+        evening = datetime(2026, 11, 6, 19, 0, tzinfo=timezone.utc)
+        assert one_another.run_digest(evening) == 1
+        assert sent == [("a", "3 people prayed for you.")]
+
+
+# ---------------------------------------------------------------------------
+# How long a post stays on the wall
+# ---------------------------------------------------------------------------
+class TestLifetimes:
+    NOW = datetime(2026, 11, 6, 12, 0, tzinfo=timezone.utc)
+
+    def request(self, went_up_days_ago, ends_in_days, **extra):
+        return {
+            "kind": "burden", "status": "approved",
+            "approved_at": (self.NOW - timedelta(days=went_up_days_ago)).isoformat(),
+            "expires_at": (self.NOW + timedelta(days=ends_in_days)).isoformat(),
+            **extra,
+        }
+
+    def test_a_prayer_stays_two_weeks_and_good_news_a_week(self):
+        assert (one_another.expires_for("burden", self.NOW) - self.NOW).days == 14
+        assert (one_another.expires_for("rejoice", self.NOW) - self.NOW).days == 7
+
+    def test_it_can_be_kept_up_only_near_its_end(self):
+        assert one_another.kept_up_until(self.request(5, 9), self.NOW) is None
+        until = one_another.kept_up_until(self.request(12, 2), self.NOW)
+        assert (until - self.NOW).days == 16  # two weeks on from its current end
+
+    def test_one_just_ended_comes_back_for_two_weeks_from_today(self):
+        until = one_another.kept_up_until(self.request(15, -1), self.NOW)
+        assert (until - self.NOW).days == 14
+
+    def test_never_past_two_months(self):
+        until = one_another.kept_up_until(self.request(50, 2), self.NOW)
+        assert (until - self.NOW).days == 10  # 60 days from when it went up
+        assert one_another.kept_up_until(self.request(60, 0), self.NOW) is None
+
+    def test_good_news_and_answered_prayers_arent_kept_up(self):
+        assert one_another.kept_up_until({**self.request(12, 2), "kind": "rejoice"}, self.NOW) is None
+        assert one_another.kept_up_until(self.request(12, 2, answered_at="x"), self.NOW) is None
+
+    def test_where_a_writers_post_stands(self):
+        standing = one_another.lifetime(self.request(12, 2), self.NOW)
+        assert standing == {"on_wall": True, "days_left": 2, "can_keep_up": True, "answered": False}
+        assert one_another.lifetime(self.request(20, -6), self.NOW)["on_wall"] is False
+
+
+@pytest.mark.usefixtures("signed_in")
+class TestKeepUpAndAnswered:
+    def test_keeping_up_moves_the_end_and_stays_inside_ones_own(self, monkeypatch):
+        now = datetime.now(timezone.utc)
+        post = {"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", "kept_up": 0,
+                "approved_at": (now - timedelta(days=12)).isoformat(), "expires_at": (now + timedelta(days=2)).isoformat()}
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/keep-up", headers=HEADERS).status_code == 200
+        patch = db.written[-1][2]
+        assert patch["kept_up"] == 1 and patch["expires_at"] > post["expires_at"]
+        assert db.filtered("refuge_posts", "user_id", USER.id)
+
+    def test_someone_elses_post_cant_be_kept_up(self, monkeypatch):
+        use_db(monkeypatch, FakeDb())
+        assert client.post(f"/me/refuge/posts/{POST_ID}/keep-up", headers=HEADERS).status_code == 404
+
+    def test_answered_stays_five_days_as_good_news(self, monkeypatch):
+        post = {"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", **LIVE}
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post]}))
+        resp = client.post(f"/me/refuge/posts/{POST_ID}/answered", json={"note": "  Mum's surgery   went well  "}, headers=HEADERS)
+        assert resp.status_code == 200
+        patch = db.written[-1][2]
+        assert patch["answer_note"] == "Mum's surgery went well" and patch["answered_at"] and patch["expires_at"]
+
+    def test_good_news_isnt_marked_answered_and_notes_cant_carry_contact_details(self, monkeypatch):
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "rejoice", "status": "approved", **LIVE}]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/answered", json={}, headers=HEADERS).status_code == 422
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", **LIVE}]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/answered", json={"note": "call me on 07700 900123"}, headers=HEADERS).status_code == 422

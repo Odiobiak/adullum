@@ -1,0 +1,192 @@
+"""Declare: that a line is kept only when it rests on a passage Aquila was
+given, that an unsafe situation gets helplines instead of words, and that the
+kept ones stay inside one person's cave. The model and Supabase are faked;
+nothing here makes a real network call."""
+
+import pytest
+from fastapi.testclient import TestClient
+
+import app.main as main
+from app import auth, declare
+from app.agent.nodes import DeclareDraft, DeclareLine
+from app.auth import AuthUser
+from app.retrieval import ParsedReference
+from app.schemas import Verse
+
+client = TestClient(main.app)
+USER = AuthUser(id="11111111-1111-1111-1111-111111111111", email="ruth@example.com")
+HEADERS = {"Authorization": "Bearer t"}
+
+
+def verse(book, chapter, n, text="text"):
+    return Verse(book=book, chapter=chapter, verse=n, text=text, translation="KJV", source="reference")
+
+
+PASSAGES = {
+    "2 Timothy 1:7": [verse("2 Timothy", 1, 7, "For God hath not given us the spirit of fear;")],
+    "Numbers 6:24-26": [verse("Numbers", 6, n, f"v{n}") for n in (24, 25, 26)],
+}
+
+
+class FakeQuery:
+    def __init__(self, db):
+        self.db = db
+
+    def __getattr__(self, name):
+        def method(*args, **kwargs):
+            self.db.calls.append((name, args))
+            return self
+
+        return method
+
+    def execute(self):
+        return type("Result", (), {"data": self.db.rows})()
+
+
+class FakeDb:
+    def __init__(self, rows):
+        self.rows, self.calls = rows, []
+
+    def table(self, name):
+        self.calls.append(("table", (name,)))
+        return FakeQuery(self)
+
+
+class TestKeys:
+    def test_a_run_is_named_by_its_span(self):
+        assert declare.ref_key(ParsedReference("Numbers", 6, 24, 26)) == "Numbers 6:24-26"
+        assert declare.ref_key(ParsedReference("Isaiah", 41, 10, 10)) == "Isaiah 41:10"
+
+    def test_long_runs_are_held_to_three_verses(self):
+        assert declare.canonical_ref("Psalm 91:1-16") == "Psalms 91:1-3"
+
+    def test_a_chapter_or_a_non_reference_is_not_a_passage(self):
+        assert declare.canonical_ref("Psalm 23") is None
+        assert declare.canonical_ref("my interview") is None
+
+    def test_found_verses_name_their_own_key(self):
+        assert declare.passage_key(PASSAGES["Numbers 6:24-26"]) == "Numbers 6:24-26"
+
+
+class TestUsableLines:
+    def test_keeps_lines_from_listed_passages_in_order(self):
+        lines = [
+            DeclareLine(say="I walk in without  fear.", ref="2 Tim 1:7"),
+            DeclareLine(say="The Lord blesses and keeps me.", ref="Numbers 6:24-26"),
+        ]
+        assert declare.usable_lines(lines, PASSAGES) == [
+            {"say": "I walk in without fear.", "ref": "2 Timothy 1:7"},
+            {"say": "The Lord blesses and keeps me.", "ref": "Numbers 6:24-26"},
+        ]
+
+    def test_drops_unlisted_repeated_and_self_citing_lines(self):
+        lines = [
+            DeclareLine(say="I can do all things.", ref="Philippians 4:13"),  # never looked up
+            DeclareLine(say="I am not afraid.", ref="2 Timothy 1:7"),
+            DeclareLine(say="Still not afraid.", ref="2 Timothy 1:7"),  # same passage twice
+            DeclareLine(say="As John 3:16 says, I am loved.", ref="Numbers 6:24-26"),  # names a verse
+            DeclareLine(say="  ", ref="Numbers 6:24-26"),
+        ]
+        assert declare.usable_lines(lines, PASSAGES) == [{"say": "I am not afraid.", "ref": "2 Timothy 1:7"}]
+
+    def test_an_opening_naming_a_verse_falls_back(self):
+        assert declare.clean_opening("In Jesus' name, per Isaiah 41:10, I declare") == declare.FALLBACK_OPENING
+        assert declare.clean_opening("In the name of Jesus, I declare over my exam.") == "In the name of Jesus, I declare over my exam."
+
+
+class TestDeclareRoute:
+    @pytest.fixture(autouse=True)
+    def signed_in(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+        monkeypatch.setattr(declare, "gather_passages", lambda situation, translation, config: PASSAGES)
+
+    def test_lines_come_back_with_verse_text_from_the_database(self, monkeypatch):
+        draft = DeclareDraft(title="For your interview", opening="In the name of Jesus, I declare over my interview.", lines=[
+            DeclareLine(say="I walk in without fear.", ref="2 Timothy 1:7"),
+            DeclareLine(say="The Lord keeps me.", ref="Numbers 6:24-26"),
+        ])
+        monkeypatch.setattr(declare, "write_declaration", lambda *a, **k: draft)
+        res = client.post("/declare", json={"situation": "A job interview tomorrow", "translation": "kjv"}, headers=HEADERS)
+        assert res.status_code == 200
+        body = res.json()
+        assert body["translation"] == "KJV"
+        assert body["lines"][0]["text"] == "For God hath not given us the spirit of fear;"
+        assert body["lines"][1]["text"] == "v24 v25 v26"
+
+    def test_writes_again_once_when_too_few_lines_survive(self, monkeypatch):
+        drafts = iter([
+            DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")]),
+            DeclareDraft(title="t", opening="o", lines=[
+                DeclareLine(say="a", ref="2 Timothy 1:7"), DeclareLine(say="b", ref="Numbers 6:24-26"),
+            ]),
+        ])
+        extras = []
+
+        def write(*args, extra="", **kwargs):
+            extras.append(extra)
+            return next(drafts)
+
+        monkeypatch.setattr(declare, "write_declaration", write)
+        res = client.post("/declare", json={"situation": "An exam"}, headers=HEADERS)
+        assert [line["ref"] for line in res.json()["lines"]] == ["2 Timothy 1:7", "Numbers 6:24-26"]
+        assert extras[0] == "" and "only the listed passages" in extras[1]
+
+    def test_no_usable_lines_is_an_honest_error(self, monkeypatch):
+        bad = DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")])
+        monkeypatch.setattr(declare, "write_declaration", lambda *a, **k: bad)
+        res = client.post("/declare", json={"situation": "An exam"}, headers=HEADERS)
+        assert res.status_code == 502
+
+    def test_an_unsafe_situation_gets_no_words(self, monkeypatch):
+        monkeypatch.setattr(declare, "write_declaration", lambda *a, **k: pytest.fail("should not write"))
+        res = client.post("/declare", json={"situation": "I want to kill myself"}, headers=HEADERS)
+        assert res.json() == {"care": True}
+
+    def test_requires_sign_in(self):
+        assert client.post("/declare", json={"situation": "An exam"}).status_code == 401
+
+
+class TestKeeping:
+    @pytest.fixture(autouse=True)
+    def signed_in(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+
+    BODY = {
+        "title": "For your interview", "situation": "Interview tomorrow", "opening": "In the name of Jesus.",
+        "lines": [{"say": "I walk in without fear.", "ref": "2 tim 1:7"}],
+    }
+
+    def test_keeps_lines_with_canonical_references_and_no_verse_text(self, monkeypatch):
+        db = FakeDb([{"id": "d1"}])
+        monkeypatch.setattr(declare, "get_supabase", lambda: db)
+        assert client.post("/me/declarations", json=self.BODY, headers=HEADERS).json() == {"id": "d1", "prayer_id": None}
+        inserted = next(args[0] for name, args in db.calls if name == "insert")
+        assert inserted["user_id"] == USER.id
+        assert inserted["lines"] == [{"say": "I walk in without fear.", "ref": "2 Timothy 1:7"}]
+
+    def test_a_line_that_is_not_a_verse_is_refused(self, monkeypatch):
+        monkeypatch.setattr(declare, "get_supabase", lambda: FakeDb([]))
+        body = {**self.BODY, "lines": [{"say": "Something", "ref": "my interview"}]}
+        assert client.post("/me/declarations", json=body, headers=HEADERS).status_code == 422
+
+    def test_someone_elses_prayer_is_a_404(self, monkeypatch):
+        monkeypatch.setattr(declare, "get_supabase", lambda: FakeDb([]))
+        body = {**self.BODY, "prayer_id": "22222222-2222-2222-2222-222222222222"}
+        assert client.post("/me/declarations", json=body, headers=HEADERS).status_code == 404
+
+    def test_a_quick_one_becomes_a_prayer_when_kept(self, monkeypatch):
+        db = FakeDb([{"id": "d1"}])
+        monkeypatch.setattr(declare, "get_supabase", lambda: db)
+        made = []
+        monkeypatch.setattr(declare.prayers, "create_prayer", lambda body, user: made.append(body.body) or {"id": "p1"})
+        res = client.post("/me/declarations", json={**self.BODY, "as_prayer": True}, headers=HEADERS)
+        assert res.json() == {"id": "d1", "prayer_id": "p1"} and made == ["Interview tomorrow"]
+        # A prayer keeps one declaration, so an older one is replaced.
+        assert ("eq", ("prayer_id", "p1")) in db.calls
+
+    def test_list_and_delete_stay_inside_one_cave(self, monkeypatch):
+        db = FakeDb([])
+        monkeypatch.setattr(declare, "get_supabase", lambda: db)
+        client.get("/me/declarations", headers=HEADERS)
+        client.delete("/me/declarations/33333333-3333-3333-3333-333333333333", headers=HEADERS)
+        assert db.calls.count(("eq", ("user_id", USER.id))) == 2

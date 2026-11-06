@@ -15,8 +15,10 @@ Five ways in, each with its routes here or in app/one_another.py:
 - Be still: entirely in the browser.
 - Amens: the wall, app/one_another.py.
 
-Nothing here appears on the home screen or feeds user_memories. Every query
-filters by the signed-in user's id in code, same rule as app/cave.py.
+Nothing here feeds user_memories. The one part the home screen shows is the
+person's own active habits (rows in their Today list); writing, talks and
+the Amens wall's posts never appear there. Every query filters by the
+signed-in user's id in code, same rule as app/cave.py.
 """
 
 import logging
@@ -284,12 +286,11 @@ def _clean_unit(unit: str | None) -> str | None:
     return " ".join((unit or "").split()) or None
 
 
-@router.get("/me/refuge/seeds")
-def list_seeds(today: str | None = None, user: AuthUser = Depends(require_user)) -> list[dict]:
+def pebbles_with_progress(user: AuthUser, day: date) -> list[dict]:
     """Every pebble, active ones first. A goal comes with how far along it is
     (`measure`) and how many days are left (`due_in`); a habit with this week
-    as seven marks and how many of them are done."""
-    day = parse_today(today)
+    as seven marks and how many of them are done. The Pebbles room lists them
+    all; the home screen (app/hearth.py) shows the active habits."""
     db = get_supabase()
     seeds = _pebbles_db(lambda: db.table("refuge_seeds").select(_SEED_FIELDS).eq("user_id", user.id).order("created_at", desc=True).execute().data)
     since = (day - timedelta(days=MARKABLE_DAYS - 1)).isoformat()
@@ -305,6 +306,11 @@ def list_seeds(today: str | None = None, user: AuthUser = Depends(require_user))
             s["due_in"] = (date.fromisoformat(s["due_on"]) - day).days if s.get("due_on") else None
     order = {"growing": 0, "fulfilled": 1, "set_aside": 2}
     return sorted(seeds, key=lambda s: order[s["status"]])
+
+
+@router.get("/me/refuge/seeds")
+def list_seeds(today: str | None = None, user: AuthUser = Depends(require_user)) -> list[dict]:
+    return pebbles_with_progress(user, parse_today(today))
 
 
 @router.post("/me/refuge/seeds")

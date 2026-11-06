@@ -2,8 +2,8 @@
 // reading plans, past conversations with Aquila, settings (profile, theme,
 // what Aquila remembers), the signed-out page, and the extras under each
 // answer. The cave's Prayers tab lives in web/prayers.js and its Refuge tab in
-// web/refuge.js; this file hands them their panel. Notes, highlights, verses
-// to learn and reading plans live in the Bible (web/reader.js, web/memorize.js),
+// web/refuge.js; this file hands them their panel. Notes, highlights, saved
+// things and reading plans live in the Bible (web/reader.js, web/saved.js),
 // which draws the plans page with renderPlans from here.
 //
 // Loaded before index.html's main script, so it only defines things here and
@@ -32,6 +32,7 @@
     ember: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
+    forward: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   };
 
@@ -489,6 +490,12 @@
       const me = await api("/me");
       profile = { ...me.profile, email: me.user.email, is_admin: !!me.is_admin, desk_waiting: me.desk_waiting };
       if (session && !session.user) writeSession({ ...session, user: me.user });
+      // Keep the person's time zone, so Amens' evening digest arrives in their
+      // evening (app/one_another.py::run_digest). Quietly, and only when it moved.
+      const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (zone && profile.time_zone !== zone && "time_zone" in profile) {
+        api("/me", { method: "PATCH", body: { time_zone: zone } }).then(() => { profile.time_zone = zone; }).catch(() => {});
+      }
       // web/reader.js listens for this to apply the saved translation.
       document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
       // A supporter theme saved on this device stays only for those it's unlocked for.
@@ -742,20 +749,18 @@
     }
   }
 
-  // The box where someone tells Aquila what they'd like to read. Used on the
-  // home screen (compact, inside a card) and at the top of Reading plans in
-  // the Bible (#bible/plans).
-  function planBuilder({ onBuilt, compact = false }) {
-    const id = compact ? "homePlanRequest" : "planRequest";
+  // The box where someone tells Aquila what they'd like to read, at the top
+  // of Reading plans in the Bible (#bible/plans).
+  function planBuilder({ onBuilt }) {
+    const id = "planRequest";
     const input = el("textarea", { id, rows: "2", maxlength: "500", placeholder: "For example: the Gospels in a month, or two weeks on anxiety" });
     const msg = formMessage();
     const build = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Shape my plan" });
     const whole = el("button", { class: "linkish", type: "button", text: "Or read the whole Bible in a year" });
     whole.onclick = () => startWholeBiblePlan(whole, onBuilt);
 
-    const form = el("form", { class: `plan-builder${compact ? "" : " card"}` }, [
-      // On the home screen the card's own head carries this (homePlanCard).
-      compact ? null : titleInfo(el("h2", { class: "section-title", text: "Plan with Aquila" }), PLAN_ABOUT),
+    const form = el("form", { class: "plan-builder card" }, [
+      titleInfo(el("h2", { class: "section-title", text: "Plan with Aquila" }), PLAN_ABOUT),
       el("label", { class: "sr", for: id, text: "What would you like to read?" }),
       input,
       el("div", { class: "topics" }, PLAN_IDEAS.map((idea) =>
@@ -792,8 +797,9 @@
   }
 
   // One reading plan: where it stands today, today's chapters, and its
-  // actions. `compact` is the home screen's version.
-  function planItem(plan, { compact = false, onChange }) {
+  // actions. The home screen's Today list has its own one-line version
+  // (planRow).
+  function planItem(plan, { onChange }) {
     const bar = el("span", { style: `width:${Math.max(plan.progress_pct, 1)}%` });
     const progressText = el("span");
     const doneBtn = el("button", { type: "button" });
@@ -817,7 +823,7 @@
 
     const refs = compactRefs(plan.refs);
     const body = [
-      !compact && plan.overview ? el("p", { class: "overview", text: plan.overview }) : null,
+      plan.overview ? el("p", { class: "overview", text: plan.overview }) : null,
       el("div", { class: "bar", role: "progressbar", "aria-label": `${plan.title} progress`, "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": String(plan.progress_pct) }, bar),
       el("div", { class: "progress-line" }, [progressText, el("span", { text: `Day ${plan.day} of ${plan.days}` })]),
       el("div", { class: "refs" }, [
@@ -826,94 +832,247 @@
       ]),
       el("div", { class: "card-actions-row" }, [
         doneBtn,
-        compact ? el("a", { class: "act", href: "#bible/plans", text: "All plans" }) : null,
-        compact ? null : el("a", { class: "act", href: `${apiBase()}/plan/${plan.id}/pdf`, html: `${ICON.download}<span>PDF</span>` }),
-        compact
-          ? null
-          : el("button", {
-              class: "act danger", type: "button", text: "Delete",
-              onclick: async () => {
-                if (!confirm(`Delete "${plan.title}"? Your progress in it goes too.`)) return;
-                try {
-                  await api(`/me/plans/${plan.id}`, { method: "DELETE" });
-                  onChange();
-                } catch (err) {
-                  toast(err.message);
-                }
-              },
-            }),
+        el("a", { class: "act", href: `${apiBase()}/plan/${plan.id}/pdf`, html: `${ICON.download}<span>PDF</span>` }),
+        el("button", {
+          class: "act danger", type: "button", text: "Delete",
+          onclick: async () => {
+            if (!confirm(`Delete "${plan.title}"? Your progress in it goes too.`)) return;
+            try {
+              await api(`/me/plans/${plan.id}`, { method: "DELETE" });
+              onChange();
+            } catch (err) {
+              toast(err.message);
+            }
+          },
+        }),
       ]),
     ];
-    if (compact) return card(cardHead("Today's reading", el("span", { class: "faint", style: "font-size:13px", text: plan.title })), {}, body);
     return el("article", { class: "card plan-item" }, [el("h3", { class: "section-title", text: plan.title }), ...body]);
   }
 
   // ---------------------------------------------------------------------
   // Home
   // ---------------------------------------------------------------------
-  function homeVerseCard(v) {
-    return el("section", { class: "card warm today-band fade-in" }, [
-      el("div", {}, [
-        el("h2", { class: "kicker ember", text: "Verse for today" }),
-        el("p", { class: "scripture-lg", text: `"${v.text}"` }),
-        el("p", { class: "verse-ref", style: "margin-top:8px", text: `${v.ref} · ${v.translation}` }),
+  // Read top to bottom: what's happening now (a church live, Amens), the ask
+  // box, today's verse, then Today (the few things the person keeps day by
+  // day), with where they left off beside it. Every part is drawn
+  // only when it has something to say, so a quiet day is a short page.
+  // app/hearth.py gathers it all in one request.
+  const HOME_HABITS = 3;
+
+  function plural(n, one, many = `${one}s`) {
+    return `${n} ${n === 1 ? one : many}`;
+  }
+  function clip(text, n) {
+    return text.length > n ? `${text.slice(0, n - 1).trimEnd()}...` : text;
+  }
+
+  // One line that reads like a notification: an icon (with an optional count),
+  // a title and a detail, opening `href`. Amens (web/refuge.js) and a church
+  // going live (web/church.js) both use it, so the two look alike.
+  function homeNote({ href, icon, count = 0, title, detail, live = false }) {
+    return el("a", { class: `home-note fade-in${live ? " is-live" : ""}`, href, "aria-label": detail ? `${title}, ${detail}` : title }, [
+      el("span", { class: "home-note-icon", "aria-hidden": "true" }, [
+        el("span", { html: icon }),
+        count ? el("span", { class: "home-note-count", text: count > 9 ? "9+" : String(count) }) : null,
       ]),
-      el("div", { class: "row", style: "gap:2px" }, [
-        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Reflect with Aquila", onclick: () => app().submitQuery(`Help me reflect on ${v.ref}.`) }),
-        el("button", { class: "act", type: "button", html: `${ICON.bookmark}<span>Keep</span>`, onclick: () => openJournal({ passage_ref: v.ref, verse_text: v.text }) }),
-        el("button", { class: "act", type: "button", html: `${ICON.heart}<span>Learn it</span>`, onclick: () => window.Memorize.add(v.ref, v.translation) }),
-        el("button", { class: "act", type: "button", html: `${ICON.graph}<span>Connections</span>`, onclick: () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]) }),
-        el("button", { class: "act", type: "button", html: `${ICON.share}<span>Share</span>`, onclick: () => shareCard(v) }),
+      el("span", { class: "home-note-text" }, [el("strong", { text: title }), detail ? el("small", { text: detail }) : null]),
+      el("span", { class: "home-note-go", "aria-hidden": "true", html: ICON.forward }),
+    ]);
+  }
+
+  // The streak as a few quiet words after the date ("· 2 days"), so it adds
+  // no row or pill of its own. A tap shows the week, a dot per day lit for
+  // each day they came in. Nothing shows before the first day.
+  function emberChip(e) {
+    if (!e.streak) return null;
+    const label = e.streak > 1 ? `${e.streak} days in a row` : e.streak === 1 ? "Day one" : "One dot for every day you come in";
+    const dayClass = (d) => `${d.lit ? " lit" : ""}${d.today ? " today" : ""}`;
+    const wrap = el("span", { class: "ember-wrap" });
+    const week = el("div", { class: "ember-week", role: "group", "aria-label": "This week", hidden: true }, [
+      el("p", { text: label }),
+      el("div", { class: "ember-days" }, e.week.map((d) => el("span", { class: `ember-day${dayClass(d)}` }, [
+        el("span", { class: "ember-dot" }),
+        el("small", { text: d.label }),
+      ]))),
+    ]);
+    const chip = el("button", {
+      class: "ember-chip", type: "button", title: label, "aria-expanded": "false", "aria-label": `${label}. Show this week`,
+    }, [el("i", { "aria-hidden": "true" }), plural(e.streak, "day")]);
+    const close = (ev) => {
+      if (ev && wrap.contains(ev.target)) return;
+      week.hidden = true;
+      chip.setAttribute("aria-expanded", "false");
+      document.removeEventListener("click", close, true);
+    };
+    chip.addEventListener("click", () => {
+      if (!week.hidden) return close();
+      week.hidden = false;
+      chip.setAttribute("aria-expanded", "true");
+      document.addEventListener("click", close, true);
+    });
+    wrap.append(chip, week);
+    return wrap;
+  }
+
+  // The verse, its reference (a link into the reader), one way to reflect
+  // on it, and everything else behind "⋯".
+  function verseCard(v) {
+    return el("section", { class: "card warm home-verse fade-in" }, [
+      el("h2", { class: "kicker ember", text: "Verse for today" }),
+      el("p", { class: "scripture-lg", text: `"${v.text}"` }),
+      el("div", { class: "home-verse-foot" }, [
+        el("a", { class: "verse-ref", href: `#${window.Reader.href(v.ref)}`, text: `${v.ref} · ${v.translation}` }),
+        el("button", { class: "text-act", type: "button", text: "Reflect", onclick: () => app().submitQuery(`Help me reflect on ${v.ref}.`) }),
+        moreMenu(`More for ${v.ref}`, [
+          { label: "Keep in journal", onClick: () => openJournal({ passage_ref: v.ref, verse_text: v.text }) },
+          { label: "Save", onClick: () => window.Saved.verse(v.ref, v.translation) },
+          { label: "See connections", onClick: () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]) },
+          { label: "Share", onClick: () => shareCard(v) },
+        ]),
       ]),
     ]);
+  }
+
+  // One row of Today. A row with `done` (true or false) has a circle that
+  // ticks it through `onTick(next)`, which resolves false when it couldn't;
+  // a row without just opens `href` or runs `onOpen`.
+  function todayRow({ icon, title, detail, href, onOpen, done = null, onTick, tickLabel }) {
+    const text = [el("strong", { text: title }), detail ? el("small", { text: detail }) : null];
+    const body = href
+      ? el("a", { class: "today-body", href }, text)
+      : el("button", { class: "today-body", type: "button", onclick: onOpen }, text);
+    const row = el("li", { class: `today-item${done ? " is-done" : ""}` });
+    if (done === null) {
+      row.append(el("span", { class: "today-mark", "aria-hidden": "true", html: icon }), body, el("span", { class: "home-note-go", "aria-hidden": "true", html: ICON.forward }));
+      return row;
+    }
+    const tick = el("button", { class: "today-tick", type: "button", "aria-label": tickLabel || title, "aria-pressed": String(done), html: ICON.check });
+    tick.addEventListener("click", async () => {
+      const next = tick.getAttribute("aria-pressed") !== "true";
+      const paint = (on) => {
+        tick.setAttribute("aria-pressed", String(on));
+        row.classList.toggle("is-done", on);
+        row.dispatchEvent(new CustomEvent("today:tick", { bubbles: true }));
+      };
+      paint(next);
+      tick.disabled = true;
+      if ((await onTick(next)) === false) paint(!next);
+      tick.disabled = false;
+    });
+    row.append(tick, body);
+    return row;
+  }
+
+  // Runs a tick's request, toasting the error and resolving false on failure.
+  async function tickRequest(path, body) {
+    try {
+      return await api(path, { method: "POST", body: { today: localToday(), ...body } });
+    } catch (err) {
+      toast(err.message);
+      return false;
+    }
+  }
+
+  function planRow(plan) {
+    if (!plan) return todayRow({ icon: ICON.book, title: "Start a reading plan", href: "#bible/plans" });
+    const refs = compactRefs(plan.refs);
+    return todayRow({
+      title: refs.join(", ") || plan.title,
+      detail: `${plan.title} · Day ${plan.day} of ${plan.days}`,
+      href: refs.length ? `#${window.Reader.href(plan.refs[0])}` : "#bible/plans",
+      done: !!plan.done_today,
+      tickLabel: `Mark day ${plan.day} of ${plan.title} as read`,
+      onTick: async (done) => {
+        const result = await tickRequest(`/me/plans/${plan.id}/progress`, { day: plan.day, done });
+        if (result && done) toast(`Day ${plan.day} read. ${result.completed} of ${result.days} done.`);
+        return !!result;
+      },
+    });
+  }
+
+  // `summary` is app/prayers.py::prayer_summary plus `prayed_today`, which is
+  // null until the prayer-practice migration has run (then there's no tick).
+  function prayRow(summary) {
+    const detail = summary.open ? `${plural(summary.open, "open request")}` : "Your prayer list";
+    if (summary.prayed_today === null || summary.prayed_today === undefined) {
+      return todayRow({ icon: ICON.heart, title: "Pray", detail, href: "#prayers" });
+    }
+    return todayRow({
+      title: "Pray", detail, href: "#prayers", done: summary.prayed_today, tickLabel: "I prayed today",
+      onTick: async (prayed) => {
+        const ok = !!(await tickRequest("/me/prayers/log", { prayed }));
+        if (ok && prayed) toast("Amen.");
+        return ok;
+      },
+    });
+  }
+
+  // A habit from Pebbles, counted for the week ("3 of 5 this week"), never as a streak.
+  function habitRow(habit) {
+    const detail = (done) => `${done} of ${habit.per_week} this week`;
+    let weekDone = habit.week_done;
+    const row = todayRow({
+      title: habit.title, detail: detail(weekDone), href: "#pebbles", done: !!habit.tended_today, tickLabel: `${habit.title}: done today`,
+      onTick: async (tended) => {
+        const ok = !!(await tickRequest(`/me/refuge/seeds/${habit.id}/tend`, { tended }));
+        if (ok) {
+          weekDone += tended ? 1 : -1;
+          row.querySelector("small").textContent = detail(weekDone);
+        }
+        return ok;
+      },
+    });
+    return row;
+  }
+
+  function todayCard(data) {
+    const habits = (data.pebbles || []).filter((s) => s.kind === "habit").slice(0, HOME_HABITS);
+    const rows = [
+      planRow(data.plan),
+      data.prayers ? prayRow(data.prayers) : null,
+      ...habits.map(habitRow),
+    ].filter(Boolean);
+    const tally = el("span", { class: "card-aside" });
+    const list = el("ul", { class: "today-items" }, rows);
+    const count = () => {
+      const ticks = $$(".today-tick", list);
+      const done = ticks.filter((t) => t.getAttribute("aria-pressed") === "true").length;
+      // A tally only once there's more than one thing to tick.
+      tally.textContent = ticks.length < 2 ? "" : done === ticks.length ? "All done" : `${done} of ${ticks.length}`;
+      tally.classList.toggle("is-done", !!ticks.length && done === ticks.length);
+    };
+    list.addEventListener("today:tick", count);
+    count();
+    return card(cardHead("Today", tally), {}, [list]);
   }
 
   function continueCard(s) {
-    if (!s) {
-      return card("Your first conversation", {}, [
-        el("p", { class: "muted", style: "margin:0 0 16px", text: "Ask about a passage, a hard question, or the season you're in. Every conversation is kept in your cave so you can pick it back up." }),
-        el("a", { class: "btn btn-ember btn-sm", href: "#aquila", text: "Ask Aquila" }),
-      ]);
-    }
-    return card(cardHead("Pick up where you left off", el("span", { class: "faint", style: "font-size:13px", text: when(s.updated_at) })), {}, [
-      el("p", { class: "big-q", text: s.title || "Your last conversation" }),
-      s.refs.length ? el("p", { class: "muted", style: "font-size:15px", text: `You were reading ${s.refs.join(", ")}.` }) : null,
-      el("div", { class: "card-actions-row" }, [
-        el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Continue", onclick: () => openSession(s.id) }),
-        s.followup ? el("button", { class: "btn btn-ghost btn-sm btn-wrap", type: "button", text: s.followup, onclick: () => openSession(s.id, s.followup) }) : null,
+    if (!s) return null;
+    const meta = [when(s.updated_at), s.refs.slice(0, 2).join(", ")].filter(Boolean).join(" · ");
+    return card("Pick up where you left off", {}, [
+      el("button", { class: "resume", type: "button", onclick: () => openSession(s.id) }, [
+        el("span", { class: "today-mark", "aria-hidden": "true", html: ICON.chat }),
+        el("span", { class: "today-body" }, [el("strong", { text: s.title || "Your last conversation" }), el("small", { text: meta })]),
+        el("span", { class: "home-note-go", "aria-hidden": "true", html: ICON.forward }),
       ]),
+      s.followup ? el("button", { class: "resume-next", type: "button", title: s.followup, onclick: () => openSession(s.id, s.followup) }, [
+        el("span", { class: "faint", text: "Next " }), s.followup,
+      ]) : null,
     ]);
   }
 
-  function homePlanCard(plan) {
-    if (plan) return planItem(plan, { compact: true, onChange: showHome });
-    return card(el("div", { class: "card-head" }, titleInfo(el("h2", { class: "kicker", text: "Reading plan" }), PLAN_ABOUT)), {}, [planBuilder({ compact: true, onBuilt: showHome })]);
-  }
-
-  function weekCard(e) {
-    const line = e.streak > 1 ? `${e.streak} days in a row.` : e.streak === 1 ? "Day one. Come back tomorrow to keep it going." : "One ember for every day you come in.";
-    return card("This week", {}, [
-      el("p", { class: "faint", style: "margin:-4px 0 14px;font-size:14px", text: line }),
-      el("div", { class: "week" }, e.week.map((d) =>
-        el("div", {}, [
-          el("div", { class: `day-dot${d.lit ? " lit" : ""}`, html: ICON.ember, title: d.lit ? "You came in" : "" }),
-          el("span", { class: `day-label${d.today ? " today" : ""}`, text: d.label }),
-        ])
-      )),
-    ]);
-  }
-
+  // A journal entry from a while back. The person's own words, so Inter,
+  // not the serif kept for Scripture.
   function revisitCard(r) {
     const where = r.passage_ref || r.question || "a passage";
-    const reflection = r.reflection.length > 220 ? `${r.reflection.slice(0, 217)}...` : r.reflection;
-    return card(`From your journal, ${agoPhrase(r.created_at)}`, {}, [
-      el("p", { style: "margin:0 0 6px;font-size:15px" }, ["You were with ", el("strong", { text: where }), r.mood ? ` in a season of ${r.mood}, and wrote:` : ", and wrote:"]),
-      el("p", { class: "scripture", style: "font-size:17px;color:var(--soft);font-style:italic;margin:0 0 12px", text: `"${reflection}"` }),
-      el("p", { class: "muted", style: "font-size:15px", text: "How is that now?" }),
-      el("div", { class: "card-actions-row" }, [
-        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Return to it with Aquila", onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${r.reflection.slice(0, 300)}"`) }),
-        el("a", { class: "act", href: "#journal", text: "Open journal" }),
-      ]),
+    return card(cardHead("From your journal", el("span", { class: "card-aside", text: agoPhrase(r.created_at) })), {}, [
+      el("p", { class: "revisit-quote", text: `"${clip(r.reflection, 140)}"` }),
+      el("p", { class: "faint home-quiet", text: where }),
+      el("button", {
+        class: "text-act", type: "button", text: "Return to it with Aquila",
+        onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${r.reflection.slice(0, 300)}"`),
+      }),
     ]);
   }
 
@@ -927,7 +1086,9 @@
     $("#dayLine").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
     const main = $("#homeMain");
     const side = $("#homeSide");
+    const notes = $("#homeNotes");
     if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
+    $("#homeDeclare").replaceChildren(window.Declare.homeLine());
 
     // The verse is public and cached for the day, so it loads alongside the
     // home request rather than after it.
@@ -945,32 +1106,26 @@
     if (data.profile) profile = { ...(profile || {}), ...data.profile };
     setGreeting();
     updateChrome();
+    $("#homeEmbers").replaceChildren(...[data.embers ? emberChip(data.embers) : null].filter(Boolean));
+
+    // Amens is null until the Refuge migration has run, and homeCard returns
+    // null itself when there's nothing to tell. A church going live joins it
+    // at the top once its check returns; nothing else about churches shows
+    // here (web/church.js).
+    notes.replaceChildren(...[data.amens ? window.Refuge.homeCard(data.amens) : null].filter(Boolean));
+    window.Church.homeLive().then((live) => {
+      notes.querySelectorAll(".home-note.is-live").forEach((old) => old.remove());
+      if (live && notes.isConnected) notes.prepend(live);
+    }).catch(() => {});
 
     const v = await versePromise;
-    $("#homeVerse").replaceChildren(...(v ? [homeVerseCard(v)] : []));
-    // The Amens notice leads the main column so it's seen on arrival. It is
-    // null until the Refuge migration has run, and homeCard returns null
-    // itself when there's nothing to tell.
-    main.replaceChildren(...[
-      data.amens ? window.Refuge.homeCard(data.amens) : null,
-      continueCard(data.last_session),
-      homePlanCard(data.plan),
-    ].filter(Boolean));
-    // While one of the person's churches is live, a card for it leads the
-    // page; nothing else about churches shows on Home (web/church.js).
-    window.Church.homeLive().then((card) => {
-      main.querySelectorAll(".church-home-live").forEach((old) => old.remove());
-      if (card && main.isConnected) main.prepend(card);
-    }).catch(() => {});
-    // The prayer and memory-verse cards are null until their migration has
-    // run, and the memory-verse card only appears when something is due.
-    // The halfway check-in on a reflection's plan comes first while it lasts
-    // (two weeks from the middle of the stretch, app/reflections.py).
+    $("#homeVerse").replaceChildren(...(v ? [verseCard(v)] : []));
+    main.replaceChildren(todayCard(data));
+    // The halfway check-in on a reflection's plan leads the side while it
+    // lasts (two weeks from the middle of the stretch, app/reflections.py).
     side.replaceChildren(...[
       data.reflection ? window.Reflections.homeCard(data.reflection) : null,
-      data.embers ? weekCard(data.embers) : null,
-      data.memorize ? window.Memorize.homeCard(data.memorize, showHome) : null,
-      data.prayers ? window.Prayers.homeCard(data.prayers, showHome) : null,
+      continueCard(data.last_session),
       data.revisit ? revisitCard(data.revisit) : null,
       window.Support.homeCard(),
     ].filter(Boolean));
@@ -1192,12 +1347,26 @@
   function decorateAnswer(msg, data) {
     if (!msg || msg.querySelector(".answer-actions") || !data.answer) return;
     const refs = (data.citations || []).map((c) => `${c.book} ${c.chapter}:${c.verse}`);
-    const saveBtn = el("button", { class: "act", type: "button", title: "Save to journal", "aria-label": "Save to journal", html: `${ICON.bookmark}<span>Save</span>` });
-    saveBtn.onclick = () =>
-      openJournal({ question: data.query, answer: data.answer, citations: data.citations }, () => {
-        saveBtn.classList.add("is-done");
-        saveBtn.innerHTML = `${ICON.check}<span>Saved</span>`;
-      });
+    // One tap saves the answer to Saved in the Bible (web/saved.js); a second
+    // takes it back out.
+    const saveBtn = el("button", { class: "act", type: "button", title: "Save", "aria-label": "Save", html: `${ICON.bookmark}<span>Save</span>` });
+    let savedId = null;
+    const paintSaved = () => {
+      saveBtn.classList.toggle("is-done", !!savedId);
+      saveBtn.innerHTML = savedId ? `${ICON.check}<span>Saved</span>` : `${ICON.bookmark}<span>Save</span>`;
+      saveBtn.setAttribute("aria-pressed", String(!!savedId));
+    };
+    saveBtn.onclick = async () => {
+      saveBtn.disabled = true;
+      if (savedId) {
+        if (await window.Saved.remove(savedId)) savedId = null;
+      } else {
+        const item = await window.Saved.answer({ question: data.query, answer: data.answer, citations: data.citations || [] });
+        if (item) savedId = item.id;
+      }
+      paintSaved();
+      saveBtn.disabled = false;
+    };
     const listenBtn = el("button", { class: "act act-icon", type: "button", title: "Listen", "aria-label": "Listen", html: `${ICON.speaker}<span>Listen</span>` });
     listenBtn.onclick = () => listen(listenBtn, data.answer);
     // One quiet line of actions: the Bible first, since that's where an answer
@@ -1322,16 +1491,16 @@
   // live in the Church tab, web/church.js). Past
   // conversations live with Aquila (the rail, or the Conversations sheet on a
   // phone), where they can be opened, renamed and deleted; notes, highlights,
-  // verses to learn and reading plans live in the Bible (#bible/notes,
-  // #bible/memorize, #bible/plans).
+  // saved things and reading plans live in the Bible (#bible/notes,
+  // #bible/saved, #bible/plans).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
   // #amens opens Refuge already inside the Amens room.
   // #reflection/<id> opens a reflection inside the Journal tab (web/reflections.js).
-  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", reflection: "journal" };
+  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", pebbles: "refuge", reflection: "journal" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => newEntryMenu()],
-    prayers: ["New prayer", () => window.Prayers.openSheet({}, () => showCave("prayers"))],
+    prayers: ["New", () => newPrayerMenu()],
     // Refuge has no header button: its rooms are its own ways in.
   };
   let caveTab = "journal";
@@ -1352,7 +1521,11 @@
     }
     const action = CAVE_ACTIONS[caveTab];
     $("#caveAction").hidden = !action || !!reflectionId;
-    if (action) $("#caveAction").textContent = action[0];
+    // A plus before the label: both open a small menu of new things.
+    if (action) {
+      $("#caveAction").textContent = action[0];
+      $("#caveAction").insertAdjacentHTML("afterbegin", '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>');
+    }
     // Leaving Refuge settles the page back and lets an unkept talk vanish.
     if (caveTab !== "refuge") window.Refuge.hide();
     const panel = $("#cavePanel");
@@ -1372,19 +1545,37 @@
   // Tags are always lower case (app/cave.py::_clean_tags), so it can't clash.
   const REFLECTIONS_FILTER = "@Reflections";
 
-  // "New entry" offers a plain entry or a reflection, as a small menu under
-  // the button. It closes on a pick, Escape, a scroll, or a click elsewhere.
+  // "New entry" offers a plain entry or a reflection.
   function newEntryMenu() {
+    headerMenu("New entry", [
+      { title: "Journal entry", sub: "Write about today", onPick: () => openJournal({}, () => showCave("journal")) },
+      { title: "Reflection", sub: "Look back and look ahead with God", onPick: () => window.Reflections.openStart() },
+    ]);
+  }
+
+  // The Prayers tab's "New" offers a prayer for the list, or a quick
+  // declaration for something right now (web/declare.js).
+  function newPrayerMenu() {
+    headerMenu("New", [
+      { title: "Prayer", about: "Keep it on your list. Pray or declare over it any day.", onPick: () => window.Prayers.openSheet({}, () => showCave("prayers")) },
+      { title: "Declare", about: "For something right now. Nothing is kept unless you tap Keep, and then it joins your prayer list.", onPick: () => window.Declare.open({ from: "quick" }) },
+    ]);
+  }
+
+  // A small menu of choices under the cave's header button. Each choice has
+  // a short line under it (`sub`) or its explanation behind an info button
+  // (`about`). It closes on a pick, Escape, a scroll, or a click elsewhere.
+  function headerMenu(label, choices) {
     const button = $("#caveAction");
     if (button.getAttribute("aria-expanded") === "true") return;
-    const choice = (title, sub, onPick) => el("button", {
-      class: "more-item new-entry-item", type: "button", role: "menuitem",
-      onclick: () => { close(); onPick(); },
-    }, [el("strong", { text: title }), el("span", { text: sub })]);
-    const menu = el("div", { class: "more-menu new-entry-menu", role: "menu", "aria-label": "New entry" }, [
-      choice("Journal entry", "Write about today", () => openJournal({}, () => showCave("journal"))),
-      choice("Reflection", "Look back and look ahead with God", () => window.Reflections.openStart()),
-    ]);
+    const choice = ({ title, sub, about, onPick }) => {
+      const pick = el("button", {
+        class: "more-item new-entry-item", type: "button", role: "menuitem",
+        onclick: () => { close(); onPick(); },
+      }, [el("strong", { text: title }), sub ? el("span", { text: sub }) : null]);
+      return about ? el("div", { class: "new-entry-row" }, [pick, info(about, { label: `About ${title}` })]) : pick;
+    };
+    const menu = el("div", { class: "more-menu new-entry-menu", role: "menu", "aria-label": label }, choices.map(choice));
     const at = button.getBoundingClientRect();
     menu.style.top = `${at.bottom + 6}px`;
     menu.style.right = `${Math.max(12, window.innerWidth - at.right)}px`;
@@ -1424,7 +1615,7 @@
     if (!entries.length && !reflections.length) {
       panel.replaceChildren(el("div", { class: "empty" }, [
         el("strong", { text: "Nothing in your journal yet" }),
-        "Save an answer or a verse from Aquila, write about today, or look back on a stretch of time with God.",
+        "Write about a verse or an answer you saved, about today, or look back on a stretch of time with God.",
         el("div", { class: "empty-actions" }, [
           el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Write an entry", onclick: () => openJournal({}, () => showCave("journal")) }),
           el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Start a reflection", onclick: () => window.Reflections.openStart() }),
@@ -1718,6 +1909,7 @@
     localToday,
     card,
     cardHead,
+    homeNote,
     showCave,
     renderPlans,
     signedIn,

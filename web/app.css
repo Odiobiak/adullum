@@ -301,7 +301,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 /* The prayer list is one readable column, so its bar matches that width. */
 .list-bar:has(+ .prayer-list) { max-width: 760px; }
 /* The reader bar's two page links sit together on the right, before the translation. */
-.reader-learn-link { margin-left: 0; }
+.reader-saved-link { margin-left: 0; }
 .iconbtn {
   width: var(--h-icon); height: var(--h-icon); flex: none; border-radius: 50%; border: 1px solid var(--line); background: var(--hover);
   display: inline-flex; align-items: center; justify-content: center; color: var(--ember);
@@ -448,8 +448,6 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .form-msg:empty { display: none; }
 
 /* ---------- Home ---------- */
-.home-ask { margin: 0 0 20px; }
-.home-verse { margin-bottom: 20px; }
 .cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 20px; align-items: start; }
 .maincol, .sidecol { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
 .bar { height: 8px; border-radius: var(--pill); background: var(--raised); overflow: hidden; }
@@ -457,14 +455,6 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .progress-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--faint); margin: 8px 0 14px; }
 .chapter { padding: 5px 12px; border-radius: var(--pill); background: var(--raised); font-size: 13px; font-weight: 600; color: var(--text); border: 0; }
 button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
-.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; text-align: center; }
-.day-dot { width: 34px; height: 34px; margin: 0 auto 6px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--well); border: 1px solid var(--line); }
-.day-dot svg { width: 14px; height: 14px; fill: var(--line-2); }
-.day-dot.lit { background: radial-gradient(circle at 50% 70%, var(--glow-strong) 0%, var(--ember-bg) 70%); border-color: var(--ember-line); }
-.day-dot.lit svg { fill: var(--ember); }
-.day-label { font-size: 12px; color: var(--faint); font-weight: 500; }
-.day-label.today { color: var(--text); font-weight: 600; }
-.big-q { font-size: 18px; font-weight: 600; line-height: 1.4; margin: 0 0 6px; }
 
 /* Shaping a plan with Aquila (home card and Reading plans in the Bible) */
 .plan-builder textarea { display: block; width: 100%; min-height: 4.5rem; background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 11px 14px; font-size: 16px; line-height: 1.45; resize: vertical; }
@@ -802,8 +792,8 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .hl-edge-green { border-left-color: var(--hl-green-edge); }
 .hl-edge-blue { border-left-color: var(--hl-blue-edge); }
 .hl-edge-rose { border-left-color: var(--hl-rose-edge); }
-.highlight-card h3 a, .memory-card h3 a { color: inherit; text-decoration: none; }
-.highlight-card h3 a:hover, .memory-card h3 a:hover { color: var(--ember); }
+.highlight-card h3 a, .saved-card h3 a { color: inherit; text-decoration: none; }
+.highlight-card h3 a:hover, .saved-card h3 a:hover { color: var(--ember); }
 .cave-section + .cave-section { margin-top: 36px; }
 .cave-section .row-between .moods { margin: 0; }
 
@@ -909,15 +899,12 @@ button.wd:active { transform: scale(0.88); }
 /* Short notes in a sheet ("Why it matters", what a fast is for) start small. */
 .sheet .field-wrap textarea[rows="2"] { min-height: 4.5rem; }
 
-/* ---------- Memorize (web/memorize.js) ---------- */
-.memory-card .badge { text-transform: none; }
-.memorize-head { display: flex; justify-content: space-between; align-items: center; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 20px; }
-.memorize-head .section-title { margin: 0 0 2px; }
-.practice { max-width: 560px; }
-.practice h3 { margin: 10px 0 6px; }
-.practice-text { margin: 14px 0 22px; min-height: 4.5em; }
-.practice-text:not(.is-revealed) { color: var(--soft); letter-spacing: 0.06em; }
-.practice-grades { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+/* ---------- Saved (web/saved.js) ----------
+   An answer shows its opening, fading out, until "Read all" opens the rest. */
+.saved-card .badge { text-transform: none; }
+.saved-answer { font-size: 15px; line-height: 1.6; color: var(--soft); white-space: pre-wrap; max-height: 9.6em; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
+.saved-card.is-open .saved-answer { max-height: none; -webkit-mask-image: none; mask-image: none; }
+.saved-answer .heading { margin-top: 14px; padding-top: 10px; }
 
 /* ---------- Responsive ---------- */
 /* ---------- Refuge (web/refuge.js): a quiet room for every season ----------
@@ -1224,20 +1211,6 @@ body.still-open { overflow: hidden; }
 .encouragements { display: grid; gap: 6px; }
 .encouragement { font-size: 15px; padding: 10px 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--line); }
 .encouragement .scripture { font-size: 16px; }
-/* The home screen's Amens notice: one tappable line, like a notification,
-   with the count of posts waiting sitting on the icon. */
-.amens-note { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: var(--radius-sm); border: 1px solid var(--ember-line); background: radial-gradient(120% 220% at 0% 0%, var(--glow) 0%, var(--surface) 70%); color: var(--text); text-decoration: none; transition: border-color 0.15s ease, transform 0.15s ease; }
-.amens-note:hover { border-color: var(--ember); color: var(--text); }
-.amens-note:active { transform: scale(0.99); }
-.amens-note:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.amens-note-icon { position: relative; display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember); }
-.amens-note-icon svg { width: 20px; height: 20px; display: block; }
-.amens-note-count { position: absolute; top: -4px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: var(--pill); background: var(--ember-grad); color: var(--ember-ink); font-size: 11px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
-.amens-note-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
-.amens-note-text strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.amens-note-text small { font-size: 13px; color: var(--muted); }
-.amens-note-go { flex: none; color: var(--faint); }
-.amens-note-go svg { width: 18px; height: 18px; display: block; }
 /* The Amens share box (web/refuge.js::shareBox): a compact composer, one
    line until it's tapped, then the two kinds and the share button open
    beneath what's written. */
@@ -1463,8 +1436,8 @@ body.still-open { overflow: hidden; }
   body:has(> .graph-overlay) .tabbar { z-index: 51; }
   .graph-starter-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .msg-me { max-width: 92%; }
-  .reader-notes-link span, .reader-learn-link span { display: none; }
-  .reader-notes-link, .reader-learn-link { padding-left: 8px; padding-right: 8px; }
+  .reader-notes-link span, .reader-saved-link span { display: none; }
+  .reader-notes-link, .reader-saved-link { padding-left: 8px; padding-right: 8px; }
   .reader-bar-inner { gap: 4px; }
   .refuge-doors { grid-template-columns: 1fr; }
   /* A secondary action shows its icon alone, so a card's actions fit one line. */
@@ -2085,14 +2058,6 @@ button.refl-status-pill { cursor: pointer; }
 .church-step-body p { margin: 0; font-size: 14.5px; }
 .church-step-body .field { margin: 0; width: 100%; }
 
-/* Home: the live card, only while a church is live */
-.church-home-live { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 16px; border-radius: var(--radius); background: var(--text); color: var(--ground); text-decoration: none; }
-.church-home-live:hover { color: var(--ground); filter: brightness(1.1); }
-.church-home-live .church-row-text { gap: 4px; }
-.church-home-live .church-row-text strong { color: var(--ground); font-size: 15.5px; }
-.church-home-play { flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--glow-strong); color: var(--text); }
-.church-home-play svg { width: 18px; height: 18px; display: block; }
-
 @media (max-width: 820px) {
   .church-live { grid-template-columns: minmax(0, 1fr); }
   .church-notes { padding-left: 14px; }
@@ -2111,3 +2076,188 @@ button.refl-status-pill { cursor: pointer; }
 .church-bell-menu { min-width: 230px; }
 .church-bell-on { margin: 0; padding: 6px 10px 8px; font-size: 12.5px; font-weight: 600; color: var(--ember-hi); border-bottom: 1px solid var(--divider); margin-bottom: 4px; }
 .church-notify-row { align-items: center; }
+
+/* Amens at scale: the wall's "Show more", the evening note's switch, and how
+   many people sent the same kind word. */
+.wall-more { display: flex; margin: 14px auto 0; }
+.digest-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 12px; font-size: 14px; color: var(--soft); }
+.digest-icon { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); flex: none; }
+.digest-icon svg { width: 15px; height: 15px; }
+.digest-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; min-width: 0; }
+.digest-label input { width: 18px; height: 18px; accent-color: var(--ember); flex: none; }
+.digest-allow { font-size: 13px; padding: 2px 0; }
+.digest-allow[hidden] { display: none; }
+.encouragement-count { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--ember-hi); background: var(--ember-bg); border-radius: var(--pill); padding: 1px 7px; white-space: nowrap; }
+
+/* ---------- Home (cave.js::showHome) ----------
+   Notifications first, one line each; then the verse, Today and Goals as
+   quiet lists, so the page reads as a few rows rather than a wall of cards. */
+.home-ask { margin: 0 0 20px; }
+.home-notes { display: grid; gap: 8px; margin: 0 0 14px; }
+.home-notes:empty { display: none; }
+[data-view="home"] .cols, [data-view="home"] .maincol, [data-view="home"] .sidecol { gap: 16px; }
+
+/* A notification line (cave.js::homeNote): Amens, or a church going live. */
+.home-note { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--ember-line); background: radial-gradient(120% 220% at 0% 0%, var(--glow) 0%, var(--surface) 70%); color: var(--text); text-decoration: none; transition: border-color 0.15s ease, transform 0.15s ease; }
+.home-note:hover { border-color: var(--ember); color: var(--text); }
+.home-note:active { transform: scale(0.99); }
+.home-note:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.home-note-icon { position: relative; display: grid; place-items: center; flex: none; width: 34px; height: 34px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.home-note-icon svg { width: 20px; height: 20px; display: block; }
+.home-note-count { position: absolute; top: -4px; right: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: var(--pill); background: var(--ember-grad); color: var(--ember-ink); font-size: 11px; font-weight: 700; line-height: 19px; text-align: center; font-variant-numeric: tabular-nums; box-shadow: 0 0 0 2px var(--surface); }
+.home-note-text { display: grid; gap: 1px; min-width: 0; flex: 1; }
+.home-note-text strong { font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-note-text small { font-size: 13px; color: var(--muted); }
+.home-note-go { flex: none; color: var(--faint); }
+.home-note-go svg { width: 18px; height: 18px; display: block; }
+.home-note.is-live .home-note-icon { background: var(--danger); color: var(--surface); }
+.home-note.is-live .home-note-icon::after { content: ""; position: absolute; inset: -4px; border-radius: 50%; border: 2px solid var(--danger); animation: live-pulse 1.6s ease-in-out infinite; }
+
+/* The streak (cave.js::emberChip): a few words after the date, an ember dot
+   and "2 days", as light as the date itself. The week it opens shows a dot
+   per day over its day letter. */
+.home-day { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; }
+.ember-wrap { position: relative; display: inline-flex; }
+.ember-wrap::before { content: "·"; margin-right: 6px; color: var(--faint); }
+.ember-chip { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; color: inherit; font: inherit; font-variant-numeric: tabular-nums; }
+.ember-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--ember); }
+.ember-chip:hover, .ember-chip[aria-expanded="true"] { color: var(--text); }
+.ember-week { position: absolute; left: 0; top: calc(100% + 6px); z-index: 30; padding: 12px 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 14px 32px -8px var(--shadow); animation: rise 0.14s ease both; }
+.ember-week[hidden] { display: none; }
+.ember-week p { margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--soft); white-space: nowrap; }
+.ember-days { display: flex; gap: 8px; }
+.ember-day { display: grid; justify-items: center; gap: 5px; }
+.ember-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--line); }
+.ember-day.lit .ember-dot { background: var(--ember); }
+.ember-day.today .ember-dot { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ember-line); }
+.ember-day small { font-size: 10.5px; font-weight: 600; color: var(--faint); }
+.ember-day.today small { color: var(--text); }
+
+/* Verse for today: the text, then its reference, Reflect and "⋯" on one line. */
+.home-verse { margin-bottom: 16px; }
+.home-verse:has(.more-menu) { position: relative; z-index: 5; }
+.home-verse .scripture-lg { margin: 0; font-size: clamp(18px, 2vw, 21px); }
+.home-verse-foot { display: flex; align-items: center; gap: 4px 10px; margin-top: 12px; }
+.home-verse-foot .verse-ref { margin-right: auto; min-width: 0; text-decoration: none; }
+.home-verse-foot .verse-ref:hover { color: var(--ember-hi); }
+.home-verse-foot .text-act { padding: 0 4px; }
+
+/* A card's quiet aside (a tally, a time) and its one link. */
+.card-aside { font-size: 13px; font-weight: 500; color: var(--faint); font-variant-numeric: tabular-nums; }
+.card-aside.is-done { color: var(--sage); font-weight: 600; }
+.card-link { font-size: 13px; font-weight: 600; color: var(--ember); text-decoration: none; }
+.card-link:hover { color: var(--ember-hi); }
+.home-quiet { margin: 0; font-size: 14px; }
+
+/* Today: one row each, a circle to tick on the left. */
+.today-items { list-style: none; margin: 0; padding: 0; display: grid; }
+.today-item { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--divider); }
+.today-item:first-child { border-top: 0; padding-top: 2px; }
+.today-item:last-child { padding-bottom: 0; }
+.today-tick { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-2); background: transparent; color: transparent; display: grid; place-items: center; padding: 0; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease; }
+.today-tick svg { width: 14px; height: 14px; }
+.today-tick:hover { border-color: var(--sage); }
+.today-tick:active { transform: scale(0.88); }
+.today-tick[aria-pressed="true"] { background: var(--sage); border-color: var(--sage); color: var(--surface); }
+.today-mark { flex: none; width: 26px; height: 26px; display: grid; place-items: center; color: var(--muted); }
+.today-mark svg { width: 17px; height: 17px; }
+.today-body { flex: 1; min-width: 0; display: grid; gap: 1px; padding: 2px 0; border: 0; background: none; color: var(--text); text-align: left; text-decoration: none; font: inherit; }
+.today-body strong, .today-body small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-body strong { font-size: 15px; font-weight: 600; }
+.today-body small { font-size: 13px; color: var(--muted); }
+.today-body:hover strong { color: var(--ember-hi); }
+.today-item.is-done .today-body strong { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-2); }
+@media (pointer: coarse) { .today-tick, .today-mark { width: 30px; height: 30px; } }
+
+/* Pick up where you left off, and Aquila's suggested next question. */
+.resume { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: inherit; }
+.resume:hover strong { color: var(--ember-hi); }
+.resume-next { display: block; width: 100%; margin-top: 12px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--well); color: var(--soft); font-size: 13.5px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume-next:hover { border-color: var(--ember-line); color: var(--text); }
+.revisit-quote { margin: 0 0 4px; font-size: 15px; font-style: italic; line-height: 1.5; color: var(--soft); }
+.revisit-quote + .home-quiet { margin-bottom: 8px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-note.is-live .home-note-icon::after { animation: none; }
+}
+
+/* How long a post stays: the writer's time left, the "keep it up" line under
+   the share box, and an answered prayer's note. */
+.mine-time { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; font-size: 13.5px; color: var(--muted); margin: 0; }
+.answered-note { font-size: 14.5px; color: var(--soft); margin: 0; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--sage-bg); }
+.answered-note strong { color: var(--sage); font-weight: 600; }
+.keep-up-nudge { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: center; margin: 12px 0 0; padding: 10px 12px; border: 1px solid var(--ember-line); border-radius: var(--radius-sm); background: var(--card-warm); }
+.keep-up-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.keep-up-icon svg { width: 16px; height: 16px; }
+.keep-up-text { display: grid; min-width: 0; }
+.keep-up-text strong { font-size: 14px; font-weight: 600; }
+.keep-up-text small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.keep-up-actions { grid-column: 1 / -1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding-left: 40px; }
+
+/* Declare (web/declare.js): Scripture spoken aloud over what someone faces.
+   The home line, the form, the words (each line in Inter with its verse in
+   the serif under it), and the full-screen "Speak it aloud". */
+.home-declare { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 6px 8px 6px 10px; border-radius: var(--pill); border: 1px solid var(--ember-line); background: var(--card-warm); }
+.home-declare-go { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-size: 15px; }
+.home-declare-go strong { font-weight: 600; }
+.home-declare-go .home-note-icon { width: 30px; height: 30px; }
+.home-declare-go .home-note-icon svg { width: 16px; height: 16px; }
+.home-declare-arrow { flex: 1; display: flex; justify-content: flex-end; align-items: center; min-height: var(--h-btn-sm); padding-right: 6px; color: var(--faint); }
+.home-declare-arrow svg { width: 18px; height: 18px; }
+.home-declare:hover { border-color: var(--ember); }
+
+.declare-page { max-width: 640px; }
+.declare-head { display: grid; gap: 6px; margin: 0 0 20px; }
+.declare-head .back { justify-self: start; }
+.declare-form { display: grid; gap: 14px; }
+.declare-form label.field-wrap { display: grid; gap: 8px; font-size: 15px; font-weight: 600; color: var(--text); }
+.declare-form .field { margin: 0; font-weight: 400; }
+.declare-form textarea.field { resize: vertical; min-height: 96px; line-height: 1.5; }
+.field-hint { font-size: 13px; font-weight: 400; color: var(--muted); }
+.declare-starters { display: flex; flex-wrap: wrap; gap: 8px; }
+.declare-from { display: grid; gap: 6px; font-size: 13px; }
+.declare-from p { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--well); color: var(--soft); font-size: 15px; line-height: 1.5; }
+.declare-note { margin: 0; font-size: 13px; text-align: center; }
+.declare-kept { margin-top: 28px; }
+.declare-kept-list { display: grid; gap: 8px; }
+.declare-kept-item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; font-size: 15px; }
+.declare-kept-item:hover { border-color: var(--ember-line); color: var(--text); }
+.declare-kept-item span { font-size: 13px; white-space: nowrap; }
+
+.declare-speak { margin: 0 0 16px; gap: 8px; }
+.declare-speak svg { width: 18px; height: 18px; }
+.declare-words { display: grid; gap: 20px; }
+.declare-opening { margin: 0; font-size: 19px; line-height: 1.4; font-weight: 600; color: var(--ember-hi); }
+.declare-line { display: grid; gap: 10px; padding-top: 20px; border-top: 1px solid var(--divider); }
+.declare-amen { padding-top: 20px; border-top: 1px solid var(--divider); }
+.declare-say { margin: 0; font-size: 18px; line-height: 1.4; font-weight: 600; }
+.declare-verse { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--well); display: grid; gap: 6px; }
+.declare-verse .scripture { margin: 0; font-size: 16.5px; color: var(--soft); }
+.declare-ref { justify-self: start; font-size: 13px; font-weight: 600; color: var(--ember); text-decoration: none; }
+.declare-ref:hover { color: var(--ember-hi); text-decoration: underline; }
+.declare-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin: 16px 0 10px; }
+
+/* Speak it aloud: over everything, one line at a time. */
+body.aloud-open { overflow: hidden; }
+.aloud { position: fixed; inset: 0; z-index: 80; display: flex; flex-direction: column; padding: max(14px, env(safe-area-inset-top)) 20px max(22px, env(safe-area-inset-bottom)); background: radial-gradient(90% 60% at 50% 45%, var(--glow) 0%, var(--ground) 72%); color: var(--text); animation: rise 0.16s ease both; }
+.aloud:focus { outline: none; }
+.aloud-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.aloud-dots { display: flex; gap: 6px; }
+.aloud-dots span { width: 7px; height: 7px; border-radius: var(--pill); background: var(--line-2); transition: width 0.2s ease, background-color 0.2s ease; }
+.aloud-dots span.is-on { background: var(--ember); }
+.aloud-dots span.is-on:last-of-type, .aloud-dots span.is-on:has(+ span:not(.is-on)) { width: 18px; }
+.aloud-count { min-width: var(--h-icon); text-align: right; font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.aloud-stage { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 22px; width: 100%; max-width: 640px; margin: 0 auto; }
+.aloud-say { margin: 0; font-size: clamp(26px, 4.4vw, 36px); line-height: 1.3; font-weight: 600; letter-spacing: -0.01em; }
+.aloud-stage .scripture-lg { margin: 0; color: var(--soft); }
+.aloud-ref { font-size: 14px; font-weight: 600; color: var(--ember); }
+.aloud-foot { display: grid; gap: 12px; width: 100%; max-width: 640px; margin: 0 auto; text-align: center; }
+.aloud-foot p { margin: 0; font-size: 14px; }
+.aloud-buttons { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
+.aloud-buttons .iconbtn { width: 48px; height: 48px; color: var(--soft); }
+.aloud-next { min-height: 48px; font-size: 16px; }
+@media (prefers-reduced-motion: reduce) { .aloud, .aloud-dots span { animation: none; transition: none; } }
+
+/* The cave header menu's choices with an info button beside them. */
+.new-entry-row { display: flex; align-items: center; gap: 4px; padding-right: 6px; }
+.new-entry-row .more-item { flex: 1; }

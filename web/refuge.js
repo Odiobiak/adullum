@@ -12,10 +12,11 @@
 //   Be still        nothing on the server; choices and this week's count
 //                   stay on the device
 //   Amens           posts, amens and kind words (app/one_another.py)
-// Nothing anyone keeps or shares here appears on the home screen or in
-// Aquila's memory. The home's Amens notice (homeCard below) shows only the
-// wall's public side: this week's amens and how many posts wait for theirs.
-// #amens opens the cave straight into the Amens room.
+// Nothing anyone writes, talks through or shares here appears on the home
+// screen or in Aquila's memory. Home shows only the person's own active
+// habits (web/cave.js::todayCard) and, through homeCard below,
+// the wall's public side: this week's amens and how many posts wait for theirs.
+// #amens and #pebbles open the cave straight into that room.
 //
 // Loaded after web/cave.js, whose helpers it borrows through window.Cave.
 (function () {
@@ -32,6 +33,7 @@
   const svg = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
   const ICON = {
     clock: svg('<circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 2"/>'),
+    bell: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'),
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
     talk: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
@@ -154,10 +156,12 @@
   // ---------------------------------------------------------------------
   // The opening screen
   // ---------------------------------------------------------------------
-  // `route` is the hash that opened the cave; #amens goes straight to the wall.
+  // `route` is the hash that opened the cave; #amens and #pebbles go straight
+  // to that room (the home screen links to both).
+  const ROOM_ROUTES = { amens: () => amensRoom(), pebbles: () => pebblesRoom() };
   async function renderTab(p, route) {
     enter(p);
-    await (route === "amens" ? amensRoom() : threshold());
+    await (ROOM_ROUTES[route] || threshold)();
   }
 
   function door(icon, title, line, open) {
@@ -1518,19 +1522,35 @@
   const POST_KINDS = {
     burden: { choose: "Pray for me", who: "Someone asked for prayer", mineWho: "Your prayer request" },
     rejoice: { choose: "Rejoice with me", who: "Someone has good news", mineWho: "Your good news" },
+    // A prayer request its writer marked answered: good news for a few days.
+    answered: { choose: "Answered", who: "God answered a prayer", mineWho: "Your answered prayer" },
   };
-  const MINE_STATUS = { waiting: ["Waiting for approval", "plain"], shared: ["Shared", "answered"], not_shared: ["Not shared", "plain"] };
+  // How a post on the wall reads: an answered prayer as good news.
+  const shownKind = (post) => (post.answered ? "rejoice" : post.kind);
+  const kindSpec = (post) => POST_KINDS[post.answered ? "answered" : post.kind];
+  const MINE_STATUS = {
+    waiting: ["Waiting for approval", "plain"], shared: ["On the wall", "answered"],
+    ended: ["Off the wall", "plain"], not_shared: ["Not shared", "plain"],
+  };
 
+  // How long a post stays on the wall (app/one_another.py::LIFETIME_DAYS),
+  // as "How Amens works" and the info buttons put it. Keep in step.
+  const HOW_LONG = "A prayer request stays on the wall for two weeks, and you can keep it up two weeks more at a time, up to two months. Good news stays a week. Mark a prayer answered and it stays five more days as good news, so everyone who prayed can see. Your own copy never goes away.";
+
+  // A kind word as the writer sees it, with how many people sent it.
   function kindWordNode(w) {
+    const times = w.count > 1 ? el("span", { class: "encouragement-count", text: `×${w.count}` }) : null;
     return el("div", { class: "encouragement" }, w.ref
-      ? [el("span", { class: "scripture", text: w.text }), " ", el("span", { class: "verse-ref", text: `${w.ref} · ${w.translation}` })]
-      : w.text);
+      ? [el("span", { class: "scripture", text: w.text }), " ", el("span", { class: "verse-ref", text: `${w.ref} · ${w.translation}` }), times]
+      : [w.text, times]);
   }
+  // How many kind words came back to one of the person's own posts.
+  const kindWordCount = (post) => post.kind_word_count ?? post.kind_words.reduce((n, w) => n + (w.count || 1), 0);
 
   async function kindWordsSheet(post, onSent) {
     let choices;
     try {
-      choices = await api(`/me/refuge/kind-words?kind=${post.kind}&translation=${encodeURIComponent(translation())}`);
+      choices = await api(`/me/refuge/kind-words?kind=${shownKind(post)}&translation=${encodeURIComponent(translation())}`);
     } catch (err) {
       return toast(err.message);
     }
@@ -1593,8 +1613,8 @@
   // A post with its actions. `onChange` hears about an amen or kind words,
   // so the bubble it was opened from can show them too.
   function wallCard(post, rerender, onChange) {
-    const spec = POST_KINDS[post.kind];
-    const r = REACTIONS[post.kind];
+    const spec = kindSpec(post);
+    const r = REACTIONS[shownKind(post)];
     const people = el("span");
     const tally = el("p", { class: "amen-people", "aria-live": "polite" });
     const react = el("button", { class: "amen-btn", type: "button" });
@@ -1630,9 +1650,10 @@
       post.sent_kind_word = true;
       if (onChange) onChange("words");
     });
-    return el("article", { class: `burden burden-${post.kind} fade-in` }, [
+    return el("article", { class: `burden burden-${shownKind(post)} fade-in` }, [
       el("p", { class: "burden-who", text: spec.who }),
       el("p", { class: "burden-text", text: post.body }),
+      post.answered && post.answer_note ? el("p", { class: "answered-note" }, [el("strong", { text: "How: " }), post.answer_note]) : null,
       tally,
       el("div", { class: "burden-actions" }, [
         react, words,
@@ -1649,10 +1670,10 @@
   }
 
   function bubble(post, index, rerender) {
-    const spec = POST_KINDS[post.kind];
+    const spec = kindSpec(post);
     const count = el("span", { class: "bubble-count" });
     const node = el("button", {
-      class: `bubble bubble-${post.kind} bubble-${bubbleSize(post.body)}`,
+      class: `bubble bubble-${shownKind(post)} bubble-${bubbleSize(post.body)}${post.answered ? " is-answered" : ""}`,
       type: "button",
       style: `--drift-delay:${-((index * 1.7) % 7).toFixed(1)}s;--drift-time:${6 + (index % 4)}s`,
       "aria-label": `${spec.who}: ${post.body}`,
@@ -1661,7 +1682,7 @@
       el("span", { class: "bubble-text", text: post.body }),
       count,
     ]);
-    const r = REACTIONS[post.kind];
+    const r = REACTIONS[shownKind(post)];
     const paint = () => {
       const n = post.reactions || 0;
       count.innerHTML = `${post.reacted ? ICON.check : r.icon}<span></span>`;
@@ -1680,7 +1701,7 @@
   }
 
   function openBubble(post, rerender, onChange) {
-    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].who }, [
+    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": kindSpec(post).who }, [
       // A report takes the post off the wall, so the wall is drawn again.
       wallCard(post, () => { close(); rerender(); }, onChange),
       el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
@@ -1692,7 +1713,7 @@
   // back once it's on the wall (or that it wasn't shared), and tapping it
   // opens the whole post, the kind words and "Take it down". Posts still
   // waiting for approval sit apart, in waitingZone.
-  const MINE_BUBBLE_STATUS = { waiting: "Waiting", not_shared: "Not shared" };
+  const MINE_BUBBLE_STATUS = { waiting: "Waiting", ended: "Off the wall", not_shared: "Not shared" };
 
   // One of this person's own posts, opened in a sheet.
   function openMine(post, rerender) {
@@ -1725,7 +1746,7 @@
         el("span", { class: "waiting-chevron", "aria-hidden": "true", html: ICON.forward }),
       ]),
       el("div", { class: "waiting-body" }, [
-        el("p", { class: "waiting-note", text: "Each post is approved before it goes on the wall, usually within a day. Then it moves to \"What you've shared\"." }),
+        el("p", { class: "waiting-note", text: "The automatic check wasn't sure about these, so a person looks first, usually within a day. Then they move to \"What you've shared\"." }),
         el("ul", { class: "waiting-list" }, posts.map((post) => el("li", {}, el("button", {
           class: "waiting-item", type: "button", "aria-label": `${POST_KINDS[post.kind].choose}, waiting for approval: ${post.body}`,
           onclick: () => openMine(post, rerender),
@@ -1744,10 +1765,11 @@
   function mineBubble(post, index, rerender) {
     const r = REACTIONS[post.kind];
     const n = post.reactions || 0;
-    const words = post.kind_words.length;
-    const shared = post.status === "shared";
+    const words = kindWordCount(post);
+    // Its amens show whether it's on the wall or has left it.
+    const shared = post.status === "shared" || post.status === "ended";
     // On the wall it reads like the wall's own bubbles; before that, its status.
-    const who = shared ? POST_KINDS[post.kind].choose : MINE_BUBBLE_STATUS[post.status];
+    const who = post.answered ? POST_KINDS.answered.choose : post.status === "shared" ? POST_KINDS[post.kind].choose : MINE_BUBBLE_STATUS[post.status];
     const count = el("span", { class: "bubble-count" });
     if (shared) {
       count.innerHTML = `${r.icon}<span></span>${words ? `${ICON.talk}<span></span>` : ""}`;
@@ -1772,17 +1794,66 @@
     return node;
   }
 
+  // How long one of the writer's own posts has on the wall.
+  function wallTime(post) {
+    if (post.status === "ended") return "It's left the wall. It stays here for you, with everything that came back.";
+    if (post.status !== "shared") return null;
+    if (post.days_left <= 0) return "On the wall until later today.";
+    return `On the wall for ${plural(post.days_left, "more day", "more days")}.`;
+  }
+
+  // "Keep it up": a prayer request two weeks more on the wall.
+  async function keepUp(post, rerender) {
+    try {
+      await api(`/me/refuge/posts/${post.id}/keep-up`, { method: "POST" });
+      toast("It's on the wall for two more weeks.");
+      rerender();
+    } catch (err) {
+      toast(err.message);
+    }
+  }
+
+  // "God answered": a line on how, then good news on the wall for five days.
+  function answeredSheet(post, rerender) {
+    const note = el("textarea", { maxlength: "280", rows: "3", placeholder: "Mum's surgery went well. Thank you for praying." });
+    const msg = cave().formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Share the answer" });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "answeredTitle" }, [
+      cave().sheetTitle("answeredTitle", "God answered", "It stays on the wall five more days as good news, so everyone who prayed can see. Without your name, as always."),
+      el("label", { class: "field-wrap" }, ["How (optional)", note]),
+      msg.node,
+      el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
+    ]);
+    const close = cave().overlay(form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      try {
+        await api(`/me/refuge/posts/${post.id}/answered`, { method: "POST", body: { note: note.value.trim() || null } });
+        close();
+        toast("Thank God. Everyone who prayed will see it.");
+        rerender();
+      } catch (err) {
+        msg.say(err.message, true);
+        save.disabled = false;
+      }
+    });
+  }
+
   function mineCard(post, rerender) {
-    const spec = POST_KINDS[post.kind];
+    const spec = post.answered ? POST_KINDS.answered : POST_KINDS[post.kind];
     const r = REACTIONS[post.kind];
-    const [statusText, statusClass] = MINE_STATUS[post.status];
+    const [statusText, statusClass] = post.answered ? ["Answered", "answered"] : MINE_STATUS[post.status];
     const n = post.reactions || 0;
-    const words = post.kind_words.length;
+    const words = kindWordCount(post);
+    const cameBack = post.status === "shared" || post.status === "ended";
+    const canAnswer = post.kind === "burden" && !post.answered && post.status !== "not_shared";
     return el("article", { class: "burden is-mine fade-in" }, [
       el("div", { class: "entry-meta" }, [el("span", { class: `badge ${statusClass}`, text: statusText }), el("span", { text: `${spec.mineWho} · ${shortDate(post.created_at)}` })]),
       el("p", { class: "burden-text", text: post.body }),
+      post.answered && post.answer_note ? el("p", { class: "answered-note" }, [el("strong", { text: "How: " }), post.answer_note]) : null,
       // What came back to them: the amens as people, and the kind words.
-      post.status === "shared" ? el("div", { class: `amen-summary${n ? " has-amens" : ""}` }, [
+      cameBack ? el("div", { class: `amen-summary${n ? " has-amens" : ""}` }, [
         el("span", { class: "amen-summary-icon", html: r.icon }),
         el("div", { class: "amen-summary-text" }, [
           el("strong", { text: r.forMine(n) }),
@@ -1790,19 +1861,40 @@
         ]),
         n ? amenFaces(n) : null,
       ]) : null,
-      post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "This is approved before it's shared. It'll appear on the wall once it is." }) : null,
+      cameBack ? el("p", { class: "mine-time" }, [wallTime(post), " ", cave().info(HOW_LONG, { label: "How long a post stays" })]) : null,
+      post.status === "waiting" ? el("p", { class: "faint", style: "font-size:14px", text: "A person is looking at this before it's shared. It'll appear on the wall once they have." }) : null,
       post.status === "not_shared" ? el("p", { class: "faint", style: "font-size:14px", text: "This one wasn't shared on the wall. It's still here for you, and you can take it down." }) : null,
       post.kind_words.length ? el("div", { class: "encouragements" }, post.kind_words.map(kindWordNode)) : null,
-      el("div", { class: "burden-actions" }, el("button", { class: "act danger", type: "button", text: "Take it down", onclick: async () => {
-        if (!confirm("Take this down? It comes off the wall for everyone.")) return;
-        try {
-          await api(`/me/refuge/posts/${post.id}`, { method: "DELETE" });
-          rerender();
-        } catch (err) {
-          toast(err.message);
-        }
-      } })),
+      el("div", { class: "burden-actions" }, [
+        post.can_keep_up ? el("button", { class: "btn btn-ember btn-sm", type: "button", text: post.status === "ended" ? "Put it back up" : "Keep it up 2 more weeks", onclick: () => keepUp(post, rerender) }) : null,
+        canAnswer ? el("button", { class: "act", type: "button", html: `${ICON.check}<span>God answered</span>`, onclick: () => answeredSheet(post, rerender) }) : null,
+        el("button", { class: "act danger", type: "button", text: "Take it down", onclick: async () => {
+          if (!confirm("Take this down? It comes off the wall for everyone, and you won't see it here again.")) return;
+          try {
+            await api(`/me/refuge/posts/${post.id}`, { method: "DELETE" });
+            rerender();
+          } catch (err) {
+            toast(err.message);
+          }
+        } }),
+      ]),
     ].filter(Boolean));
+  }
+
+  // A quiet line under the share box when one of the person's prayer
+  // requests is about to leave the wall, or just has: keep it up?
+  function keepUpNudge(mine, rerender) {
+    const post = mine.find((p) => p.can_keep_up);
+    if (!post) return null;
+    const when = post.status === "ended" ? "has left the wall" : post.days_left <= 0 ? "leaves the wall today" : `leaves the wall in ${plural(post.days_left, "day", "days")}`;
+    return el("div", { class: "keep-up-nudge fade-in" }, [
+      el("span", { class: "keep-up-icon", html: ICON.clock }),
+      el("span", { class: "keep-up-text" }, [el("strong", { text: `Your prayer request ${when}.` }), el("small", { text: post.body })]),
+      el("span", { class: "keep-up-actions" }, [
+        el("button", { class: "btn btn-ember btn-sm", type: "button", text: post.status === "ended" ? "Put it back up" : "Keep it up", onclick: () => keepUp(post, rerender) }),
+        el("button", { class: "linkish", type: "button", text: "God answered", onclick: () => answeredSheet(post, rerender) }),
+      ]),
+    ]);
   }
 
   // The share box, as a compact composer: one line until it's tapped, then
@@ -1818,7 +1910,9 @@
       box.style.height = "auto";
       box.style.height = `${box.scrollHeight}px`;
     };
-    const kinds = el("div", { class: "seg amens-composer-kinds", role: "group", "aria-label": "What you're sharing" }, Object.entries(POST_KINDS).map(([key, spec]) => {
+    // Only the two kinds someone can share; "answered" comes later, from the post.
+    const kinds = el("div", { class: "seg amens-composer-kinds", role: "group", "aria-label": "What you're sharing" }, ["burden", "rejoice"].map((key) => {
+      const spec = POST_KINDS[key];
       const b = el("button", { type: "button", "aria-pressed": String(key === kind) }, [
         el("span", { html: REACTIONS[key].icon }),
         el("span", { text: spec.choose }),
@@ -1876,7 +1970,9 @@
         box.value = "";
         count.textContent = String(SHARE_MAX);
         fold();
-        toast("Thank you. Once it's approved, people can pray and rejoice with you.");
+        toast(res.outcome === "shared"
+          ? "It's on the wall. People can pray and rejoice with you now."
+          : "Thank you. A person will look at it first, then people can pray and rejoice with you.");
         rerender();
       } catch (err) {
         msg.say(err.message, true);
@@ -1890,7 +1986,7 @@
       el("div", { class: "amens-composer-more" }, [
         el("div", { class: "amens-composer-bar" }, [kinds, el("span", { class: "amens-composer-send" }, [count, send])]),
         msg.node,
-        el("p", { class: "amens-composer-note", text: "This is approved before it's shared publicly. You can take it down any time." }),
+        el("p", { class: "amens-composer-note", text: "Shared without your name. It's checked as it goes up, and you can take it down any time." }),
       ]),
       care
     );
@@ -1900,9 +1996,11 @@
   // "How Amens works", opened from the info button beside the room's title.
   const HOW_AMENS_WORKS = [
     ["Share anonymously", "Choose \"Pray for me\" for something you're carrying, or \"Rejoice with me\" for good news. Share as much or as little as you like. Names and places are up to you, but links and contact details can't be posted."],
-    ["An admin approves each post", "Every post is approved before it goes on the wall. Nobody, not even the people who approve it, is shown who wrote it."],
+    ["Checked as it goes up", "Every post is checked as it's shared. Most go on the wall straight away; anything the check isn't sure of waits for a person to look at it first. A report takes a post down at once. Nobody, not even the people who check, is shown who wrote it."],
+    ["Everyone gets prayed for", "There are no followers. Each person's wall shows posts they haven't prayed for first, starting with those fewest people have seen, so every request gets carried, not just the newest."],
     ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
-    ["See what came back", "Your posts sit under \"What you've shared\" with how many prayed or rejoiced, and any kind words. You can take one down any time."],
+    ["How long it stays", HOW_LONG],
+    ["See what came back", "Your posts sit under \"What you've shared\" with how many prayed or rejoiced, and any kind words. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
     ["If you're not safe", "If what you write sounds like you might be in danger, it isn't posted. You're shown people you can talk to right away instead."],
   ];
 
@@ -1916,6 +2014,39 @@
     ]));
   }
 
+  // The evening note: one quiet notification when people prayed for or
+  // rejoiced with what this person shared (app/one_another.py::run_digest).
+  // On by default; it needs this device to allow notifications, so a small
+  // "Allow on this device" shows when it's on and the device hasn't yet.
+  function digestSwitch(on) {
+    const box = el("input", { type: "checkbox", role: "switch" });
+    box.checked = on;
+    const notify = window.Notify;
+    const allow = el("button", {
+      class: "linkish digest-allow", type: "button", text: "Allow on this device",
+      onclick: async () => { if (await notify.enable()) paint(); },
+    });
+    const paint = () => {
+      allow.hidden = !(box.checked && notify && notify.supported() && Notification.permission !== "granted");
+    };
+    box.addEventListener("change", async () => {
+      try {
+        await api("/me", { method: "PATCH", body: { amens_digest: box.checked } });
+        paint();
+      } catch (err) {
+        box.checked = !box.checked;
+        toast(err.message);
+      }
+    });
+    paint();
+    return el("div", { class: "digest-row" }, [
+      el("span", { class: "digest-icon", html: ICON.bell }),
+      el("label", { class: "digest-label" }, [box, el("span", { text: "An evening note when people pray for you" })]),
+      cave().info("Once a day, in your evening, a single notification says how many prayed or rejoiced with you and how many kind words came. Never who.", { label: "About the evening note" }),
+      allow,
+    ]);
+  }
+
   async function amensRoom() {
     let data;
     try {
@@ -1924,25 +2055,56 @@
       return failed(err);
     }
     const rerender = () => amensRoom();
+    // The wall comes a page at a time (app/one_another.py::wall). "Show more"
+    // adds the next page's bubbles, skipping any already showing, since
+    // amens said meanwhile can move a post between pages.
+    const bubbles = el("div", { class: "bubble-wall" }, data.posts.map((p, i) => bubble(p, i, rerender)));
+    const shown = new Set(data.posts.map((p) => p.id));
+    let page = 0;
+    const more = data.has_more ? el("button", {
+      class: "btn btn-ghost btn-sm wall-more", type: "button", text: "Show more",
+      onclick: async () => {
+        more.disabled = true;
+        try {
+          const next = await api(`/me/refuge/wall?translation=${encodeURIComponent(translation())}&page=${page + 1}`);
+          page = next.page;
+          const fresh = next.posts.filter((p) => !shown.has(p.id));
+          fresh.forEach((p) => shown.add(p.id));
+          const at = bubbles.children.length;
+          bubbles.append(...fresh.map((p, i) => bubble(p, at + i, rerender)));
+          if (next.has_more) more.disabled = false;
+          else more.remove();
+        } catch (err) {
+          more.disabled = false;
+          toast(err.message);
+        }
+      },
+    }) : null;
     // Waiting posts get their own zone; the rest are what's been through review.
     const waiting = data.mine.filter((p) => p.status === "waiting");
     const reviewed = data.mine.filter((p) => p.status !== "waiting");
     show(room("Amens", {
-        text: "Share a burden or a joy without your name. Others can pray or rejoice with you, and send a few kind words.",
+        text: [
+          "Share a burden or a joy without your name. Others can pray or rejoice with you, and send a few kind words.",
+          "Prayer requests stay two weeks (you can keep them up longer), good news a week.",
+        ],
         more: howAmensWorks,
         moreLabel: "How Amens works",
       },
       shareBox(rerender),
+      keepUpNudge(data.mine, rerender),
       waiting.length ? waitingZone(waiting, rerender) : null,
       reviewed.length ? el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "What you've shared" }),
         el("div", { class: "mine-row" }, reviewed.map((p, i) => mineBubble(p, i, rerender))),
+        typeof data.digest === "boolean" ? digestSwitch(data.digest) : null,
       ]) : null,
       el("section", { class: "wall-section" }, [
         el("p", { class: "kicker", text: "On the wall" }),
         ...(data.posts.length
           ? [
-              el("div", { class: "bubble-wall" }, data.posts.map((p, i) => bubble(p, i, rerender))),
+              bubbles,
+              more,
               el("p", { class: "bubble-hint", text: "Tap a bubble to read it, pray or rejoice with them, or send a few kind words." }),
             ]
           : [el("p", { class: "muted", text: "Nothing on the wall right now. When someone shares, it'll appear here for you to carry with them." })]),
@@ -1954,8 +2116,9 @@
   // The Amens notice on the home screen (web/cave.js::showHome)
   // ---------------------------------------------------------------------
   // `glance` is app/one_another.py::amens_glance: this week's amens across the
-  // whole wall and how many posts by other people still wait for this
-  // person's amen. Nothing this person shared ever shows here.
+  // whole wall and how many posts by other people have gone up since this
+  // person last opened the wall that they haven't said amen to. Nothing this
+  // person shared ever shows here.
   //
   // It reads like a notification rather than a card: one line, a count on
   // the icon, and the whole thing opens the wall. On a week with nothing
@@ -1964,20 +2127,10 @@
     const { waiting, this_week: thisWeek } = glance;
     if (!waiting && !thisWeek) return null;
 
-    const title = waiting ? `${plural(waiting, "post", "posts")} waiting for your amen` : "You're all caught up on Amens";
+    const title = waiting ? `${plural(waiting, "new post", "new posts")} on Amens` : "All caught up on Amens";
     const detail = thisWeek ? `${plural(thisWeek, "amen", "amens")} this week` : "Open the wall";
 
-    return el("a", { class: "amens-note fade-in", href: "#amens", "aria-label": `Amens: ${title}, ${detail}` }, [
-      el("span", { class: "amens-note-icon", "aria-hidden": "true" }, [
-        el("span", { html: ICON.together }),
-        waiting ? el("span", { class: "amens-note-count", text: waiting > 9 ? "9+" : String(waiting) }) : null,
-      ]),
-      el("span", { class: "amens-note-text" }, [
-        el("strong", { text: title }),
-        el("small", { text: detail }),
-      ]),
-      el("span", { class: "amens-note-go", "aria-hidden": "true", html: ICON.forward }),
-    ]);
+    return cave().homeNote({ href: "#amens", icon: ICON.together, count: waiting, title, detail });
   }
 
   // ---------------------------------------------------------------------
@@ -2072,5 +2225,6 @@
     }
   }
 
-  window.Refuge = { renderTab, hide, renderDesk, homeCard };
+  // helplineRows is shared with Declare (web/declare.js), which shows them instead of words when a situation sounds unsafe.
+  window.Refuge = { renderTab, hide, renderDesk, homeCard, helplineRows };
 })();

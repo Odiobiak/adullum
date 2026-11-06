@@ -1077,15 +1077,10 @@
     };
     const action = (step) => {
       if (step.key === "reread") return el("a", { class: "btn btn-ghost btn-sm", href: window.Reader.href(step.ref), text: `Open ${step.ref}` });
-      if (step.key === "learn") return el("button", { class: "btn btn-ghost btn-sm", type: "button", text: `Learn ${step.ref}`, onclick: async (e) => {
-        e.currentTarget.disabled = true;
-        try {
-          await api("/me/memorize", { method: "POST", body: { ref: step.ref, translation: translation(), today } });
-          toast("Added to Memorize.");
-        } catch (err) {
-          toast(err.message);
-          e.currentTarget.disabled = false;
-        }
+      if (step.key === "learn") return el("button", { class: "btn btn-ghost btn-sm", type: "button", text: `Save ${step.ref}`, onclick: async (e) => {
+        const button = e.currentTarget;
+        button.disabled = true;
+        if (!(await window.Saved.verse(step.ref, translation()))) button.disabled = false;
       } });
       if (step.key === "question") {
         const box = el("textarea", { class: "field", rows: "3", maxlength: "2000", placeholder: "A line or two is enough.", "aria-label": "Your answer" });
@@ -1149,13 +1144,12 @@
     const showing = live.filter((l) => l.alerts !== false);
     if (!showing.length) return null;
     const first = showing[0];
-    return el("a", { class: "church-home-live fade-in", href: `#church/live/${first.church_id}` }, [
-      el("span", { class: "church-row-text" }, [
-        el("span", {}, liveBadge()),
-        el("strong", { text: showing.length > 1 ? `${first.name} and ${showing.length - 1} more` : first.name }),
-      ]),
-      el("span", { class: "church-home-play", html: ICON.play }),
-    ]);
+    const more = showing.length - 1;
+    return cave().homeNote({
+      href: `#church/live/${first.church_id}`, icon: ICON.play, live: true,
+      title: more ? `${first.name} and ${more} more are live` : `${first.name} is live`,
+      detail: "Watch and take notes",
+    });
   }
 
   // ---------------------------------------------------------------------

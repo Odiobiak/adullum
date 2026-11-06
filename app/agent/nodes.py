@@ -588,3 +588,92 @@ def explain_link(
             how = "are linked in the classic cross-references" if cross_ref else "are close in wording and meaning"
             answer = f"{_passage_ref(a)} and {_passage_ref(b)} {how}. Read them side by side and notice what each one brings out in the other."
     return answer
+
+
+# ---------------------------------------------------------------------------
+# Declare: Scripture spoken aloud over something a person is facing
+# (app/declare.py, web/declare.js). Not a graph node: two short structured
+# calls. Aquila only ever picks references. Every verse's words are read from
+# the database, and app/declare.py::usable_lines keeps a line only when its
+# reference is one of the passages it was given.
+# ---------------------------------------------------------------------------
+DECLARE_VERSES_PROMPT = """Someone is about to face something and wants to declare Scripture \
+over it, speaking God's promises aloud in faith. Suggest up to eight Bible passages that \
+genuinely fit, as references only, like "Isaiah 41:10" or "Numbers 6:24-26". Each is one \
+verse, or at most three verses in a row. Choose promises and truths a believer can rightly \
+speak over this, and stay true to what each passage means in its context: never pick a verse \
+only because it shares a word with the situation."""
+
+DECLARE_SYSTEM_PROMPT = """You are Aquila, a warm and steadfast companion who loves God. \
+Someone is about to face something and wants to declare Scripture over it, out loud, in \
+faith. Write what they will say.
+
+- title: two to five words naming what it's for, like "For your interview" or "Tunde's visa".
+- opening: one line that begins in the name of Jesus and names what it's over, like \
+"In the name of Jesus, I declare God's word over my interview tomorrow." Over someone else, \
+it starts with their name: "Tunde, in the name of Jesus, I declare God's word over your visa."
+- lines: three to five. Each puts one listed passage's own promise or truth into one or two \
+short sentences to say aloud, in the present tense, staying close to that passage's words, \
+with its reference in `ref` exactly as it's listed. Use each passage at most once.
+
+Who it's spoken over: if a name is given, they're declaring over someone else, so speak to \
+that person. Use their name in the opening, and "you" and "your" in every line, never "I" \
+or "me". Use the name in a line only now and then, not at the start of each. If no name is given but the situation is \
+plainly about someone else, do the same with the name or word they used (Mum, my son). \
+Otherwise it's for the person themselves, so "I" and "my".
+
+Stay true to each passage. A line may claim a promise in faith, but only what the passage \
+says, and it keeps the passage's conditions where it has them ("as I walk with the Lord"). \
+Don't quote the verse, since it's shown under the line, and don't name any reference in the \
+words. Never say God has told them anything, and never promise a particular outcome ("you \
+will get the job"). Declare who God is and what He has promised over it.
+
+Bold, warm and plain, like someone who believes it. Never use an em dash. Don't end with \
+Amen; it's added for them."""
+
+
+class DeclareIdeas(BaseModel):
+    refs: list[str] = Field(description="Up to eight references, like 'Isaiah 41:10' or 'Numbers 6:24-26'.")
+
+
+class DeclareLine(BaseModel):
+    say: str = Field(description="What they say aloud, one or two short sentences.")
+    ref: str = Field(description="The listed passage this line is drawn from, exactly as listed.")
+
+
+class DeclareDraft(BaseModel):
+    title: str
+    opening: str
+    lines: list[DeclareLine]
+
+
+def suggest_declare_refs(situation: str, config: RunnableConfig | None = None) -> list[str]:
+    """Passages worth declaring over `situation`, as references only. Their
+    words are looked up afterwards, so nothing here is ever shown as Scripture."""
+    ideas: DeclareIdeas = _llm.with_structured_output(DeclareIdeas).invoke(
+        [SystemMessage(DECLARE_VERSES_PROMPT), HumanMessage(situation)], config=config
+    )
+    return ideas.refs[:8]
+
+
+def write_declaration(
+    situation: str,
+    name: str | None,
+    passages: dict[str, list[Verse]],
+    extra: str = "",
+    config: RunnableConfig | None = None,
+) -> DeclareDraft:
+    """The lines to declare over `situation`, each drawn from one of
+    `passages` (keyed by reference). The caller checks every line's reference."""
+    block = "\n".join(f"- {ref} ({vs[0].translation}): {' '.join(v.text for v in vs)}" for ref, vs in passages.items())
+    system = f"{DECLARE_SYSTEM_PROMPT}\n\nPassages you may use, and no others:\n{block}"
+    if extra:
+        system += "\n\n" + extra
+    who = (
+        f"They're declaring over {name}. Name {name} in the opening, then speak to them: you and your, never I or me."
+        if name
+        else "No name given. Unless this is plainly about someone else, they're declaring over themselves, so every line says I and my."
+    )
+    return _warm_llm.with_structured_output(DeclareDraft).invoke(
+        [SystemMessage(system), HumanMessage(f"What they're facing:\n{situation}\n\n{who}")], config=config
+    )

@@ -21,6 +21,10 @@ services:
         value: gpt-4o-mini
       - key: ADMIN_EMAILS
         value: odicheobiakarije@gmail.com
+      # Amens posts the automatic check is clear about go up straight away;
+      # "false" sends every post to the admin desk first.
+      - key: AMENS_AUTO_APPROVE
+        value: "true"
       - key: SUPPORT_ONCE_URL
         sync: false
       - key: SUPPORT_MONTHLY_URL

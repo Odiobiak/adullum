@@ -17,11 +17,12 @@ import random
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from postgrest.exceptions import APIError
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from supabase_auth.errors import AuthError
 
 from app import auth, memory
@@ -47,7 +48,8 @@ def _db_call(fn, setup_hint: str = _SETUP_HINT):
     try:
         return fn()
     except APIError as err:
-        if err.code in ("42P01", "PGRST205", "42703"):
+        # A missing table, column or database function (PGRST202, 42883).
+        if err.code in ("42P01", "PGRST205", "42703", "PGRST202", "42883"):
             raise HTTPException(status_code=503, detail=setup_hint) from err
         raise
 
@@ -158,6 +160,21 @@ class ProfilePatch(BaseModel):
     display_name: str | None = Field(default=None, max_length=60)
     preferred_translation: str | None = None
     memory_enabled: bool | None = None
+    # Amens' evening digest, and the person's time zone so it arrives in
+    # their evening (app/one_another.py::run_digest).
+    amens_digest: bool | None = None
+    time_zone: str | None = Field(default=None, max_length=64)
+
+    @field_validator("time_zone")
+    @classmethod
+    def known_zone(cls, zone: str | None) -> str | None:
+        if zone is None:
+            return None
+        try:
+            ZoneInfo(zone)
+        except (ZoneInfoNotFoundError, ValueError) as err:
+            raise ValueError("That isn't a time zone.") from err
+        return zone
 
 
 def _ensure_profile(user: AuthUser) -> dict:

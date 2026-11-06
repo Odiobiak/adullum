@@ -69,10 +69,14 @@ class Settings(BaseSettings):
     auth_google_enabled: bool = False
 
     # Comma-separated email addresses that can open the admin desk (#desk),
-    # where posts to Refuge's Amens wall are approved before anyone sees
-    # them and reported posts come back for a second look. Left empty, nobody
-    # can approve anything and the wall stays empty, which is the safe default.
+    # where posts to Refuge's Amens wall that the automatic check wasn't sure
+    # of wait for a person, and reported posts come back for a second look.
     admin_emails: str = ""
+
+    # Whether an Amens post the automatic check is clear about goes on the
+    # wall straight away (app/one_another.py::goes_up_now). Set false to send
+    # every post to the admin desk first, as Amens did at the start.
+    amens_auto_approve: bool = True
 
     # Giving, shown on the Support page (#support) and everywhere that links to
     # it. Both are Stripe Payment Links (or any checkout page). Left empty, the

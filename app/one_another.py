@@ -12,10 +12,31 @@ How a post reaches the wall:
    a post. Words that suggest the writer isn't safe aren't posted at all: the
    writer is shown helplines instead (`outcome: "care"`). OpenAI's moderation
    check refuses hateful, sexual, harassing or violent posts.
-2. Whatever passes waits as `pending` on the admin desk (/admin/refuge, the
-   people in settings.admin_emails), and only appears once someone approves it.
-3. A report takes an approved post off the wall (`reported`) and puts it back
-   on the desk for another look.
+2. A post the automatic check is clear about goes up straight away
+   (`approved`, with `approved_at`). One it isn't sure of (a moderation flag,
+   or the check not running at all) waits as `pending` on the admin desk
+   (/admin/refuge, the people in settings.admin_emails) until someone
+   approves it. settings.amens_auto_approve turns going up straight away off,
+   so that every post waits for the desk again.
+3. A report takes an approved post off the wall (`reported`) at once and puts
+   it back on the desk for another look.
+
+How long a post stays (supabase/migrations/20261117_amens_lifetimes.sql): a
+prayer request two weeks from when it goes up, and its writer can keep it up
+two weeks more at a time, up to two months (`keep_up`); good news a week; a
+prayer request marked answered (`answered`) five more days, shown as good news
+with a line on how. Then it leaves the wall for everyone else. The writer's
+own copy, with every amen and kind word, never goes. `expires_at` holds when.
+
+How the wall reaches people (supabase/migrations/20261116_amens_at_scale.sql):
+there are no followers and no feeds. Each person's wall is `amens_wall`: posts
+by others from the last month, the ones they haven't said amen to first, then
+those with the fewest amens, in a shuffle of their own, a page at a time, so
+prayer spreads across every request instead of piling onto the newest. Counts
+live on the post (`amen_count`, kept by a trigger), amens per day in
+`refuge_amen_days`, and the home notice counts what's gone up since someone
+last opened the wall (`refuge_wall_visits`). Once a day, in their evening, a
+writer with new amens is sent one quiet notification (`run_digest`).
 
 What others can do is deliberately small: say they prayed (or are rejoicing),
 send one of a fixed set of kind words (`KIND_WORDS`), or report. Nobody can
@@ -30,8 +51,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from openai import OpenAI
 from pydantic import BaseModel, Field
 
@@ -55,8 +77,28 @@ SETUP_HINT = (
 
 MAX_POST_LENGTH = 280
 POSTS_PER_DAY = 5
-WALL_DAYS = 30  # how long an approved post stays on the wall
-WALL_SIZE = 40
+WALL_DAYS = 30  # Refuge's "came back to you" looks this far back
+
+# How long a post stays on the wall, from when it goes up.
+LIFETIME_DAYS = {"burden": 14, "rejoice": 7}
+KEEP_UP_DAYS = 14       # each "keep it up" adds this much
+KEEP_UP_WINDOW_DAYS = 4  # offered once a request is this close to leaving (or has left)
+MAX_DAYS_UP = 60        # a request never stays longer than this in all
+ANSWERED_DAYS = 5       # an answered prayer stays this much longer, as good news
+WALL_PAGE = 24  # posts per page of someone's wall
+NEW_DAYS = 7    # the home notice counts what's new since the last look, or this week
+
+# The daily digest: at most one every DIGEST_GAP, counting what came back
+# since the last (DIGEST_LOOK_BACK at most), sent in the writer's evening.
+DIGEST_GAP = timedelta(hours=20)
+DIGEST_LOOK_BACK = timedelta(days=2)
+DIGEST_HOURS = range(18, 22)  # 6pm to 9:59pm where they are
+
+# The wall's later parts read tables and functions from a later migration.
+AMENS_HINT = (
+    "Amens needs a database update. Run supabase/migrations/20261116_amens_at_scale.sql "
+    "in the Supabase SQL editor."
+)
 
 _moderation = OpenAI(api_key=settings.openai_api_key)
 
@@ -163,6 +205,50 @@ def screen(text: str, check: dict) -> str:
     return "desk"
 
 
+def goes_up_now(check: dict) -> bool:
+    """Whether a post the screen sent on can go on the wall straight away:
+    the check ran, it flagged nothing at all, and going up straight away is
+    on. Anything else waits for a person on the desk."""
+    return settings.amens_auto_approve and not check.get("error") and not check.get("flagged")
+
+
+def _stamp(value) -> datetime | None:
+    if not value:
+        return None
+    return value if isinstance(value, datetime) else datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+
+
+def expires_for(kind: str, went_up: datetime) -> datetime:
+    """When a post that went up at `went_up` leaves the wall."""
+    return went_up + timedelta(days=LIFETIME_DAYS[kind])
+
+
+def kept_up_until(post: dict, now: datetime) -> datetime | None:
+    """Where "keep it up" would move a prayer request's end: two weeks on from
+    today or from its current end, whichever is later, never past two months
+    from when it went up. None when it can't be kept up now: it isn't a live
+    or recently ended request, it's been answered, it isn't near its end yet,
+    or it's already at two months."""
+    went_up, ends = _stamp(post.get("approved_at")), _stamp(post.get("expires_at"))
+    if post.get("kind") != "burden" or post.get("status") != "approved" or post.get("answered_at") or not went_up or not ends:
+        return None
+    if ends - now > timedelta(days=KEEP_UP_WINDOW_DAYS):
+        return None
+    cap = went_up + timedelta(days=MAX_DAYS_UP)
+    until = min(max(ends, now) + timedelta(days=KEEP_UP_DAYS), cap)
+    return until if until > max(ends, now) else None
+
+
+def on_wall(post: dict, now: datetime) -> bool:
+    ends = _stamp(post.get("expires_at"))
+    return post.get("status") == "approved" and bool(ends) and ends > now
+
+
+def shown_kind(post: dict) -> str:
+    """How a post reads on the wall: an answered prayer reads as good news."""
+    return "rejoice" if post.get("answered_at") else post["kind"]
+
+
 # ---------------------------------------------------------------------------
 # Models
 # ---------------------------------------------------------------------------
@@ -187,34 +273,37 @@ class ReviewIn(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers that read the wall
 # ---------------------------------------------------------------------------
-def _counts(table: str, post_ids: list[str]) -> dict[str, int]:
-    if not post_ids:
-        return {}
-    rows = get_supabase().table(table).select("post_id").in_("post_id", post_ids).execute().data
-    counts: dict[str, int] = {}
-    for r in rows:
-        counts[r["post_id"]] = counts.get(r["post_id"], 0) + 1
-    return counts
+def _rpc(name: str, params: dict):
+    """Calls one of the wall's database functions (see the migration above)."""
+    return _db_call(lambda: get_supabase().rpc(name, params).execute().data, AMENS_HINT)
 
 
-def _mine(table: str, user: AuthUser, post_ids: list[str]) -> set[str]:
-    if not post_ids:
-        return set()
-    rows = get_supabase().table(table).select("post_id").eq("user_id", user.id).in_("post_id", post_ids).execute().data
-    return {r["post_id"] for r in rows}
+def _ago(**delta) -> str:
+    return (datetime.now(timezone.utc) - timedelta(**delta)).isoformat()
+
+
+def _since_last_look(user: AuthUser) -> str:
+    """When the person last opened the wall, or a week ago if longer."""
+    rows = get_supabase().table("refuge_wall_visits").select("seen_at").eq("user_id", user.id).limit(1).execute().data
+    week_ago = _ago(days=NEW_DAYS)
+    return max(rows[0]["seen_at"], week_ago) if rows else week_ago
 
 
 def _post(post_id: str) -> dict:
-    rows = _db(lambda: get_supabase().table("refuge_posts").select("id, user_id, kind, status").eq("id", post_id).limit(1).execute().data)
+    rows = _db(lambda: (
+        get_supabase().table("refuge_posts").select("id, user_id, kind, status, approved_at, expires_at, answered_at")
+        .eq("id", post_id).limit(1).execute().data
+    ))
     if not rows:
         raise HTTPException(status_code=404, detail="That post isn't here anymore.")
     return rows[0]
 
 
 def _others_post(post_id: uuid.UUID, user: AuthUser) -> dict:
-    """An approved post by someone else: the only kind anyone can respond to."""
+    """A post by someone else that's on the wall now: the only kind anyone
+    can respond to."""
     post = _post(str(post_id))
-    if post["status"] != "approved":
+    if not on_wall(post, datetime.now(timezone.utc)):
         raise HTTPException(status_code=404, detail="That post isn't on the wall anymore.")
     if post["user_id"] == user.id:
         raise HTTPException(status_code=400, detail="That one's yours.")
@@ -224,17 +313,15 @@ def _others_post(post_id: uuid.UUID, user: AuthUser) -> dict:
 def carried_summary(user: AuthUser) -> dict | None:
     """For Refuge's opening screen: how many people prayed or rejoiced, and
     how many kind words arrived, across what this person shared lately."""
-    since = (datetime.now(timezone.utc) - timedelta(days=WALL_DAYS)).isoformat()
     posts = (
-        get_supabase().table("refuge_posts").select("id, kind, created_at")
-        .eq("user_id", user.id).eq("status", "approved").gte("created_at", since)
-        .order("created_at", desc=True).execute().data
+        get_supabase().table("refuge_posts").select("kind, created_at, amen_count, kind_word_count")
+        .eq("user_id", user.id).eq("status", "approved").gte("created_at", _ago(days=WALL_DAYS))
+        .order("created_at", desc=True).limit(50).execute().data
     )
     if not posts:
         return None
-    ids = [p["id"] for p in posts]
-    reactions = sum(_counts("refuge_reactions", ids).values())
-    words = sum(_counts("refuge_kind_words", ids).values())
+    reactions = sum(p.get("amen_count") or 0 for p in posts)
+    words = sum(p.get("kind_word_count") or 0 for p in posts)
     if not reactions and not words:
         return None
     return {"reactions": reactions, "kind_words": words, "kind": posts[0]["kind"], "latest": posts[0]["created_at"]}
@@ -250,72 +337,94 @@ def featured_post(posts: list[dict], amened: set[str]) -> dict | None:
 
 
 def amens_glance(user: AuthUser) -> dict:
-    """For the home screen's Amens card: the wall's public side only.
+    """For the home screen's Amens notice: the wall's public side only.
 
     Refuge promises that what someone keeps or shares there never follows
     them onto another screen, so nothing here is about this person's own
     posts. It's how many amens the whole wall said this week, how many posts
-    by other people are still waiting for this person's amen, and the newest
-    of those, which is already visible to everyone signed in on the wall.
+    by other people have gone up since they last looked that they haven't
+    said amen to, and the first post their own wall would show them.
     """
-    db = get_supabase()
-    now = datetime.now(timezone.utc)
-    week_ago = (now - timedelta(days=AMENS_WEEK_DAYS)).isoformat()
-    said_this_week = (
-        db.table("refuge_reactions").select("post_id", count="exact")
-        .gte("created_at", week_ago).limit(1).execute().count or 0
+    days = (
+        get_supabase().table("refuge_amen_days").select("amens")
+        .gte("day", (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat())
+        .execute().data
     )
-    since = (now - timedelta(days=WALL_DAYS)).isoformat()
-    posts = (
-        db.table("refuge_posts").select("id, kind, body")
-        .eq("status", "approved").neq("user_id", user.id).gte("created_at", since)
-        .order("created_at", desc=True).limit(WALL_SIZE).execute().data
-    )
-    amened = _mine("refuge_reactions", user, [p["id"] for p in posts])
-    post = featured_post(posts, amened)
-    if post:
-        post = {**post, "amens": _counts("refuge_reactions", [post["id"]]).get(post["id"], 0)}
+    waiting = _rpc("amens_waiting", {"viewer": user.id, "since": _since_last_look(user)}) or 0
+    first = _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": 1, "skip": 0})
+    post = featured_post(first, {p["id"] for p in first if p.get("reacted")})
     return {
-        "this_week": said_this_week,
-        "waiting": sum(1 for p in posts if p["id"] not in amened),
-        "post": post,
+        "this_week": sum(d["amens"] for d in days),
+        "waiting": waiting,
+        "post": {"id": post["id"], "kind": post["kind"], "body": post["body"], "amens": post.get("amen_count") or 0} if post else None,
     }
 
 
 # ---------------------------------------------------------------------------
 # /me/refuge: the wall
 # ---------------------------------------------------------------------------
+def lifetime(post: dict, now: datetime) -> dict:
+    """Where one of the writer's own posts stands on the wall: whether it's
+    up, how many days it has left, and whether it can be kept up now."""
+    up = on_wall(post, now)
+    ends = _stamp(post.get("expires_at"))
+    return {
+        "on_wall": up,
+        "days_left": max(0, -((now - ends) // timedelta(days=1))) if up and ends else 0,
+        "can_keep_up": kept_up_until(post, now) is not None,
+        "answered": bool(post.get("answered_at")),
+    }
+
+
+def _wall_post(row: dict) -> dict:
+    """A post as the wall sends it: never who wrote it."""
+    return {
+        "id": row["id"], "kind": row["kind"], "body": row["body"], "created_at": row["created_at"],
+        "reactions": row.get("amen_count") or 0, "reacted": bool(row.get("reacted")), "sent_kind_word": bool(row.get("sent_kind_word")),
+        # An answered prayer reads as good news, with the writer's line on how.
+        "answered": bool(row.get("answered_at")), "answer_note": row.get("answer_note"),
+    }
+
+
 @router.get("/me/refuge/wall")
-def wall(translation: str | None = None, user: AuthUser = Depends(require_user)) -> dict:
-    """Approved posts by other people from the last month, newest first, and
-    everything this person has shared, with what came back to them."""
+def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=200), user: AuthUser = Depends(require_user)) -> dict:
+    """One page of this person's wall (see `amens_wall` for the order), and on
+    the first page everything they've shared, with what came back to them,
+    and whether their evening digest is on."""
     db = get_supabase()
-    since = (datetime.now(timezone.utc) - timedelta(days=WALL_DAYS)).isoformat()
-    others = _db(lambda: (
-        db.table("refuge_posts").select("id, kind, body, created_at")
-        .eq("status", "approved").neq("user_id", user.id).gte("created_at", since)
-        .order("created_at", desc=True).limit(WALL_SIZE).execute().data
-    ))
-    ids = [p["id"] for p in others]
-    reacted, worded, counts = _mine("refuge_reactions", user, ids), _mine("refuge_kind_words", user, ids), _counts("refuge_reactions", ids)
-    for p in others:
-        p["reactions"] = counts.get(p["id"], 0)
-        p["reacted"] = p["id"] in reacted
-        p["sent_kind_word"] = p["id"] in worded
+    rows = _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": WALL_PAGE + 1, "skip": page * WALL_PAGE})
+    out = {"posts": [_wall_post(r) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
+    if page:
+        return out
 
     mine = _db(lambda: (
-        db.table("refuge_posts").select("id, kind, body, status, created_at")
+        db.table("refuge_posts").select("id, kind, body, status, created_at, amen_count, kind_word_count, approved_at, expires_at, answered_at, answer_note")
         .eq("user_id", user.id).order("created_at", desc=True).limit(20).execute().data
     ))
-    mine_ids = [p["id"] for p in mine]
-    mine_counts = _counts("refuge_reactions", mine_ids)
-    words = db.table("refuge_kind_words").select("post_id, choice").in_("post_id", mine_ids).execute().data if mine_ids else []
+    tally = _rpc("kind_word_tally", {"post_ids": [p["id"] for p in mine]}) if mine else []
+    now = datetime.now(timezone.utc)
     for p in mine:
-        p["reactions"] = mine_counts.get(p["id"], 0)
-        p["kind_words"] = [w for w in (kind_word(r["choice"], translation) for r in words if r["post_id"] == p["id"]) if w]
+        p["reactions"] = p.pop("amen_count", 0) or 0
+        p["kind_word_count"] = p.get("kind_word_count") or 0
+        p["kind_words"] = [
+            {**w, "count": t["n"]}
+            for t in tally if t["post_id"] == p["id"]
+            for w in [kind_word(t["choice"], translation)] if w
+        ]
+        p.update(lifetime(p, now))
         # The desk's own words never reach the writer, only where it stands.
         p["status"] = {"pending": "waiting", "reported": "waiting", "approved": "shared", "removed": "not_shared"}[p["status"]]
-    return {"posts": others, "mine": mine}
+        if p["status"] == "shared" and not p["on_wall"]:
+            p["status"] = "ended"
+    out["mine"] = mine
+    try:
+        profile = db.table("profiles").select("amens_digest").eq("id", user.id).limit(1).execute().data
+        out["digest"] = profile[0].get("amens_digest", True) if profile else True
+    except Exception:
+        out["digest"] = None  # the setting isn't there yet; the page leaves the switch out
+    # The wall is open now: what's new on the home notice counts from here.
+    db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
+    return out
 
 
 @router.get("/me/refuge/kind-words")
@@ -350,9 +459,17 @@ def share(body: PostIn, user: AuthUser = Depends(require_user)) -> dict:
             status_code=422,
             detail="This can't go on the wall as it's written. If something is weighing on you, Talk with Aquila or Someone to talk to are both here.",
         )
-    row = {"user_id": user.id, "kind": body.kind, "body": text, "status": "pending", "auto_check": check}
+    goes_up = goes_up_now(check)
+    row = {"user_id": user.id, "kind": body.kind, "body": text, "status": "approved" if goes_up else "pending", "auto_check": check}
+    if goes_up:
+        went_up = datetime.now(timezone.utc)
+        row["approved_at"] = went_up.isoformat()
+        row["expires_at"] = expires_for(body.kind, went_up).isoformat()
     post = _db(lambda: db.table("refuge_posts").insert(row).execute().data[0])
-    return {"outcome": "waiting", "post": {"id": post["id"], "kind": post["kind"], "body": post["body"], "created_at": post["created_at"]}}
+    return {
+        "outcome": "shared" if goes_up else "waiting",
+        "post": {"id": post["id"], "kind": post["kind"], "body": post["body"], "created_at": post["created_at"]},
+    }
 
 
 @router.delete("/me/refuge/posts/{post_id}")
@@ -368,18 +485,66 @@ def react(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
     _others_post(post_id, user)
     db = get_supabase()
     _db(lambda: db.table("refuge_reactions").upsert({"post_id": str(post_id), "user_id": user.id}, on_conflict="post_id,user_id", ignore_duplicates=True).execute())
-    return {"reactions": _counts("refuge_reactions", [str(post_id)]).get(str(post_id), 0)}
+    # The trigger has counted it on the post already.
+    rows = db.table("refuge_posts").select("amen_count").eq("id", str(post_id)).limit(1).execute().data
+    return {"reactions": (rows[0].get("amen_count") or 0) if rows else 0}
 
 
 @router.post("/me/refuge/posts/{post_id}/kind-words")
 def send_kind_word(post_id: uuid.UUID, body: KindWordIn, user: AuthUser = Depends(require_user)) -> dict:
     post = _others_post(post_id, user)
     word = KIND_WORDS.get(body.choice)
-    if not word or word["for"] != post["kind"]:
+    if not word or word["for"] != shown_kind(post):
         raise HTTPException(status_code=422, detail="Choose one of the kind words offered.")
     row = {"post_id": str(post_id), "user_id": user.id, "choice": body.choice}
     _db(lambda: get_supabase().table("refuge_kind_words").upsert(row, on_conflict="post_id,user_id", ignore_duplicates=True).execute())
     return {"status": "sent"}
+
+
+class AnsweredIn(BaseModel):
+    note: str | None = Field(default=None, max_length=280)
+
+
+def _own_post(post_id: uuid.UUID, user: AuthUser) -> dict:
+    rows = _db(lambda: (
+        get_supabase().table("refuge_posts").select("id, user_id, kind, status, approved_at, expires_at, answered_at, kept_up")
+        .eq("id", str(post_id)).eq("user_id", user.id).limit(1).execute().data
+    ))
+    if not rows:
+        raise HTTPException(status_code=404, detail="That post isn't here anymore.")
+    return rows[0]
+
+
+@router.post("/me/refuge/posts/{post_id}/keep-up")
+def keep_up(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
+    """Keeps one of the person's prayer requests on the wall two weeks more,
+    once it's near its end (or just past it), up to two months in all."""
+    post = _own_post(post_id, user)
+    until = kept_up_until(post, datetime.now(timezone.utc))
+    if not until:
+        raise HTTPException(status_code=422, detail="This can't be kept up right now. A prayer request stays up to two months.")
+    patch = {"expires_at": until.isoformat(), "kept_up": (post.get("kept_up") or 0) + 1}
+    _db(lambda: get_supabase().table("refuge_posts").update(patch).eq("id", str(post_id)).eq("user_id", user.id).execute())
+    return {"expires_at": patch["expires_at"]}
+
+
+@router.post("/me/refuge/posts/{post_id}/answered")
+def mark_answered(post_id: uuid.UUID, body: AnsweredIn, user: AuthUser = Depends(require_user)) -> dict:
+    """Marks one of the person's prayer requests answered, with an optional
+    line on how. On the wall it reads as good news for five more days, so the
+    people who prayed get to see it."""
+    post = _own_post(post_id, user)
+    if post["kind"] != "burden":
+        raise HTTPException(status_code=422, detail="Only a prayer request can be marked answered.")
+    note = " ".join((body.note or "").split()) or None
+    if note and contact_details(note):
+        raise HTTPException(status_code=422, detail="Take out any links, emails, phone numbers or @names, so nobody can find you from it.")
+    now = datetime.now(timezone.utc)
+    patch = {"answered_at": now.isoformat(), "answer_note": note}
+    if post["status"] == "approved":
+        patch["expires_at"] = (now + timedelta(days=ANSWERED_DAYS)).isoformat()
+    _db(lambda: get_supabase().table("refuge_posts").update(patch).eq("id", str(post_id)).eq("user_id", user.id).execute())
+    return {"answered_at": patch["answered_at"], "expires_at": patch.get("expires_at")}
 
 
 @router.post("/me/refuge/posts/{post_id}/report")
@@ -428,7 +593,66 @@ def desk(admin: AuthUser = Depends(require_admin)) -> dict:
 def review(post_id: uuid.UUID, body: ReviewIn, admin: AuthUser = Depends(require_admin)) -> dict:
     status = "approved" if body.action == "approve" else "removed"
     patch = {"status": status, "review_note": (body.note or "").strip() or None, "reviewed_at": _now()}
+    # A post going up for the first time starts its time on the wall now; one
+    # coming back after a report keeps the time it already had.
+    if status == "approved":
+        current = _db(lambda: get_supabase().table("refuge_posts").select("kind, approved_at").eq("id", str(post_id)).limit(1).execute().data)
+        if current and not current[0].get("approved_at"):
+            went_up = datetime.now(timezone.utc)
+            patch["approved_at"] = went_up.isoformat()
+            patch["expires_at"] = expires_for(current[0]["kind"], went_up).isoformat()
     rows = _db(lambda: get_supabase().table("refuge_posts").update(patch).eq("id", str(post_id)).execute().data)
     if not rows:
         raise HTTPException(status_code=404, detail="That post isn't here anymore.")
     return {"status": status}
+
+
+# ---------------------------------------------------------------------------
+# The evening digest: one quiet notification a day for a writer whose post
+# was prayed for or rejoiced with. Sent by app/reminders.py's loop and its
+# scheduled workflow; `claim_amens_digest` keeps the two from both sending.
+# ---------------------------------------------------------------------------
+def digest_message(prayed: int, rejoiced: int, kind_words: int) -> dict | None:
+    """The notification's words, or None when nothing came back."""
+    parts = []
+    if prayed:
+        parts.append(f"{prayed} {'person' if prayed == 1 else 'people'} prayed for you")
+    if rejoiced:
+        parts.append(f"{rejoiced} {'person' if rejoiced == 1 else 'people'} rejoiced with you")
+    if kind_words:
+        parts.append(f"{kind_words} kind {'word was' if kind_words == 1 else 'words were'} sent to you")
+    if not parts:
+        return None
+    body = parts[0] if len(parts) == 1 else ", ".join(parts[:-1]) + " and " + parts[-1]
+    title = "Someone prayed for you today" if prayed == 1 and not rejoiced else "People prayed for you today" if prayed and not rejoiced else "From the Amens wall"
+    return {"title": title, "body": body[0].upper() + body[1:] + ".", "url": "#amens", "tag": "amens-digest"}
+
+
+def is_evening(time_zone: str | None, now: datetime) -> bool:
+    """Whether it's the writer's evening, where they are (UTC if unknown)."""
+    try:
+        zone = ZoneInfo(time_zone) if time_zone else timezone.utc
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = timezone.utc
+    return now.astimezone(zone).hour in DIGEST_HOURS
+
+
+def run_digest(now: datetime | None = None) -> int:
+    """Sends each due writer their digest. Returns how many were sent."""
+    from app import push  # here, so importing this module stays light
+
+    if not push.configured():
+        return 0
+    now = now or datetime.now(timezone.utc)
+    gap = f"{int(DIGEST_GAP.total_seconds())} seconds"
+    due = _rpc("amens_digest_due", {"min_gap": gap, "look_back": f"{int(DIGEST_LOOK_BACK.total_seconds())} seconds"}) or []
+    sent = 0
+    for writer in due:
+        message = digest_message(writer["prayed"], writer["rejoiced"], writer["kind_words"])
+        if not message or not is_evening(writer.get("time_zone"), now):
+            continue
+        if not _rpc("claim_amens_digest", {"writer": writer["user_id"], "min_gap": gap}):
+            continue  # the other sender got there first
+        if push.notify_user(writer["user_id"], message):
+            sent += 1
+    return sent

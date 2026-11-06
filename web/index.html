@@ -233,16 +233,21 @@
     <div class="wrap page">
       <div class="page-head">
         <div>
-          <p class="eyebrow" id="dayLine">&nbsp;</p>
+          <!-- The date, and the streak beside it as a few quiet words (cave.js::emberChip). -->
+          <p class="eyebrow home-day"><span id="dayLine">&nbsp;</span><span id="homeEmbers"></span></p>
           <h1 class="page-title" id="greet">Welcome back</h1>
         </div>
       </div>
+      <!-- Live now, Amens: one line each, only while there's something to tell. -->
+      <div class="home-notes" id="homeNotes"></div>
       <form class="ask-box home-ask" id="homeAsk">
         <label for="homeQuery" class="sr">Ask Aquila</label>
         <input id="homeQuery" autocomplete="off" placeholder="What would you like to study?">
         <button type="button" class="iconbtn" data-voice aria-label="Talk with Aquila out loud"><span data-mic></span></button>
         <button class="btn btn-ember" type="submit">Ask</button>
       </form>
+      <!-- Declare: one line, its explanation behind an info button (web/declare.js). -->
+      <div id="homeDeclare"></div>
       <div class="home-verse" id="homeVerse"></div>
       <div class="cols">
         <div class="maincol" id="homeMain"></div>
@@ -296,7 +301,7 @@
         <!-- Shown instead of the picker while "My notes" is open -->
         <a class="reader-pick reader-back" id="readerBack" href="#bible" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg><span>Back to reading</span></a>
         <a class="act reader-notes-link" id="readerNotesLink" href="#bible/notes" aria-label="My notes and highlights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span>My notes</span></a>
-        <a class="act reader-learn-link" id="readerLearnLink" href="#bible/memorize" aria-label="Verses to learn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>Memorize</span></a>
+        <a class="act reader-saved-link" id="readerSavedLink" href="#bible/saved" aria-label="Saved"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Saved</span></a>
         <label class="sr" for="readerTranslation">Translation</label>
         <select id="readerTranslation" class="reader-translation" data-translation-picker="short"></select>
         <span class="reader-arrows">
@@ -311,7 +316,7 @@
     </div>
     <!-- The Bible tab's front page (#bible, web/reader.js::showHub), and the
          person's own pages beside the text: My notes (#bible/notes) and
-         Memorize (#bible/memorize), opened by web/reader.js::showMine -->
+         Saved (#bible/saved), opened by web/reader.js::showMine -->
     <div class="wrap page reader" id="readerMine" hidden></div>
     <div class="verse-bar" id="verseBar" role="toolbar" aria-label="Selected verses" hidden>
       <div class="hl-picker" id="highlightPicker" role="group" aria-label="Highlight colour" hidden></div>
@@ -319,7 +324,7 @@
       <span class="verse-bar-actions">
         <button type="button" class="act" id="verseBarNote" aria-label="Write a note"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg><span>Note</span></button>
         <button type="button" class="act" id="verseBarHighlight" aria-label="Highlight" aria-expanded="false" aria-controls="highlightPicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 11l-4 4v3h3l4-4"/><path d="M9 11l6-6 4 4-6 6z"/><path d="M4 21h16"/></svg><span>Highlight</span></button>
-        <button type="button" class="act" id="verseBarLearn" aria-label="Learn by heart"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg><span>Memorize</span></button>
+        <button type="button" class="act" id="verseBarSave" aria-label="Save"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg><span>Save</span></button>
         <button type="button" class="act" id="verseBarAsk" aria-label="Ask Aquila"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span>Ask Aquila</span></button>
         <button type="button" class="act act-icon" id="verseBarMap" title="Connections" aria-label="See connections"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.3 7l7.3.7M7 8.3l2.2 7.4M16.4 10l-4.8 6"/></svg><span>Connections</span></button>
         <button type="button" class="act act-icon" id="verseBarCopy" title="Copy" aria-label="Copy"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg><span>Copy</span></button>
@@ -344,6 +349,11 @@
       </div>
       <div id="cavePanel"></div>
     </div>
+  </section>
+
+  <!-- ======================= Declare (web/declare.js) ======================= -->
+  <section data-view="declare" hidden>
+    <div class="wrap page declare-page" id="declarePage"></div>
   </section>
 
   <!-- ======================= Church (web/church.js) ======================= -->
@@ -477,9 +487,10 @@
 <script src="cave.js"></script>
 <script src="notify.js"></script>
 <script src="prayers.js"></script>
+<script src="declare.js"></script>
 <script src="sermons.js"></script>
 <script src="church.js"></script>
-<script src="memorize.js"></script>
+<script src="saved.js"></script>
 <script src="refuge.js"></script>
 <script src="support.js"></script>
 <script src="reflections.js"></script>
@@ -542,7 +553,7 @@ $$("[data-topics]").forEach((box) => {
 // =====================================================================
 // Routing. Routes are named in the hash (#home, #aquila, #cave...) and map to
 // the <section data-view> they show. #journal, #prayers and #refuge
-// open the cave on that tab, and #amens opens Refuge inside the Amens room; #remembers opens Settings at that section.
+// open the cave on that tab, and #amens and #pebbles open Refuge inside that room; #remembers opens Settings at that section.
 // #conversations, the old cave tab, now lands on Aquila, where past conversations live.
 // #desk is the admin desk (web/refuge.js), for the people in ADMIN_EMAILS.
 // #reflection/<id> opens a reflection inside the Journal tab (web/reflections.js).
@@ -551,20 +562,21 @@ $$("[data-topics]").forEach((box) => {
 // Sermons part. #sermon/<token> is a sermon note someone shared
 // (web/sermons.js): read-only, and open to guests.
 // #support is the Support page (web/support.js), open to guests too.
+// #declare is Declare (web/declare.js), and #declare/<id> one kept declaration.
 // #bible takes a place after it (#bible/John/3/16), handed to web/reader.js;
-// #bible/notes is "My notes", #bible/memorize the verses being learned and
-// #bible/plans the reading plans, and the old cave tabs #notes, #memorize and
-// #plans land on them.
+// #bible/notes is "My notes", #bible/saved everything saved and #bible/plans
+// the reading plans; #notes, #saved and #plans land on them, and the old
+// #memorize and #bible/memorize land on Saved, which replaced it.
 // #ask is the old name for #aquila, kept so earlier links still land. Signed-in
 // people never see the guest welcome; guests sent to a signed-in view land
 // on sign-in instead.
 // =====================================================================
 const VIEWS = {
-  welcome: "welcome", signin: "signin", join: "signin", home: "home", aquila: "aquila", ask: "aquila", bible: "bible",
-  notes: "bible", memorize: "bible", plans: "bible", cave: "cave", journal: "cave", reflection: "cave", church: "church", sermons: "church", prayers: "cave", refuge: "cave", amens: "cave", sermon: "sermon",
+  welcome: "welcome", signin: "signin", join: "signin", home: "home", declare: "declare", aquila: "aquila", ask: "aquila", bible: "bible",
+  notes: "bible", saved: "bible", memorize: "bible", plans: "bible", cave: "cave", journal: "cave", reflection: "cave", church: "church", sermons: "church", prayers: "cave", refuge: "cave", amens: "cave", pebbles: "cave", sermon: "sermon",
   conversations: "aquila", settings: "settings", remembers: "settings", signedout: "signedout", desk: "desk", support: "support",
 };
-const SIGNED_IN_ONLY = new Set(["home", "cave", "journal", "reflection", "church", "sermons", "prayers", "refuge", "amens", "settings", "remembers", "desk"]);
+const SIGNED_IN_ONLY = new Set(["home", "declare", "cave", "journal", "reflection", "church", "sermons", "prayers", "refuge", "amens", "pebbles", "settings", "remembers", "desk"]);
 const NO_TOPBAR = new Set(["signin", "signedout"]);
 
 // "bible/John/3/16" -> ["bible", "John/3/16"]
@@ -597,15 +609,17 @@ function render() {
   $("#menu").hidden = true;
   $$("[data-home-link]").forEach((a) => (a.href = signedIn ? "#home" : "#welcome"));
 
-  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", church: "Church, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum", sermon: "Sermon notes, Adullum", support: "Support Adullum" };
+  const titles = { welcome: "Adullum, ask Aquila", signin: "Sign in, Adullum", home: "Home, Adullum", declare: "Declare, Adullum", aquila: "Aquila, Adullum", bible: "The Bible, Adullum", cave: "Your cave, Adullum", church: "Church, Adullum", settings: "Settings, Adullum", signedout: "Signed out, Adullum", desk: "Admin desk, Adullum", sermon: "Sermon notes, Adullum", support: "Support Adullum" };
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.
-  // #notes, #memorize and #plans are pages inside the Bible; #bible/... carries its own place.
+  // #notes, #saved and #plans are pages inside the Bible; #bible/... carries its own place.
   if (view === "bible") window.Reader.show(route === "bible" ? routeParts()[1] : route);
   else window.Reader.hide();
   if (view === "church") window.Church.show(route === "sermons" ? "sermons" : routeParts()[1]);
   else window.Church.hide();
+  if (view === "declare") window.Declare.show(routeParts()[1]);
+  else window.Declare.hide();
   if (view !== "aquila" && view !== "bible") window.scrollTo({ top: 0 });
 }
 window.addEventListener("hashchange", render);
@@ -923,6 +937,7 @@ function loadConversation(id, messages) {
 // The small surface web/cave.js and web/graph.js call back into.
 window.AdullumApp = {
   submitQuery,
+  renderAnswerHtml,
   loadConversation,
   newConversation,
   getSessionId: () => sessionId,

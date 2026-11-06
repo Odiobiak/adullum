@@ -1,8 +1,8 @@
 // The Bible reader: pick a book and chapter, read it in any translation that
 // has been loaded, and tap verses to keep a note, highlight them, learn them by
 // heart, ask Aquila about them, or follow them in Connections. Every note and
-// highlight together is "My notes" (#bible/notes), and the verses being
-// learned are "Memorize" (#bible/memorize, drawn by web/memorize.js). Both open
+// highlight together is "My notes" (#bible/notes), and everything saved, verses
+// and Aquila's answers, is "Saved" (#bible/saved, drawn by web/saved.js). Both open
 // from the reader bar through showMine below, so they live beside the text.
 // Reading plans (#bible/plans, drawn by web/cave.js::renderPlans) open from
 // the front page the same way.
@@ -23,6 +23,7 @@
   const HIGHLIGHT_COLORS = [["gold", "Gold"], ["green", "Green"], ["blue", "Blue"], ["rose", "Rose"]];
 
   const ICON = {
+    bookmark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12v18l-6-4-6 4z"/></svg>',
     note: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     aquila: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
     graph: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.3 7l7.3.7M7 8.3l2.2 7.4M16.4 10l-4.8 6"/></svg>',
@@ -195,7 +196,7 @@
 
   // "hub" (the Bible tab's front page, #bible), "read" (a chapter), or one of
   // the person's own pages kept beside the text: "notes" (My notes,
-  // #bible/notes), "memorize" (#bible/memorize) or "plans" (Reading plans,
+  // #bible/notes), "saved" (#bible/saved) or "plans" (Reading plans,
   // #bible/plans). The reader bar and page
   // swap between them; the open chapter stays loaded underneath, so going
   // back is instant.
@@ -208,7 +209,7 @@
     $("#readerPage").hidden = !reading;
     $("#readerMine").hidden = reading;
     $("#readerBack").hidden = reading;
-    ["#readerPick", "#readerNotesLink", "#readerLearnLink", "#readerTranslation", ".reader-arrows"].forEach((s) => ($(s).hidden = !reading));
+    ["#readerPick", "#readerNotesLink", "#readerSavedLink", "#readerTranslation", ".reader-arrows"].forEach((s) => ($(s).hidden = !reading));
   }
 
   // Where "Bible" on the front page picks up: the chapter open now, else the
@@ -226,6 +227,8 @@
 
   async function show(param) {
     if (!param) return showHub();
+    // Saved replaced Memorize, so its old links land there.
+    if (param === "memorize") param = "saved";
     if (MINE[param]) return showMine(param);
     setMode("read");
     const parts = (param || "").split("/").filter(Boolean).map((p) => decodeURIComponent(p).replace(/-/g, " "));
@@ -389,9 +392,9 @@
     $("#verseBarClose").addEventListener("click", clearSelection);
     $("#verseBarNote").addEventListener("click", () => openNoteSheet(selection()));
     $("#verseBarHighlight").addEventListener("click", toggleHighlightPicker);
-    $("#verseBarLearn").addEventListener("click", async () => {
+    $("#verseBarSave").addEventListener("click", async () => {
       const s = selection();
-      if (await window.Memorize.add(s.ref, s.translation)) clearSelection();
+      if (await window.Saved.verse(s.ref, s.translation)) clearSelection();
     });
     $("#verseBarAsk").addEventListener("click", () => openAskSheet(selection()));
     $("#verseBarMap").addEventListener("click", () => {
@@ -752,11 +755,11 @@
       guest: ["Keep notes as you read", "Create a free account to highlight verses and write down what they stir in you."],
       draw: (box) => renderAllNotes(box),
     },
-    memorize: {
-      title: "Verses to learn",
-      sub: "Learn a verse by heart, a few minutes a day. Tap any verse as you read and choose Memorize to add it here.",
-      guest: ["Learn verses by heart", "Create a free account to keep verses to learn and practise them a little each day."],
-      draw: (box) => window.Memorize.renderTab(box),
+    saved: {
+      title: "Saved",
+      sub: "Verses you save as you read, and answers you save from Aquila, all in one place.",
+      guest: ["Save what speaks to you", "Create a free account to save verses and answers from Aquila in one place."],
+      draw: (box) => window.Saved.renderTab(box),
     },
     plans: {
       title: "Reading plans",
@@ -775,10 +778,10 @@
   // The front page (#bible)
   // ---------------------------------------------------------------------
   // The Bible tab opens here rather than straight into a chapter, so it's
-  // plain that notes, memorizing and reading plans live in this tab too.
+  // plain that notes, saved things and reading plans live in this tab too.
   // "Bible" carries on where the person left off; the others open MINE. For
-  // someone signed in, small counts arrive afterwards (notes kept, verses
-  // due, plans with a reading still to do today), each left off quietly if
+  // someone signed in, small counts arrive afterwards (notes kept, things
+  // saved, plans with a reading still to do today), each left off quietly if
   // its request fails.
   function door({ href, icon, title, text, primary = false }) {
     const count = el("span", { class: "bible-door-count", hidden: true });
@@ -806,7 +809,7 @@
       primary: true,
     });
     const mine = door({ href: "#bible/notes", icon: ICON.note, title: MINE.notes.title, text: "Your highlights and notes, kept beside the verses" });
-    const learn = door({ href: "#bible/memorize", icon: ICON.heart, title: "Memorize", text: "Learn verses by heart, a few minutes a day" });
+    const saved = door({ href: "#bible/saved", icon: ICON.bookmark, title: MINE.saved.title, text: "Verses and answers you've saved" });
     const plans = door({ href: "#bible/plans", icon: ICON.plan, title: MINE.plans.title, text: "Read a little each day, shaped with Aquila" });
     // Connections opens over the page rather than being a route. On a phone
     // this door is its way in, since the tab bar holds Church instead.
@@ -818,33 +821,29 @@
 
     $("#readerMine").replaceChildren(
       el("div", { class: "page-head" }, el("div", {}, [
-        cave().titleInfo(el("h1", { class: "page-title", text: "The Bible" }), "Read, follow a plan, keep notes as you go, and learn the verses you want to carry with you."),
+        cave().titleInfo(el("h1", { class: "page-title", text: "The Bible" }), "Read, follow a plan, keep notes as you go, and save the verses you want to come back to."),
       ])),
-      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, plans.link, mine.link, learn.link, links.link]),
+      el("nav", { class: "bible-doors", "aria-label": "In the Bible" }, [read.link, plans.link, mine.link, saved.link, links.link]),
     );
-    if (cave().signedIn()) fillHubCounts(mine, learn, plans);
+    if (cave().signedIn()) fillHubCounts(mine, saved, plans);
   }
 
-  async function fillHubCounts(mine, learn, plans) {
+  async function fillHubCounts(mine, saved, plans) {
     const setCount = ({ count, link }, n, label) => {
       if (!n) return;
       count.textContent = String(n);
       count.hidden = false;
       link.setAttribute("aria-label", `${link.querySelector("strong").textContent}, ${label}`);
     };
-    const [notesRows, marks, verses, planRows] = await Promise.allSettled([
+    const [notesRows, marks, savedRows, planRows] = await Promise.allSettled([
       cave().api("/me/notes"),
       cave().api("/me/highlights"),
-      cave().api(`/me/memorize?today=${cave().localToday()}`),
+      cave().api("/me/saved"),
       cave().api(`/me/plans?today=${cave().localToday()}`),
     ]);
     const kept = (notesRows.status === "fulfilled" ? notesRows.value.length : 0) + (marks.status === "fulfilled" ? marks.value.length : 0);
     setCount(mine, kept, `${kept} kept`);
-    if (verses.status === "fulfilled") {
-      const due = verses.value.due;
-      setCount(learn, due, `${due} due today`);
-      if (due) learn.count.classList.add("is-due");
-    }
+    if (savedRows.status === "fulfilled") setCount(saved, savedRows.value.length, `${savedRows.value.length} saved`);
     if (planRows.status === "fulfilled") {
       // A finished plan has nothing left to read, so it isn't counted.
       const toRead = planRows.value.filter((p) => !p.done_today && p.completed < p.days).length;

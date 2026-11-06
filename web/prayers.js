@@ -18,6 +18,7 @@
     circle: svg('<circle cx="12" cy="12" r="7.5"/>'),
     aquila: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
     book: svg('<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/>'),
+    declare: svg('<path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/>'),
   };
 
   const cave = () => window.Cave;
@@ -434,6 +435,12 @@
           class: "act act-collapse", type: "button", "aria-label": "Pray with Aquila", title: "Pray with Aquila",
           html: `${ICON.aquila}<span>Pray with Aquila</span>`, onclick: () => prayWithAquila(p.body, p.passage_ref),
         }),
+        // Scripture spoken aloud over this request (web/declare.js); opens its
+        // kept declaration when it has one.
+        el("button", {
+          class: "act", type: "button",
+          html: `${ICON.declare}<span>Declare over</span>`, onclick: () => window.Declare.open({ from: "prayer", prayer: { id: p.id, body: p.body } }),
+        }),
         // Quiet on purpose, at the end of the row: there when it's time,
         // without pressing the question every time the list is opened.
         el("button", { class: "act-quiet", type: "button", html: `${ICON.check}<span>Answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
@@ -514,31 +521,5 @@
     );
   }
 
-  // ---------------------------------------------------------------------
-  // Home
-  // ---------------------------------------------------------------------
-  // `summary` is app/prayers.py::prayer_summary.
-  function homeCard(summary, onChange) {
-    const add = el("button", { class: "act", type: "button", text: "Add a prayer", onclick: () => openSheet({}, onChange) });
-    if (!summary.total) {
-      return cave().card("Prayer list", {}, [
-        el("p", { class: "muted", style: "margin:0 0 14px;font-size:15px", text: "Keep what you're praying for, and mark the day it's answered." }),
-        el("div", { class: "card-actions-row", style: "margin-top:0" }, add),
-      ]);
-    }
-    const latest = summary.latest_open;
-    const answeredLine = summary.answered_recently
-      ? `${summary.answered_recently} answered in the last month.`
-      : null;
-    return cave().card(cave().cardHead("Prayer list", el("span", { class: "faint", style: "font-size:13px", text: `${summary.open} open` })), {}, [
-      latest ? el("p", { class: "prayer-body", style: "font-size:16px", text: clip(latest.body, 160) }) : el("p", { class: "muted", text: "No open prayers right now." }),
-      answeredLine ? el("p", { class: "answered-line" }, [el("span", { html: ICON.check }), el("span", { text: answeredLine })]) : null,
-      el("div", { class: "card-actions-row" }, [
-        el("a", { class: "btn btn-ghost btn-sm", href: "#prayers", text: "Open list" }),
-        add,
-      ]),
-    ]);
-  }
-
-  window.Prayers = { renderTab, openSheet, homeCard };
+  window.Prayers = { renderTab, openSheet };
 })();

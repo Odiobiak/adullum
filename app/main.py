@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
-from app import bible, cave, churches, connections, fasting, hearth, highlights, listen, memorize, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, sermons, support
+from app import bible, cave, churches, connections, declare, fasting, hearth, highlights, listen, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, saved, sermons, support
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -68,9 +68,10 @@ app.include_router(bible.router)
 app.include_router(cave.router)
 app.include_router(churches.router)
 app.include_router(connections.router)
+app.include_router(declare.router)
 app.include_router(hearth.router)
 app.include_router(highlights.router)
-app.include_router(memorize.router)
+app.include_router(saved.router)
 app.include_router(notes.router)
 app.include_router(one_another.router)
 app.include_router(sermons.router)

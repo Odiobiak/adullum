@@ -9,8 +9,9 @@ changes it rather than adding another.
 
 Sending. Render's free plan sleeps a quiet server, so two things send due
 reminders, and either is enough:
-  - while the server is awake, `loop` checks every minute, and checks the
-    person's churches for a live stream every few minutes;
+  - while the server is awake, `loop` checks every minute, checks the
+    person's churches for a live stream every few minutes, and sends Amens'
+    evening digests every quarter of an hour (app/one_another.py::run_digest);
   - a scheduled GitHub workflow (.github/workflows/reminders.yml) calls
     POST /internal/send-reminders every five minutes with CRON_SECRET, which
     wakes the server if it was asleep and sends whatever is due.
@@ -54,6 +55,7 @@ MAX_REMINDERS = 200
 STALE_AFTER = timedelta(hours=6)
 LOOP_SECONDS = 60
 LIVE_EVERY_LOOPS = 3
+DIGEST_EVERY_LOOPS = 15
 
 
 def _db(fn):
@@ -217,6 +219,18 @@ def run_live() -> int:
     return told
 
 
+def _run_digest() -> int:
+    """Amens' evening digests (app/one_another.py::run_digest), never letting
+    a missing migration or a blip there stop reminders from going out."""
+    from app.one_another import run_digest  # here, so importing this module stays light
+
+    try:
+        return run_digest()
+    except Exception:
+        log.info("amens digest skipped a turn", exc_info=True)
+        return 0
+
+
 _loop_task: asyncio.Task | None = None
 
 
@@ -229,6 +243,8 @@ async def loop() -> None:
             await asyncio.to_thread(run_due)
             if turn % LIVE_EVERY_LOOPS == 0:
                 await asyncio.to_thread(run_live)
+            if turn % DIGEST_EVERY_LOOPS == 0:
+                await asyncio.to_thread(_run_digest)
         except Exception:
             # A missing table (migration not run yet) or a network blip: try again next time.
             log.info("reminder loop skipped a turn", exc_info=True)
@@ -315,4 +331,4 @@ def send_reminders(x_cron_secret: str | None = Header(default=None)) -> dict:
     """For the scheduled workflow: wakes the server and sends what's due."""
     if not settings.cron_secret or not x_cron_secret or not hmac.compare_digest(x_cron_secret, settings.cron_secret):
         raise HTTPException(status_code=403, detail="Not allowed.")
-    return {"sent": run_due(), "live": run_live()}
+    return {"sent": run_due(), "live": run_live(), "digests": _run_digest()}

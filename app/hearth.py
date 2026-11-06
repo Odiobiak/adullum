@@ -1,10 +1,10 @@
 """The hearth: everything the signed-in home screen shows, in one request.
 
 GET /me/home gathers the person's embers (a streak of days they came in),
-where they left off, today's reading, their prayer list at a glance, how many
-memory verses are due, a glance at the Amens wall, a journal entry worth
-returning to, the halfway check-in on a reflection's plan, and a couple of
-things Aquila remembers. Each part is fetched on its own and
+where they left off, today's reading, their prayer list at a glance (and
+whether they've prayed today), their active habits from Pebbles, a glance at the Amens wall, a journal entry
+worth returning to, the halfway check-in on a reflection's plan, and a couple
+of things Aquila remembers. Each part is fetched on its own and
 degrades to null on failure, so a missing table (a migration not yet run)
 blanks one card instead of the whole screen.
 
@@ -27,11 +27,11 @@ from app.cave import _ensure_profile, revisit
 from app.config import settings
 from app.days import parse_today as _parse_today  # re-exported: reading_plans and tests read it from here
 from app.db import get_supabase
-from app.memorize import memorize_summary
 from app.one_another import amens_glance
 from app.plan import plan_today  # re-exported: tests and callers read it from here
 from app.prayers import prayer_summary
 from app.reflections import reflection_glance
+from app.refuge import pebbles_with_progress
 from app.retrieval import lookup_by_reference, parse_reference
 
 log = logging.getLogger(__name__)
@@ -39,6 +39,9 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 DAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
+
+# Enough active habits for the home screen's Today list.
+HOME_HABITS = 6
 
 # Chosen for someone arriving tired: comfort, presence, rest, courage. Kept to
 # three verses or fewer each so the card stays a single breath long.
@@ -140,11 +143,21 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
             db.table("prayers").select("id, body, passage_ref, status, answered_at, created_at")
             .eq("user_id", user.id).order("created_at", desc=True).limit(300).execute().data
         )
-        return prayer_summary(rows, day)
+        summary = prayer_summary(rows, day)
+        # Null until the prayer-practice migration has run, so Today offers
+        # no tick it can't keep.
+        summary["prayed_today"] = _part("prayed_today", prayed_today)
+        return summary
 
-    def memory_verses():
-        rows = db.table("memory_verses").select("due, interval_days").eq("user_id", user.id).execute().data
-        return memorize_summary(rows, day)
+    def prayed_today():
+        rows = (
+            db.table("prayer_days").select("day").eq("user_id", user.id)
+            .eq("day", day.isoformat()).is_("prayer_id", "null").limit(1).execute().data
+        )
+        return bool(rows)
+
+    def pebbles():
+        return [s for s in pebbles_with_progress(user, day) if s["status"] == "growing" and s["kind"] == "habit"][:HOME_HABITS]
 
     def memories():
         rows = (
@@ -160,7 +173,8 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         "last_session": _part("last_session", last_session),
         "plan": _part("plan", plan),
         "prayers": _part("prayers", prayers),
-        "memorize": _part("memorize", memory_verses),
+        # The person's own active habits. Nothing else from Refuge.
+        "pebbles": _part("pebbles", pebbles),
         # The wall's public side only, never this person's own posts; see
         # app/one_another.py::amens_glance.
         "amens": _part("amens", lambda: amens_glance(user)),
