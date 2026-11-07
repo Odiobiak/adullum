@@ -12,7 +12,7 @@
 // person's tokens and nothing else.
 (function () {
   const STORE_KEY = "adullumSession";
-  const THEME_NAMES = { dawn: "Dawn", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar" };
+  const THEME_NAMES = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar" };
   // Thank-you themes for friends of the cave, people who give monthly
   // (web/support.js, app/support.py). Everyone else sees them in Settings
   // with a way to the Support page.
@@ -1142,6 +1142,83 @@
     return card(cardHead("Today", tally), {}, [list]);
   }
 
+  // ---------------------------------------------------------------------
+  // Where to start: a short guide for a new account
+  // ---------------------------------------------------------------------
+  // Shown for someone's first three weeks until they close it or have been
+  // to every place. A place ticks off from what the home already knows
+  // (a conversation, a plan, a prayer) or, where it can't know, once it's
+  // been opened from here. Both memories live on this device only.
+  const START_CLOSED = "adullumStartClosed";
+  const START_TRIED = "adullumStartTried";
+  const START_DAYS = 21;
+  const START_ICON = {
+    plan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16M9 14l2 2 4-4"/></svg>',
+    refuge: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18M5 20V11a7 7 0 0 1 14 0v9M10 20v-5a2 2 0 0 1 4 0v5"/></svg>',
+    church: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M10 4h4M6 21V11l6-5 6 5v10M3 21h18M10 21v-4h4v4"/></svg>',
+  };
+
+  function readStore(key, fallback) {
+    try {
+      return JSON.parse(localStorage.getItem(key)) ?? fallback;
+    } catch {
+      return fallback;
+    }
+  }
+  function writeStore(key, value) {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      /* a private window keeps the guide open, which is harmless */
+    }
+  }
+
+  function startCard(data) {
+    if (readStore(START_CLOSED, false)) return null;
+    const joined = data.profile && data.profile.joined ? new Date(data.profile.joined) : null;
+    if (joined && Date.now() - joined.getTime() > START_DAYS * 864e5) return null;
+
+    const tried = new Set(readStore(START_TRIED, []));
+    const places = [
+      { key: "ask", name: "Ask Aquila", icon: ICON.chat, href: "#aquila", done: !!data.last_session },
+      { key: "bible", name: "Read the Bible", icon: ICON.book, href: "#bible" },
+      { key: "plan", name: "Start a reading plan", icon: START_ICON.plan, href: "#bible/plans", done: !!data.plan },
+      { key: "pray", name: "Keep a prayer list", icon: ICON.heart, href: "#prayers", done: !!(data.prayers && data.prayers.total) },
+      { key: "refuge", name: "Rest in Refuge", icon: START_ICON.refuge, href: "#refuge" },
+      { key: "church", name: "Add your church", icon: START_ICON.church, href: "#church/add" },
+    ].map((p) => ({ ...p, done: p.done || tried.has(p.key) }));
+    const done = places.filter((p) => p.done).length;
+    if (done === places.length) return null;
+
+    const node = el("section", { class: "card home-start fade-in", "aria-label": "Where to start" });
+    const close = el("button", {
+      class: "icon-act", type: "button", "aria-label": "Close the guide", html: ICON.close,
+      onclick: () => {
+        writeStore(START_CLOSED, true);
+        node.remove();
+        toast("Everything here is in the menu whenever you want it.", { tone: "info" });
+      },
+    });
+    node.append(
+      el("div", { class: "card-head" }, [
+        titleInfo(el("h2", { class: "start-title", text: "Where would you like to start?" }),
+          "A few places to begin. Each one ticks off once you've been, and you can close this whenever you like."),
+        el("span", { class: "start-aside" }, [el("span", { class: "card-aside", text: `${done} of ${places.length}` }), close]),
+      ]),
+      el("div", { class: "start-grid" }, places.map((p) =>
+        el("a", {
+          class: `start-place${p.done ? " is-done" : ""}`, href: p.href,
+          onclick: () => { tried.add(p.key); writeStore(START_TRIED, [...tried]); },
+        }, [
+          el("span", { class: "start-icon", html: p.done ? ICON.check : p.icon }),
+          el("span", { class: "start-name", text: p.name }),
+          p.done ? el("span", { class: "sr", text: "(done)" }) : null,
+        ])
+      ))
+    );
+    return node;
+  }
+
   function continueCard(s) {
     if (!s) return null;
     const meta = [when(s.updated_at), s.refs.slice(0, 2).join(", ")].filter(Boolean).join(" · ");
@@ -1216,6 +1293,8 @@
     window.Church.homeLive().then((live) => {
       if (live && notes.isConnected) notes.replaceChildren(live);
     }).catch(() => {});
+
+    $("#homeStart").replaceChildren(...[startCard(data)].filter(Boolean));
 
     const v = await versePromise;
     $("#homeVerse").replaceChildren(...(v ? [verseCard(v)] : []));

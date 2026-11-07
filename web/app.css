@@ -59,6 +59,22 @@
   --radius: 18px; --radius-sm: 12px; --pill: 999px;
   color-scheme: light;
 }
+/* Lily: clean white for anyone who finds Dawn too warm, with the same ember
+   accent so it still feels like Adullum. */
+[data-theme="lily"] {
+  --ground: #FFFFFF; --surface: #FFFFFF; --raised: #F3F3F4; --line: #E5E5E8; --line-2: #D2D2D7;
+  --text: #1C1C1E; --soft: #3A3A3C; --muted: #5E5E63; --faint: #67676C;
+  --ember: #B5541C; --ember-hi: #8F3E10; --ember-ink: #FFFFFF; --ember-bg: #FCEBDD; --ember-line: #F2CFAF;
+  --sage: #356B41; --sage-bg: #E6F2E8; --sage-line: #BCDAC1;
+  --glow: #F8F0E8; --glow-strong: #F2E2D2; --well: #F7F7F8; --hover: #F2F2F4; --card-warm: #FFFAF5; --divider: #ECECEF;
+  --danger: #B3261E; --shadow: rgba(20, 20, 30, 0.12); --ember-glow: rgba(181, 84, 28, 0.28); --ring: rgba(181, 84, 28, 0.16);
+  --art-dim: #CFC6BC;
+  --shine: rgba(255, 255, 255, 0.9);
+  --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
+  --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
+  --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
+  color-scheme: light;
+}
 [data-theme="olive"] {
   --ground: #F3F5EC; --surface: #FFFFFB; --raised: #E7ECDC; --line: #D6DDC6; --line-2: #BFC9A9;
   --text: #1F2A1C; --soft: #3D4A37; --muted: #56634E; --faint: #5F6B57;
@@ -348,6 +364,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .swatch::after { content: ""; position: absolute; right: -2px; bottom: -2px; width: 55%; height: 55%; border-radius: 50%; background: var(--sw-accent); border: 2px solid var(--sw-bg); }
 .swatch[aria-pressed="true"] { border-color: var(--ember); box-shadow: 0 0 0 2px var(--ground), 0 0 0 4px var(--ember); }
 .swatch[data-set-theme="dawn"], .swatch[data-swatch="dawn"] { --sw-bg: #FBF6EE; --sw-accent: #B5541C; --sw-line: #E6D9C6; }
+.swatch[data-set-theme="lily"], .swatch[data-swatch="lily"] { --sw-bg: #FFFFFF; --sw-accent: #B5541C; --sw-line: #D2D2D7; }
 .swatch[data-set-theme="olive"], .swatch[data-swatch="olive"] { --sw-bg: #F3F5EC; --sw-accent: #556B2F; --sw-line: #D6DDC6; }
 .swatch[data-set-theme="twilight"], .swatch[data-swatch="twilight"] { --sw-bg: #23233A; --sw-accent: #F2B35E; --sw-line: #44466B; }
 .swatch[data-set-theme="hearth"], .swatch[data-swatch="hearth"] { --sw-bg: #1B1511; --sw-accent: #F4A14C; --sw-line: #3F3227; }
@@ -434,9 +451,22 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
    row, then Pray with Aquila, Declare, sermon notes and church, each a headline, one sentence and a small made-up
    example. Two by two on a wide screen; a row that swipes on a phone. */
 .spots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
-.spot.is-lead { grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 32px; padding: 26px 28px; }
-.spot.is-lead h3 { font-size: 22px; }
-.spot.is-lead .spot-demo { grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); align-items: center; }
+/* Amens leads the highlights: its own warmer card, the headline larger, a
+   few plain facts, and the wall as people see it (a request, good news and a
+   kind word back). */
+.spot.is-amens { grid-row: span 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; align-content: start; padding: 28px; border-color: var(--ember-line); background: radial-gradient(110% 90% at 0% 0%, var(--glow-strong) 0%, var(--card-warm) 45%, var(--surface) 100%); box-shadow: 0 26px 54px -34px var(--ember-glow); }
+.spot.is-amens .amens-copy { grid-column: 1; }
+.spot.is-amens h3 { font-size: clamp(24px, 2.4vw, 28px); margin-bottom: 8px; }
+.spot.is-amens .amens-copy > p:not(.spot-kicker) { margin: 0; color: var(--soft); font-size: 15px; line-height: 1.5; }
+.amens-facts { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
+.amens-facts li { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--text); }
+.amens-facts svg { flex: none; width: 26px; height: 26px; padding: 5px; border-radius: 50%; background: var(--surface); color: var(--ember); box-shadow: 0 0 0 1px var(--ember-line); }
+.spot.is-amens .spot-demo { grid-column: 1; grid-row: auto; margin-top: 20px; align-self: start; }
+.amens-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
+.amens-wall .mock-word { grid-column: 1 / -1; }
+.amens-post { align-content: start; }
+.amens-post.is-joy .mock-label { color: var(--sage) !important; }
+.amens-post.is-joy .mock-btn { background: var(--sage-bg); color: var(--sage); }
 .spot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-rows: auto auto 1fr; column-gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(120% 100% at 0% 0%, var(--glow) 0%, var(--surface) 60%); box-shadow: 0 18px 40px -32px var(--shadow); }
 .spot > :not(.spot-demo) { grid-column: 1; }
 .spot-kicker { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ember); }
@@ -487,6 +517,20 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .mock-steps li { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--soft); }
 .mock-steps svg { width: 14px; height: 14px; flex: none; color: var(--sage); }
 .tour-more { margin-top: 32px; }
+/* The welcome's promises: what stays private, and why it's free. */
+.promise.is-between { margin-top: 28px; }
+.promise { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.promise-part { padding: 24px 26px; }
+.promise-part.is-gift { display: grid; align-content: start; gap: 12px; background: radial-gradient(120% 120% at 100% 0%, var(--glow) 0%, var(--card-warm) 70%); border-left: 1px solid var(--line); }
+.promise-part.is-gift p:not(.promise-kicker) { margin: 0; color: var(--soft); font-size: 14.5px; line-height: 1.5; }
+.promise-part.is-gift .btn { justify-self: start; }
+.promise-kicker { display: inline-flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 15px; font-weight: 600; color: var(--text); }
+.promise-part.is-gift .promise-kicker { margin: 0; }
+.promise-kicker svg { width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: var(--sage-bg); color: var(--sage); }
+.is-gift .promise-kicker svg { background: var(--ember-bg); color: var(--ember); }
+.promise ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.promise li { position: relative; padding-left: 18px; font-size: 14.5px; line-height: 1.45; color: var(--soft); }
+.promise li::before { content: ""; position: absolute; left: 3px; top: 0.6em; width: 6px; height: 6px; border-radius: 50%; background: var(--sage); }
 
 /* The welcome tour (index.html): segmented tabs over one panel at a time,
    the copy beside a small made-up example of that part in use. Panels share
@@ -1833,8 +1877,6 @@ body.still-open { overflow: hidden; }
 .support-small { font-size: 14px; margin: 18px 0 0; max-width: 620px; }
 .support-verse { margin: 36px 0 0; padding: 22px 0 0; border-top: 1px solid var(--divider); max-width: 620px; }
 .support-verse p { font-size: 18px; margin: 0 0 8px; color: var(--soft); }
-.support-line { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 20px; padding: 14px 18px; border: 1px solid var(--ember-line); border-radius: var(--radius-sm); background: var(--card-warm); }
-.support-line p { margin: 0; color: var(--soft); font-size: 15px; }
 .farewell-support { margin: 26px 0 0; font-size: 14px; }
 
 /* The account menu's way in, and the tag a friend of the cave sees there */
@@ -2314,6 +2356,27 @@ button.refl-status-pill { cursor: pointer; }
 /* The big ask box (home and welcome): a book mark, the question, the mic,
    and a round send button that stays quiet until something is typed. */
 .home-ask { margin: 0 0 20px; }
+/* Where to start (cave.js::startCard): six places as compact rows, a tick
+   on the ones already tried. Three across, two on a phone. */
+.home-start { margin: 0 0 16px; display: grid; gap: 12px; border-color: var(--ember-line); background: radial-gradient(120% 140% at 0% 0%, var(--glow) 0%, var(--surface) 60%); }
+.home-start .card-head { margin: 0; align-items: center; }
+.start-title { font-size: 17px; font-weight: 650; letter-spacing: -0.01em; }
+.start-aside { display: inline-flex; align-items: center; gap: 4px; }
+.start-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.start-place { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; transition: transform 0.15s ease, border-color 0.15s ease; }
+.start-place:hover { transform: translateY(-1px); border-color: var(--ember-line); }
+.start-place:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.start-icon { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.start-icon svg { width: 17px; height: 17px; }
+.start-name { font-size: 14.5px; font-weight: 600; line-height: 1.25; }
+.start-place.is-done { background: transparent; }
+.start-place.is-done .start-icon { background: var(--sage-bg); color: var(--sage); }
+.start-place.is-done .start-name { color: var(--muted); }
+@media (max-width: 560px) {
+  .start-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .start-place { padding: 8px 10px; gap: 8px; }
+  .start-name { font-size: 14px; }
+}
 .ask-lg { min-height: 56px; padding: 6px 6px 6px 16px; gap: 6px; box-shadow: 0 14px 34px -24px var(--shadow), 0 1px 0 var(--line); }
 .ask-lg-mark { flex: none; display: grid; place-items: center; color: var(--ember); }
 .ask-lg-mark svg { width: 19px; height: 19px; }
@@ -2503,13 +2566,18 @@ body.aloud-open { overflow: hidden; }
    that swipes, each card most of the width so the next one peeks in. */
 @media (max-width: 980px) {
   .spots { grid-template-columns: minmax(0, 1fr); }
+  .spot.is-amens { grid-row: auto; }
 }
 @media (max-width: 720px) {
   .spots { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px 6px; scroll-padding: 0 16px; }
   .spots::-webkit-scrollbar { display: none; }
-  .spot, .spot.is-lead { flex: 0 0 86%; scroll-snap-align: start; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; padding: 18px; }
-  .spot.is-lead h3 { font-size: 18px; }
-  .spot.is-lead .spot-demo { grid-template-columns: minmax(0, 1fr); }
+  .spot { flex: 0 0 86%; scroll-snap-align: start; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; padding: 18px; }
+  .spot.is-amens { padding: 18px; }
+  .spot.is-amens h3 { font-size: 20px; }
+  .spot.is-amens .spot-demo { margin-top: 14px; }
+  /* In the row that swipes: the request and the kind word back, stacked. */
+  .amens-wall { grid-template-columns: minmax(0, 1fr); }
+  .amens-post.is-joy { display: none; }
   .spot-demo { grid-column: 1; grid-row: auto; margin-top: 14px; align-self: end; }
   .spot h3 { font-size: 18px; }
 }
@@ -2529,4 +2597,7 @@ body.aloud-open { overflow: hidden; }
   .preview-refs a + a { display: none; } /* one reference, so the icons share its line */
   .name-band .arch { display: none; }
   .name-band { padding: 22px; }
+  .promise { grid-template-columns: minmax(0, 1fr); }
+  .promise-part { padding: 20px; }
+  .promise-part.is-gift { border-left: 0; border-top: 1px solid var(--line); }
 }

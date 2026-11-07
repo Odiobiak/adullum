@@ -167,7 +167,12 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         return [r["content"] for r in rows]
 
     return {
-        "profile": {"display_name": profile.get("display_name"), "memory_enabled": profile.get("memory_enabled", True)},
+        "profile": {
+            "display_name": profile.get("display_name"),
+            "memory_enabled": profile.get("memory_enabled", True),
+            # When the account was made, so the home can guide someone new.
+            "joined": profile.get("created_at"),
+        },
         "today": day.isoformat(),
         "embers": _part("embers", embers),
         "last_session": _part("last_session", last_session),

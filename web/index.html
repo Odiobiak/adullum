@@ -38,6 +38,7 @@
 <template id="tpl-logo"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><path d="M4 28C4 15 9 5 16 5s12 10 12 23" stroke="#F4A14C" stroke-width="2.4" stroke-linecap="round"/><path d="M12.5 28c0-4.5 1.6-7.5 3.5-7.5s3.5 3 3.5 7.5" stroke="#F4A14C" stroke-width="2.4" stroke-linecap="round"/></svg></template>
 <template id="tpl-themes"><span class="themes" role="group" aria-label="Theme">
   <button type="button" class="swatch" data-set-theme="dawn" aria-label="Dawn theme" title="Dawn"></button>
+  <button type="button" class="swatch" data-set-theme="lily" aria-label="Lily theme, white" title="Lily (white)"></button>
   <button type="button" class="swatch" data-set-theme="olive" aria-label="Olive Grove theme" title="Olive Grove"></button>
   <button type="button" class="swatch" data-set-theme="twilight" aria-label="Twilight theme" title="Twilight"></button>
   <button type="button" class="swatch" data-set-theme="hearth" aria-label="Hearth theme" title="Hearth"></button>
@@ -124,22 +125,35 @@
       </div>
     </div>
 
-    <!-- What a free account opens up. First the five things Adullum does best (Amens leading),
+    <!-- What a free account opens up. First the five things Adullum does best, Amens leading,
          each with a small made-up example of it in use; then everything else,
          one part at a time. The examples hold references and invented names
          only, never verse text. Keep both in step as parts are added. -->
     <div class="wrap section">
       <h2 class="section-title tour-title" data-info="Reading the Bible and asking Aquila are open to everyone. A free account keeps everything else, privately.">Made for the moments that matter</h2>
       <div class="spots">
-        <article class="spot is-lead">
-          <p class="spot-kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/></svg>Amens</p>
-          <h3>Never carry it alone</h3>
-          <p>Share a burden or good news without your name. People pray, rejoice with you and send a kind word.</p>
-          <div class="spot-demo" aria-hidden="true">
-            <div class="mock-card">
-              <small class="mock-label">Pray for me</small>
+        <!-- Amens first, and twice as tall as the others on a wide screen. -->
+        <article class="spot is-amens">
+          <div class="amens-copy">
+            <p class="spot-kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/></svg>Amens</p>
+            <h3>Never carry it alone</h3>
+            <p>Share a burden or good news without your name. People pray for you, rejoice with you and send a kind word back.</p>
+            <ul class="amens-facts">
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>No names, ever</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Checked before it goes up</li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>An evening note of how many prayed</li>
+            </ul>
+          </div>
+          <div class="spot-demo amens-wall" aria-hidden="true">
+            <div class="mock-card amens-post">
+              <small class="mock-label">Someone asked for prayer</small>
               <strong>"My dad's scan results come back on Friday."</strong>
-              <div class="mock-amen"><span class="mock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/></svg>Amen</span><span class="mock-faces"><i></i><i></i><i></i></span><small>You and 23 others prayed</small></div>
+              <div class="mock-amen"><span class="mock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/></svg>Say a prayer</span><span class="mock-faces"><i></i><i></i><i></i></span><small>23 people have prayed for this</small></div>
+            </div>
+            <div class="mock-card amens-post is-joy">
+              <small class="mock-label">Someone has good news</small>
+              <strong>"I passed my nursing exam!"</strong>
+              <div class="mock-amen"><span class="mock-btn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/></svg>Rejoice with them</span><small>41 people are rejoicing</small></div>
             </div>
             <div class="mock-card mock-word"><small>A kind word came back</small>"You're not alone in this."</div>
           </div>
@@ -194,7 +208,7 @@
         <article class="spot">
           <p class="spot-kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v5M10 4h4"/><path d="M5 21V11l7-4 7 4v10z"/><path d="M10 21v-4h4v4"/></svg>Your church</p>
           <h3>Close to your church, near or far</h3>
-          <p>Know the moment they go live and watch with your notes beside you. Get a reminder before each service, in your own time zone.</p>
+          <p>Know the moment they go live and watch with your notes beside you. Get a reminder before each service, and sermons chosen for how you feel.</p>
           <div class="spot-demo" aria-hidden="true">
             <div class="mock-card mock-row mock-live"><span class="mock-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7v10l8-5z" fill="currentColor"/></svg></span><div><strong>Grace Church is live</strong><small>Watch and take notes</small></div></div>
             <div class="mock-card mock-row"><span class="mock-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><div><strong>Sunday service, 10:30</strong><small>Reminder 30 minutes before</small></div></div>
@@ -202,13 +216,32 @@
         </article>
       </div>
 
+      <!-- Two promises, side by side: what stays private (each line true of
+           app/refuge.py and app/one_another.py; keep them so), and why it's free
+           (web/support.js). -->
+      <div class="promise is-between">
+        <div class="promise-part">
+          <p class="promise-kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/></svg>Private by design</p>
+          <ul>
+            <li>Refuge is yours alone. What you write and let go of never leaves your device.</li>
+            <li>A talk with Aquila in Refuge is gone when you leave, unless you keep it, and she never remembers it.</li>
+            <li>Amens never carries your name. Nobody, not even the people who check posts, sees who wrote it.</li>
+            <li>Your notes, prayers and journal are yours. Nobody's data is ever sold.</li>
+          </ul>
+        </div>
+        <div class="promise-part is-gift">
+          <p class="promise-kicker"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Free, with no ads</p>
+          <p>Every part of Adullum is free for everyone, with no ads, now and always. That's possible because people who find it helpful give, once or monthly, to keep it going for the next person.</p>
+          <a href="#support" class="btn btn-ghost btn-sm">Support Adullum</a>
+        </div>
+      </div>
+
       <h2 class="section-title tour-title tour-more">And everything else, in one place</h2>
       <div class="tour">
       <div class="tour-tabs" role="tablist" aria-label="Parts of Adullum">
         <button type="button" role="tab" id="tour-tab-study" aria-controls="tour-study" aria-selected="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>Study</button>
-        <button type="button" role="tab" id="tour-tab-pray" aria-controls="tour-pray" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M12.2 15s-3.7-2.2-3.7-4.8a1.9 1.9 0 0 1 3.7-.7 1.9 1.9 0 0 1 3.7.7c0 2.6-3.7 4.8-3.7 4.8z"/></svg>Pray</button>
+        <button type="button" role="tab" id="tour-tab-pray" aria-controls="tour-pray" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M12.2 15s-3.7-2.2-3.7-4.8a1.9 1.9 0 0 1 3.7-.7 1.9 1.9 0 0 1 3.7.7c0 2.6-3.7 4.8-3.7 4.8z"/></svg>Prayer list</button>
         <button type="button" role="tab" id="tour-tab-refuge" aria-controls="tour-refuge" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20c0-8 4-14 9-14s9 6 9 14"/><path d="M9 20c0-3.5 1.3-6 3-6s3 2.5 3 6M2 20h20"/></svg>Refuge</button>
-        <button type="button" role="tab" id="tour-tab-church" aria-controls="tour-church" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v5M10 4h4"/><path d="M5 21V11l7-4 7 4v10z"/><path d="M10 21v-4h4v4"/></svg>Church</button>
         <button type="button" role="tab" id="tour-tab-reflect" aria-controls="tour-reflect" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v3M5.6 9.1l1.8 1.8M18.4 9.1l-1.8 1.8"/></svg>Reflect</button>
       </div>
       <div class="tour-panels">
@@ -219,8 +252,7 @@
             <ul class="tour-feats">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><span>Ask about any passage, answered with chapter and verse</span></li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg><span>Notes, highlights, and one tap to save</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Reading plans shaped with Aquila</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="2.5"/><circle cx="18" cy="8" r="2.5"/><circle cx="10" cy="18" r="2.5"/><path d="M8.3 7l7.3.7M7 8.3l2.2 7.4M16.4 10l-4.8 6"/></svg><span>Connections that follow a verse through the Bible</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span>Reading plans, and Connections across the Bible</span></li>
             </ul>
           </div>
           <div class="tour-mock" aria-hidden="true">
@@ -255,13 +287,12 @@
         </div>
         <div class="tour-panel" role="tabpanel" id="tour-pray" aria-labelledby="tour-tab-pray" inert>
           <div class="tour-copy">
-            <h3>A prayer list that remembers</h3>
+            <h3>Prayers you can look back on</h3>
             <p>Keep every request, and see what God has answered.</p>
             <ul class="tour-feats">
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><span>Pray with Aquila on any request</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/></svg><span>Declare over a prayer, or anything you face</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg><span>A gentle record of praying and fasting</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/></svg><span>Share it on Amens, without your name</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M12.2 15s-3.7-2.2-3.7-4.8a1.9 1.9 0 0 1 3.7-.7 1.9 1.9 0 0 1 3.7.7c0 2.6-3.7 4.8-3.7 4.8z"/></svg><span>Every request kept, and every answer remembered</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>A gentle record of the days you prayed</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg><span>Fasting, counted day by day and never judged</span></li>
             </ul>
           </div>
           <div class="tour-mock" aria-hidden="true">
@@ -283,9 +314,8 @@
             <p>Private to you, there on heavy days and good ones.</p>
             <ul class="tour-feats">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg><span>Write it out, or talk it through with Aquila</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5" stroke-dasharray="2 3"/></svg><span>Be still: a guided breath prayer</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="15" rx="8" ry="4.5"/><ellipse cx="13" cy="8.5" rx="4.5" ry="3"/></svg><span>Pebbles: small goals and habits, never a streak</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 20c0-3.9 3.1-7 7-7s7 3.1 7 7"/></svg><span>Helplines, always in reach</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5" stroke-dasharray="2 3"/></svg><span>Be still with a breath prayer, and grow small habits in Pebbles</span></li>
+              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/></svg><span>Helplines, always in reach</span></li>
             </ul>
           </div>
           <div class="tour-mock" aria-hidden="true">
@@ -303,31 +333,6 @@
             </div>
           </div>
         </div>
-        <div class="tour-panel" role="tabpanel" id="tour-church" aria-labelledby="tour-tab-church" inert>
-          <div class="tour-copy">
-            <h3>Your churches, close</h3>
-            <p>Near or far: their times in yours, their news and their sermons.</p>
-            <ul class="tour-feats">
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="2.5"/><path d="M7.8 7.8a6 6 0 0 0 0 8.4M16.2 7.8a6 6 0 0 1 0 8.4M5 5a10 10 0 0 0 0 14M19 5a10 10 0 0 1 0 14"/></svg><span>Service times and events, in your own time zone</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg><span>Sermon notes drafted from a link</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span>Reminders for services and events</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg><span>Listen: sermons chosen for how you feel</span></li>
-            </ul>
-          </div>
-          <div class="tour-mock" aria-hidden="true">
-            <div class="mock-card mock-row">
-              <span class="mock-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg></span><div><strong>Sunday service, 10:30</strong><small>Reminder 30 minutes before</small></div>
-            </div>
-            <div class="mock-card mock-row">
-              <span class="mock-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15v-3a8 8 0 0 1 16 0v3"/><rect x="3" y="14" width="4" height="6" rx="1.5"/><rect x="17" y="14" width="4" height="6" rx="1.5"/></svg></span><div><small>Listen · for when you're weary</small><strong>Strength for the tired</strong></div>
-            </div>
-            <div class="mock-card">
-              <p class="mock-kicker">The week after</p>
-              <strong>Reread Habakkuk 2, and pray it</strong>
-              <small class="mock-sub">Day 3 of 5 · from Sunday's notes</small>
-            </div>
-          </div>
-        </div>
         <div class="tour-panel" role="tabpanel" id="tour-reflect" aria-labelledby="tour-tab-reflect" inert>
           <div class="tour-copy">
             <h3>Look back, and set out again</h3>
@@ -335,7 +340,6 @@
             <ul class="tour-feats">
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg><span>Journal on a verse, an answer or your day</span></li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v3M5.6 9.1l1.8 1.8M18.4 9.1l-1.8 1.8"/></svg><span>Reflections that become a plan for what's next</span></li>
-              <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>A halfway check-in on what you set out</span></li>
               <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 4v4.5H8M12 8v4.5l3 2"/></svg><span>Aquila remembers only what you choose</span></li>
             </ul>
           </div>
@@ -387,13 +391,6 @@
       </div>
     </div>
 
-    <!-- Giving (web/support.js). Free for everyone, kept going by people who give. -->
-    <div class="wrap section">
-      <div class="support-line">
-        <p>Free for everyone. No ads, and nobody's data is ever sold.</p>
-        <a href="#support" class="btn btn-ghost btn-sm">Support Adullum</a>
-      </div>
-    </div>
     <footer class="wrap site-foot">
       <span>Aquila is an AI study companion, not a pastor or counselor. In crisis, call or text 988 (US).</span>
       <span class="row" style="gap:10px">Theme <span data-themes></span></span>
@@ -477,6 +474,8 @@
           <h1 class="page-title" id="greet">Welcome back</h1>
         </div>
       </div>
+      <!-- Where to start, for someone new until they close it (cave.js::startCard). -->
+      <div id="homeStart"></div>
       <!-- A church live now: one full-width line, only while it's live. -->
       <div class="home-notes" id="homeNotes"></div>
       <!-- Amens (only when there's something to tell) and Declare, side by side (cave.js::showHome). -->
