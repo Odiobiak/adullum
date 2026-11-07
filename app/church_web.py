@@ -28,6 +28,7 @@ import json
 import logging
 import re
 import socket
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from html import unescape
 from html.parser import HTMLParser
@@ -49,6 +50,8 @@ MAX_REDIRECTS = 4
 PAGE_BYTES = 1_500_000
 # YouTube's pages carry a lot of script; the live page is about 1.6 MB.
 YOUTUBE_PAGE_BYTES = 3_000_000
+# The most of a podcast feed ever read; read_podcast_feed usually stops far sooner.
+FEED_BYTES = 3_000_000
 
 
 class FetchError(Exception):
@@ -92,9 +95,10 @@ def check_url(url: str) -> str:
     return url
 
 
-def safe_get(url: str, *, max_bytes: int = PAGE_BYTES) -> tuple[str, str]:
+def safe_get(url: str, *, max_bytes: int = PAGE_BYTES, enough: Callable[[bytes], bool] | None = None) -> tuple[str, str]:
     """GET a public page and return (final URL, text), following redirects
-    one checked hop at a time and stopping at `max_bytes`."""
+    one checked hop at a time and stopping at `max_bytes`, or sooner once
+    `enough` says what's been read will do."""
     url = check_url(normalise_url(url))
     headers = {"User-Agent": USER_AGENT, "Accept-Language": "en"}
     with httpx.Client(timeout=TIMEOUT_SECONDS, follow_redirects=False, headers=headers) as client:
@@ -109,7 +113,7 @@ def safe_get(url: str, *, max_bytes: int = PAGE_BYTES) -> tuple[str, str]:
                     body = bytearray()
                     for chunk in response.iter_bytes():
                         body.extend(chunk)
-                        if len(body) >= max_bytes:
+                        if len(body) >= max_bytes or (enough and enough(body)):
                             break
                     return url, bytes(body[:max_bytes]).decode(response.encoding or "utf-8", errors="replace")
             except httpx.HTTPError as err:
@@ -362,11 +366,27 @@ def parse_youtube_feed(xml: str) -> list[dict]:
     return videos
 
 
-def parse_podcast_feed(xml: str) -> list[dict]:
-    """Episodes from a podcast's RSS feed, as the feed orders them."""
-    root = ElementTree.fromstring(xml)
+def read_podcast_feed(url: str, limit: int, *, max_bytes: int = FEED_BYTES) -> list[dict]:
+    """A podcast's latest `limit` episodes. Reading stops once they've arrived,
+    since a feed can hold years of episodes (several MB) and only its top is
+    wanted."""
+    closing = b"</item>"
+    _, xml = safe_get(url, max_bytes=max_bytes, enough=lambda body: body.count(closing) >= limit)
+    return parse_podcast_feed(xml, limit)
+
+
+def parse_podcast_feed(xml: str, limit: int | None = None) -> list[dict]:
+    """Episodes from a podcast's RSS feed, as the feed orders them. A feed
+    cut off part way (read_podcast_feed stops early) gives the episodes that
+    arrived whole."""
+    parser = ElementTree.XMLPullParser(events=("end",))
+    parser.feed(xml)
     episodes = []
-    for item in root.iter("item"):
+    for _, item in parser.read_events():
+        if item.tag != "item":
+            continue
+        if limit is not None and len(episodes) >= limit:
+            break
         enclosure = item.find("enclosure")
         audio = enclosure.get("url", "") if enclosure is not None else ""
         link = (item.findtext("link") or audio or "").strip()

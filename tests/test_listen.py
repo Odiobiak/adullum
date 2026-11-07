@@ -42,11 +42,11 @@ class TestPicking:
         b = [{"id": "b1"}]
         assert [i["id"] for i in listen.interleave([a, b], 3)] == ["a1", "b1", "a2"]
 
-    def test_a_season_picks_its_sermons_and_any_season_picks_the_sorted_ones(self):
+    def test_a_season_picks_its_sermons_and_any_season_picks_them_all(self):
         tags = {"s1": ["weary"], "s2": [], "s3": ["joyful", "grateful"]}
         items = [{"id": "s1"}, {"id": "s2"}, {"id": "s3"}, {"id": "s4"}]
         assert [i["id"] for i in items if listen.matches(i, tags, "grateful")] == ["s3"]
-        assert [i["id"] for i in items if listen.matches(i, tags, None)] == ["s1", "s2", "s3"]
+        assert [i["id"] for i in items if listen.matches(i, tags, None)] == ["s1", "s2", "s3", "s4"]
         assert [i["id"] for i in listen.untagged(items, tags)] == ["s4"]
 
 
@@ -63,7 +63,15 @@ class TestRoute:
         ])
         monkeypatch.setattr(listen, "catalog_sermons", lambda source: [{"id": f"{source.key}-1", "title": "Catalog", "church": source.name, "catalog": True}])
         self.tagged = {"c1-new": ["weary"], "c1-old": ["joyful"], "c2-new": ["weary"], "keller-1": ["weary"], "begg-1": ["joyful"]}
-        monkeypatch.setattr(listen, "tag_moods", lambda items: {k: v for k, v in self.tagged.items() if k in {i["id"] for i in items}})
+        kept = lambda items: {k: v for k, v in self.tagged.items() if k in {i["id"] for i in items}}
+        self.asked_model = False
+
+        def tag(items):
+            self.asked_model = True
+            return kept(items)
+
+        monkeypatch.setattr(listen, "tag_moods", tag)
+        monkeypatch.setattr(listen, "known_moods", kept)
 
     def test_a_season_from_everywhere(self):
         body = client.get("/me/listen?mood=weary", headers=HEADERS).json()
@@ -72,9 +80,18 @@ class TestRoute:
         assert "description" not in body["mine"][0]
         assert body["pending"] is True  # most catalog sources aren't sorted yet
 
+    def test_no_season_shows_everything_without_waiting_for_the_model(self, monkeypatch):
+        sorted_after = []
+        monkeypatch.setattr(listen, "_tag_the_rest", sorted_after.extend)
+        body = client.get("/me/listen", headers=HEADERS).json()
+        assert [i["id"] for i in body["mine"]] == ["c1-new", "c2-new", "c1-old", "c2-old"]
+        assert len(body["catalog"]) == len(listen.CATALOG)
+        assert body["pending"] is False and not self.asked_model
+        assert "c2-old" in {i["id"] for i in sorted_after}  # still sorted, after the answer
+
     def test_one_church_only(self):
         body = client.get("/me/listen?source=church:c2", headers=HEADERS).json()
-        assert [i["id"] for i in body["mine"]] == ["c2-new"] and body["catalog"] == []
+        assert [i["id"] for i in body["mine"]] == ["c2-new", "c2-old"] and body["catalog"] == []
 
     def test_one_catalog_source_only(self):
         body = client.get("/me/listen?source=catalog:begg", headers=HEADERS).json()

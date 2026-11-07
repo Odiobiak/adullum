@@ -11,6 +11,7 @@ contract.
 
 import asyncio
 import json
+import threading
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -46,8 +47,10 @@ def _run_config() -> dict:
 
 @asynccontextmanager
 async def _lifespan(_app: FastAPI):
-    """Sends due reminders while the server is awake (app/reminders.py)."""
+    """Sends due reminders while the server is awake (app/reminders.py), and
+    reads Listen's catalog so it's ready before anyone opens it."""
     reminders.start()
+    threading.Thread(target=listen.warm, name="listen-warm", daemon=True).start()
     yield
 
 

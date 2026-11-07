@@ -2,6 +2,8 @@
 church draft, notices, the week after a sermon, and sermon notes drafted from
 a link. Nothing here touches the network, the database or a model."""
 
+import threading
+import time
 from datetime import date
 
 import pytest
@@ -103,6 +105,35 @@ def test_podcast_feed_ids_are_stable():
     assert first[0]["id"] == again[0]["id"] and first[0]["id"].startswith("pod:")
     assert first[0]["audio_url"] == "https://cdn.example.com/12.mp3"
     assert "Habakkuk 2" in first[0]["description"] and "<p>" not in first[0]["description"]
+
+
+def test_podcast_feed_cut_off_part_way_keeps_the_whole_episodes():
+    item = '<item><title>Ep {n}</title><guid>ep-{n}</guid><enclosure url="https://cdn.example.com/{n}.mp3"/></item>'
+    xml = '<?xml version="1.0" encoding="UTF-8"?><rss><channel>' + "".join(item.format(n=n) for n in range(5))
+    cut = xml[: xml.index("<item><title>Ep 4") + 20]  # stopped reading inside the fifth
+    assert [e["title"] for e in web.parse_podcast_feed(cut)] == ["Ep 0", "Ep 1", "Ep 2", "Ep 3"]
+    assert [e["title"] for e in web.parse_podcast_feed(xml, limit=2)] == ["Ep 0", "Ep 1"]
+
+
+def test_an_old_feed_is_answered_at_once_and_read_again_behind():
+    from app import churches
+    churches._feed_cache["t:feed"] = (0.0, [{"id": "old"}])  # long past FEED_CACHE_SECONDS
+    reads = []
+    done = threading.Event()
+
+    def load():
+        reads.append(1)
+        done.set()
+        return [{"id": "new"}]
+
+    assert churches._cached_feed("t:feed", load) == [{"id": "old"}]
+    assert done.wait(2) and reads == [1]
+    for _ in range(50):
+        if "t:feed" not in churches._refreshing:
+            break
+        time.sleep(0.01)
+    assert churches._cached_feed("t:feed", load) == [{"id": "new"}] and reads == [1]
+    churches._feed_cache.pop("t:feed", None)
 
 
 def test_watch_page_details():

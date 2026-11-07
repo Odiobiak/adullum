@@ -400,6 +400,7 @@ def _refresh(church: dict) -> None:
 _cache_lock = threading.Lock()
 _live_cache: dict[str, tuple[float, str | None]] = {}
 _feed_cache: dict[str, tuple[float, list[dict]]] = {}
+_refreshing: set[str] = set()  # feeds being read again in the background
 
 
 def live_video(channel_url: str) -> str | None:
@@ -420,18 +421,32 @@ def live_video(channel_url: str) -> str | None:
 
 
 def _cached_feed(key: str, load) -> list[dict]:
-    now = time.monotonic()
+    """A feed's items, read once and kept. Once FEED_CACHE_SECONDS have passed
+    the kept copy is still answered straight away while it's read again in the
+    background, so only the very first read ever keeps anyone waiting."""
     with _cache_lock:
         hit = _feed_cache.get(key)
-    if hit and now - hit[0] < FEED_CACHE_SECONDS:
-        return hit[1]
+        stale = hit is not None and time.monotonic() - hit[0] >= FEED_CACHE_SECONDS
+        refresh = stale and key not in _refreshing
+        if refresh:
+            _refreshing.add(key)
+    if hit is None:
+        return _load_feed(key, load, [])
+    if refresh:
+        threading.Thread(target=_load_feed, args=(key, load, hit[1]), daemon=True).start()
+    return hit[1]
+
+
+def _load_feed(key: str, load, fallback: list[dict]) -> list[dict]:
+    """Read a feed into the cache; one that won't open keeps `fallback`."""
     try:
         items = load()
     except Exception:
         log.info("couldn't read feed %s", key, exc_info=True)
-        items = hit[1] if hit else []
+        items = fallback
     with _cache_lock:
-        _feed_cache[key] = (now, items)
+        _feed_cache[key] = (time.monotonic(), items)
+        _refreshing.discard(key)
     return items
 
 
@@ -461,7 +476,7 @@ def church_sermons(church: dict) -> list[dict]:
 
         def load_podcast():
             feed = _podcast_feed_url(podcast)
-            return web.parse_podcast_feed(web.safe_get(feed, max_bytes=3_000_000)[1])[:20] if feed else []
+            return web.read_podcast_feed(feed, 20) if feed else []
         items += _cached_feed(f"pod:{podcast}", load_podcast)
     return [{**i, "church_id": church["id"], "church": church["name"], "refs": references_in(f"{i['title']} {i.get('description', '')}")[:3]} for i in items]
 
@@ -490,12 +505,19 @@ class _MoodTags(BaseModel):
     tags: list[_MoodTag]
 
 
+def known_moods(items: list[dict]) -> dict[str, list[str]]:
+    """The seasons already worked out for these sermons, without asking the model."""
+    if not items:
+        return {}
+    ids = [i["id"] for i in items]
+    return {r["item_id"]: r["moods"] for r in _db(lambda: get_supabase().table("sermon_moods").select("item_id, moods").in_("item_id", ids).execute().data)}
+
+
 def tag_moods(items: list[dict]) -> dict[str, list[str]]:
     """Which seasons each sermon speaks to, worked out once and kept."""
     if not items:
         return {}
-    ids = [i["id"] for i in items]
-    known = {r["item_id"]: r["moods"] for r in _db(lambda: get_supabase().table("sermon_moods").select("item_id, moods").in_("item_id", ids).execute().data)}
+    known = known_moods(items)
     missing = [i for i in items if i["id"] not in known][:30]
     if missing:
         listing = "\n".join(f"- id {i['id']}: {i['title']} | {i.get('description', '')[:300]}" for i in missing)

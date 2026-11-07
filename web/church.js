@@ -814,18 +814,11 @@
       list,
     );
 
-    // Read each time, so a church added or removed since shows straight away.
-    try {
-      listenSources = await api("/me/listen/sources");
-    } catch {
-      listenSources = listenSources || { churches: [], catalog: [] };
-    }
-    if (showing !== "listen") return;
-    const drawFilters = () => filters.replaceChildren(
-      cave().filterSelect("How you feel", [["", "Any season"], ...MOODS], mood, (value) => { mood = value; load(); }),
-      sourceSelect((value) => { listenSource = value; load(); }),
-    );
-    drawFilters();
+    // The sources are read each time, so a church added or removed since shows
+    // straight away, but alongside the sermons rather than before them.
+    const sourcesReady = api("/me/listen/sources")
+      .catch(() => listenSources || { churches: [], catalog: [] })
+      .then((found) => { listenSources = found; });
 
     let tries = 0;
     async function load({ quietly = false } = {}) {
@@ -840,7 +833,7 @@
       if (mood) query.set("mood", mood);
       let data;
       try {
-        data = await api(`/me/listen?${query}`);
+        [data] = await Promise.all([api(`/me/listen?${query}`), sourcesReady]);
       } catch (err) {
         if (!quietly) list.replaceChildren(failed(err));
         return;
@@ -885,6 +878,15 @@
     }
 
     load();
+    await sourcesReady;
+    if (showing !== "listen") return;
+    const before = listenSource;
+    filters.replaceChildren(
+      cave().filterSelect("How you feel", [["", "Any season"], ...MOODS], mood, (value) => { mood = value; load(); }),
+      sourceSelect((value) => { listenSource = value; load(); }),
+    );
+    // A church removed since falls back to everywhere (sourceSelect); ask again for that.
+    if (listenSource !== before) load();
   }
 
   // ---------------------------------------------------------------------

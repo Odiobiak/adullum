@@ -7,16 +7,21 @@ Sermons come from two places:
   across the Christian traditions (CATALOG below), so Listen has something to
   offer before someone adds a church, and more than one church's voice after.
   Each source is an official feed, checked to open and parse. To add one, find
-  its feed (Apple's podcast search gives `feedUrl`), check it parses with
-  church_web.parse_podcast_feed within FEED_BYTES, and keep the list balanced
+  its feed (Apple's podcast search gives `feedUrl`), check it reads with
+  church_web.read_podcast_feed, and keep the list balanced
   across traditions, the same way Aquila gives the range of views on a
   disputed question.
 
 Every sermon is tagged once with the seasons it speaks to (weary, anxious,
 grateful, grieving, deciding, joyful) by the model, and kept in `sermon_moods`
-by the sermon's own id, which holds nothing personal. A request tags one batch
-before it answers and leaves the rest to run after the response, saying
-`pending` so the page can look again in a moment.
+by the sermon's own id, which holds nothing personal. The list with no season
+chosen never waits for the model: it shows every sermon and the sorting runs
+after the response. Picking a season tags one batch before answering and says
+`pending` while the rest is sorted, so the page can look again in a moment.
+
+Speed: the catalog is read and sorted as the server starts (`warm`), feeds
+are read only as far as their latest episodes, and a kept feed is answered
+at once while it's refreshed (churches.py::_cached_feed).
 
 The person filters by season and by source, both as compact dropdowns on the
 page. Nothing here is social: no counts, no one else's listening.
@@ -34,7 +39,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 
 from app import church_web as web
 from app.auth import AuthUser, require_user
-from app.churches import _all, _cached_feed, _ensure_channel_id, church_sermons, tag_moods
+from app.churches import _all, _cached_feed, _ensure_channel_id, church_sermons, known_moods, tag_moods
 from app.sermons import references_in
 
 log = logging.getLogger(__name__)
@@ -43,8 +48,7 @@ router = APIRouter()
 
 Mood = Literal["weary", "anxious", "grateful", "grieving", "deciding", "joyful"]
 
-# The most of a feed read, and how many of its latest episodes are offered.
-FEED_BYTES = 3_000_000
+# How many of a catalog source's latest episodes are offered.
 CATALOG_PER_SOURCE = 12
 # How many sermons from the person's churches, and from the catalog, a list holds.
 MINE_LIMIT = 20
@@ -125,12 +129,9 @@ def interleave(groups: list[list[dict]], limit: int) -> list[dict]:
 
 
 def matches(item: dict, tags: dict[str, list[str]], mood: str | None) -> bool:
-    """Whether a sermon belongs in the list: tagged with the season asked
-    for, or, with no season chosen, tagged at all (so it's been looked at)."""
-    moods = tags.get(item["id"])
-    if moods is None:
-        return False
-    return mood in moods if mood else True
+    """Whether a sermon belongs in the list: every one when no season is
+    chosen, else those tagged with the season asked for."""
+    return not mood or mood in tags.get(item["id"], [])
 
 
 def untagged(items: list[dict], tags: dict[str, list[str]]) -> list[dict]:
@@ -148,10 +149,7 @@ def present(item: dict) -> dict:
 def catalog_sermons(source: CatalogSource) -> list[dict]:
     """A catalog source's latest episodes, read through the same cache and
     safe fetching as a church's feed."""
-    items = _cached_feed(
-        f"catalog:{source.key}",
-        lambda: web.parse_podcast_feed(web.safe_get(source.feed, max_bytes=FEED_BYTES)[1])[:CATALOG_PER_SOURCE],
-    )
+    items = _cached_feed(f"catalog:{source.key}", lambda: web.read_podcast_feed(source.feed, CATALOG_PER_SOURCE))
     return [
         {
             **i,
@@ -180,6 +178,26 @@ def _tag_the_rest(items: list[dict]) -> None:
         if not left or len(left) == len(items):
             return
         items = left
+
+
+def _read_catalog(sources: list[CatalogSource]) -> list[list[dict]]:
+    """Each source's sermons, all read at once."""
+    with ThreadPoolExecutor(max_workers=len(sources)) as pool:
+        return list(pool.map(catalog_sermons, sources))
+
+
+def warm() -> None:
+    """Read the whole catalog and sort what's new into seasons, so the first
+    person to open Listen after the server wakes doesn't wait for either.
+    Run on a thread as the server starts (app/main.py)."""
+    try:
+        items = [i for group in _read_catalog(list(CATALOG)) for i in group]
+        left = untagged(items, known_moods(items))
+    except Exception:
+        log.info("couldn't warm Listen's catalog", exc_info=True)
+        return
+    if left:
+        _tag_the_rest(left)
 
 
 @router.get("/me/listen/sources")
@@ -223,18 +241,18 @@ def listen(
     catalog_groups: list[list[dict]] = []
     if pick.catalog:
         chosen = [_BY_KEY[pick.catalog_key]] if pick.catalog_key else list(CATALOG)
-        with ThreadPoolExecutor(max_workers=6) as pool:
-            catalog_groups = list(pool.map(catalog_sermons, chosen))
+        catalog_groups = _read_catalog(chosen)
 
     everything = mine + [i for group in catalog_groups for i in group]
-    # tag_moods reads every tag already kept and sorts the first batch of the
-    # rest (the person's own churches come first in `everything`); whatever
-    # is left is sorted after the response.
-    tags = tag_moods(everything) if everything else {}
+    # With a season, tag_moods reads the tags already kept and sorts the first
+    # batch of the rest (the person's own churches first). With none, every
+    # sermon shows, so the kept tags are only read to see what's left. Either
+    # way the rest is sorted after the response.
+    tags = tag_moods(everything) if mood else known_moods(everything)
     left = untagged(everything, tags)
     if left:
         background.add_task(_tag_the_rest, left)
 
     mine_out = [present(i) for i in mine if matches(i, tags, mood)][:MINE_LIMIT]
     catalog_out = interleave([[present(i) for i in group if matches(i, tags, mood)] for group in catalog_groups], CATALOG_LIMIT)
-    return {"mine": mine_out, "catalog": catalog_out, "pending": bool(left)}
+    return {"mine": mine_out, "catalog": catalog_out, "pending": bool(mood and left)}

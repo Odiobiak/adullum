@@ -2018,8 +2018,9 @@ button.refl-status-pill { cursor: pointer; }
 .church-listen-count { display: flex; align-items: center; gap: 4px; min-width: 0; }
 .church-listen-filters { display: flex; gap: 6px; margin-left: auto; min-width: 0; }
 .church-listen-filters .filter-select { max-width: 220px; min-width: 0; }
-.church-listen-list { display: grid; gap: 18px; }
-.church-listen-group { display: grid; gap: 8px; }
+/* minmax(0, 1fr): a long title ellipsizes instead of widening the column past the screen. */
+.church-listen-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+.church-listen-group { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .church-listen-head { font-size: 15px; font-weight: 600; margin: 0; }
 .church-listen-empty { font-size: 14px; color: var(--muted); margin: 0; padding: 4px 2px; }
 .church-listen-empty a { color: var(--ember); font-weight: 600; }
