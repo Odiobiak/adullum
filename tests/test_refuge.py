@@ -320,14 +320,47 @@ class TestWallRoutes:
         use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post]}))
         assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 404
 
+    @staticmethod
+    def reporting(monkeypatch, *, new=True, reported_today=0, post=None):
+        """A live post by someone else, reported by USER. `new` is whether the
+        upsert stored a report (False: they'd reported it before)."""
+        post = post or {"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", **LIVE}
+        rows = {"refuge_posts": [post], "refuge_reports": [{"post_id": POST_ID}] if new else []}
+        db = use_db(monkeypatch, FakeDb(rows=rows, counts={"refuge_reports": reported_today}))
+        heard = []
+        monkeypatch.setattr(desk, "report_received", lambda *args: heard.append(args))
+        return db, heard
+
     def test_a_report_takes_it_off_the_wall(self, monkeypatch):
-        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}]}))
+        db, heard = self.reporting(monkeypatch)
         assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={"reason": "names someone"}, headers=HEADERS).status_code == 200
         assert ("refuge_posts", "update", {"status": "reported"}) in db.written
+        assert heard[0][-1] is True
+
+    def test_past_the_daily_limit_a_report_leaves_the_post_up_for_the_desk(self, monkeypatch):
+        # Otherwise one account could report its way through the whole wall.
+        db, heard = self.reporting(monkeypatch, reported_today=one_another.REPORT_TAKEDOWNS_PER_DAY)
+        resp = client.post(f"/me/refuge/posts/{POST_ID}/report", json={"category": "spam"}, headers=HEADERS)
+        assert resp.status_code == 200 and resp.json() == {"status": "reported"}  # told the same
+        assert not any(t == "refuge_posts" and m == "update" for t, m, _ in db.written)
+        assert any(t == "refuge_reports" for t, _, _ in db.written)
+        assert heard and heard[0][-1] is False
+        assert db.filtered("refuge_reports", "user_id", USER.id)
+
+    def test_reporting_again_never_takes_it_down_again(self, monkeypatch):
+        # A post the desk put back can't be pulled down by the same person over and over.
+        db, heard = self.reporting(monkeypatch, new=False)
+        assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={}, headers=HEADERS).status_code == 200
+        assert not any(t == "refuge_posts" and m == "update" for t, m, _ in db.written) and not heard
+
+    def test_a_post_off_the_wall_cant_be_reported(self, monkeypatch):
+        gone = {"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", "approved_at": "2026-01-01T00:00:00+00:00", "expires_at": "2026-01-15T00:00:00+00:00"}
+        self.reporting(monkeypatch, post=gone)
+        assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={}, headers=HEADERS).status_code == 404
 
     def test_a_new_report_goes_to_the_desk_with_why(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb(rows={
-            "refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}],
+            "refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", **LIVE}],
             "refuge_reports": [{"post_id": POST_ID}],  # the upsert added one
         }))
         heard = []
@@ -336,10 +369,10 @@ class TestWallRoutes:
         assert client.post(f"/me/refuge/posts/{POST_ID}/report", json=body, headers=HEADERS).status_code == 200
         report = next(row for table, method, row in db.written if table == "refuge_reports")
         assert report["category"] == "danger" and report["reason"] == "they sound scared"
-        assert heard == [(POST_ID, "approved", "danger", "they sound scared")]
+        assert heard == [(POST_ID, "approved", "danger", "they sound scared", True)]
 
     def test_a_report_needs_a_known_reason(self, monkeypatch):
-        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}]}))
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", **LIVE}]}))
         assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={"category": "boring"}, headers=HEADERS).status_code == 422
 
 
@@ -406,6 +439,28 @@ class TestDesk:
         assert auth.is_admin(ADMIN)
         assert not auth.is_admin(AuthUser(id="x", email=ADMIN.email, email_confirmed=False))
 
+    def test_a_post_left_up_after_a_report_waits_on_the_desk(self, monkeypatch, as_admin):
+        live = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "approved", "auto_check": {}, "created_at": "2026-11-01T00:00:00+00:00", **LIVE}]
+        reports = [{"post_id": POST_ID, "category": "spam", "reason": None, "created_at": "2026-11-03T00:00:00+00:00"}]
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": live, "refuge_reports": reports}))
+        body = client.get("/admin/refuge", headers=HEADERS).json()
+        assert [p["id"] for p in body["queue"]] == [POST_ID] and body["queue"][0]["still_up"]
+        assert body["stats"]["reported"] == 1
+
+    def test_keep_it_up_goes_on_the_trail(self, monkeypatch, as_admin):
+        # Approving a post that's already up normally does nothing (someone got
+        # there first), but one with a report the desk hasn't seen is kept up on the record.
+        post = {"id": POST_ID, "kind": "burden", "status": "approved", **LIVE}
+        reports = [{"post_id": POST_ID, "category": "spam", "reason": None, "created_at": "2026-11-03T00:00:00+00:00"}]
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post], "refuge_reports": reports, "rpc:desk_decide": "approved"}))
+        assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve"}, headers=HEADERS).status_code == 200
+        assert db.rpc_params("desk_decide")
+
+    def test_approving_a_post_already_up_with_nothing_new_does_nothing(self, monkeypatch, as_admin):
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "kind": "burden", "status": "approved", **LIVE}]}))
+        assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve"}, headers=HEADERS).status_code == 200
+        assert not db.rpc_params("desk_decide")
+
     def test_nobody_is_an_admin_by_default(self, monkeypatch):
         monkeypatch.setattr(settings, "admin_emails", "")
         assert not auth.is_admin(ADMIN)
@@ -428,6 +483,21 @@ class TestDeskHelpers:
             {"action": "approve", "from_status": "pending"},
         ]
         assert desk.times_put_back(history) == 2
+
+    def test_a_report_after_the_last_decision_is_unseen(self):
+        report = [{"category": "spam", "created_at": "2026-11-03T00:00:00+00:00"}]
+        kept = [{"action": "approve", "created_at": "2026-11-04T00:00:00+00:00"}]
+        assert desk.reported_since_last_look({"reports": report, "history": []})
+        assert not desk.reported_since_last_look({"reports": report, "history": kept})
+        assert not desk.reported_since_last_look({"reports": [], "history": []})
+        # A report on the trail isn't a decision.
+        assert desk.reported_since_last_look({"reports": report, "history": [{"action": "report", "created_at": "2026-11-05T00:00:00+00:00"}]})
+
+    def test_a_report_that_left_the_post_up_says_so_on_the_trail(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb())
+        desk.report_received(POST_ID, "approved", "spam", None, False)
+        entry = next(row for table, method, row in db.written if table == "refuge_moderation_log")
+        assert entry["from_status"] == "approved" and entry["to_status"] == "approved"
 
     def test_a_report_reads_as_one_line(self):
         assert desk.report_note("danger", None) == "Someone may be in danger"

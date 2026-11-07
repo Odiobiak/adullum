@@ -6,7 +6,9 @@ Two ways onto the desk, kept apart because a post can pass one and still
 meet the other later:
 - the automatic check: a post it wasn't sure of waits as `pending`;
 - a report: a post on the wall that someone reported comes off at once
-  (`reported`) and waits for another look.
+  (`reported`) and waits for another look. Someone past their daily limit
+  (`one_another.REPORT_TAKEDOWNS_PER_DAY`) doesn't take it off; it stays up
+  and waits here as "still up" until the desk keeps it, holds it or removes it.
 The desk can also take a live post off the wall itself while it looks into
 it (`held`).
 
@@ -35,7 +37,7 @@ from pydantic import BaseModel, Field
 from app.auth import AuthUser, admin_emails, require_admin
 from app.cave import _db_call
 from app.db import get_supabase
-from app.one_another import REPORT_CATEGORIES, expires_for, lifetime
+from app.one_another import REPORT_CATEGORIES, _stamp, expires_for, lifetime, on_wall
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +50,9 @@ DESK_HINT = (
 
 QUEUE_STATUSES = ("pending", "reported", "held")
 QUEUE_LIMIT = 200
+# The longest a post can stay on the wall (a prayer request kept up to two
+# months), so no report older than this can be on a post still up.
+LONGEST_ON_WALL = timedelta(days=62)
 PAGE = 30
 ENDING_SOON = timedelta(days=2)
 WEEK = timedelta(days=7)
@@ -106,6 +111,14 @@ def report_note(category: str, reason: str | None) -> str:
     return f"{label}: {reason}"[:300] if reason else label
 
 
+def reported_since_last_look(post: dict) -> bool:
+    """Whether a report came in after the desk last decided anything about
+    this post (or the desk never has). Needs `_attach_history` first."""
+    last_report = max((_stamp(r["created_at"]) for r in post["reports"]), default=None)
+    last_decision = max((_stamp(e["created_at"]) for e in post["history"] if e["action"] != "report"), default=None)
+    return bool(last_report) and (last_decision is None or last_report > last_decision)
+
+
 def queue_order(post: dict) -> tuple:
     """Urgent first, then whatever has waited longest."""
     return (not post["urgent"], post["created_at"])
@@ -116,10 +129,11 @@ def queue_order(post: dict) -> tuple:
 # ---------------------------------------------------------------------------
 def waiting_count() -> int:
     """How many posts are waiting on the desk, for the badge in the menu."""
-    return (
+    off_wall = (
         get_supabase().table("refuge_posts").select("id", count="exact")
         .in_("status", list(QUEUE_STATUSES)).limit(1).execute().count or 0
     )
+    return off_wall + len(_still_up())
 
 
 def _attach_history(posts: list[dict]) -> list[dict]:
@@ -141,6 +155,26 @@ def _attach_history(posts: list[dict]) -> list[dict]:
     return posts
 
 
+def _still_up() -> list[dict]:
+    """Posts still on the wall with a report the desk hasn't looked at: the
+    reporter had reached their daily limit, so the post wasn't taken down."""
+    db = get_supabase()
+    now = datetime.now(timezone.utc)
+    reports = _desk(lambda: (
+        db.table("refuge_reports").select("post_id")
+        .gte("created_at", _iso(now - LONGEST_ON_WALL)).limit(1000).execute().data
+    ))
+    ids = sorted({r["post_id"] for r in reports})
+    if not ids:
+        return []
+    posts = _desk(lambda: (
+        db.table("refuge_posts").select(POST_FIELDS).eq("status", "approved")
+        .gt("expires_at", _iso(now)).in_("id", ids).limit(QUEUE_LIMIT).execute().data
+    ))
+    posts = [p for p in _attach_history([p for p in posts if on_wall(p, now)]) if reported_since_last_look(p)]
+    return [{**p, "still_up": True} for p in posts]
+
+
 def stats(queue: list[dict]) -> dict:
     """The numbers across the top of the desk."""
     db = get_supabase()
@@ -159,7 +193,7 @@ def stats(queue: list[dict]) -> dict:
         "to_review": len(queue),
         "urgent": sum(1 for p in queue if p["urgent"]),
         "flagged": by_status("pending"),
-        "reported": by_status("reported"),
+        "reported": by_status("reported") + sum(1 for p in queue if p.get("still_up")),
         "held": by_status("held"),
         "on_wall": count(live().gt("expires_at", _iso(now))),
         "ending_soon": count(live().gt("expires_at", _iso(now)).lte("expires_at", _iso(now + ENDING_SOON))),
@@ -172,14 +206,16 @@ def stats(queue: list[dict]) -> dict:
 
 @router.get("/admin/refuge")
 def queue(admin: AuthUser = Depends(require_admin)) -> dict:
-    """Everything waiting for a person: flagged by the check, reported, or
-    held. Urgent first, then oldest first."""
+    """Everything waiting for a person: flagged by the check, reported (off
+    the wall or still up), or held. Urgent first, then oldest first."""
     db = get_supabase()
     posts = _desk(lambda: (
         db.table("refuge_posts").select(POST_FIELDS).in_("status", list(QUEUE_STATUSES))
         .order("created_at").limit(QUEUE_LIMIT).execute().data
     ))
-    posts = sorted(_attach_history(posts), key=queue_order)
+    still_up = _still_up()
+    shown = {p["id"] for p in still_up}
+    posts = sorted(_attach_history([p for p in posts if p["id"] not in shown]) + still_up, key=queue_order)
     return {"stats": _desk(lambda: stats(posts)), "queue": posts}
 
 
@@ -239,8 +275,14 @@ def decide(post_id: uuid.UUID, body: DecisionIn, admin: AuthUser = Depends(requi
     post, status = rows[0], NEW_STATUS[body.action]
     if body.action == "hold" and post["status"] != "approved":
         raise HTTPException(status_code=409, detail="Only a post on the wall can be held.")
-    if post["status"] == status:
-        return {"status": status}  # someone else on the desk got there first
+    # Usually this means someone else on the desk got there first. The one
+    # exception is "Keep it up" on a post that stayed up after a report (the
+    # reporter was past their limit): that goes on the trail, so the post
+    # leaves the queue.
+    if post["status"] == status and not (
+        status == "approved" and reported_since_last_look(_attach_history([{"id": str(post_id)}])[0])
+    ):
+        return {"status": status}
     params = {
         "target": str(post_id), "new_status": status, "actor": admin.id, "actor_email": admin.email,
         "note": " ".join((body.note or "").split()) or None, "went_up": None, "ends": None,
@@ -275,13 +317,13 @@ def alert_admins() -> int:
         return 0
 
 
-def report_received(post_id: str, was: str, category: str, reason: str | None) -> None:
+def report_received(post_id: str, was: str, category: str, reason: str | None, took_down: bool = True) -> None:
     """Writes a report to the trail and, when someone may be in danger,
     alerts the admins. The reporter is never recorded."""
     try:
         get_supabase().table("refuge_moderation_log").insert({
             "post_id": post_id, "action": "report", "from_status": was,
-            "to_status": "reported" if was == "approved" else was, "note": report_note(category, reason),
+            "to_status": "reported" if took_down and was == "approved" else was, "note": report_note(category, reason),
         }).execute()
     except Exception:
         log.warning("couldn't write a report to the desk's trail", exc_info=True)

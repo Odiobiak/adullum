@@ -19,8 +19,11 @@ How a post reaches the wall:
    approves it. settings.amens_auto_approve turns going up straight away off,
    so that every post waits for the desk again.
 3. A report takes an approved post off the wall (`reported`) at once and puts
-   it back on the desk for another look, with why (`REPORT_CATEGORIES`). The
-   desk can also hold a live post off the wall while it looks (`held`).
+   it back on the desk for another look, with why (`REPORT_CATEGORIES`). Each
+   person can do that to `REPORT_TAKEDOWNS_PER_DAY` posts a day; past that,
+   their report still reaches the desk but the post stays up until a person
+   looks, so one account can't empty the wall. The desk can also hold a live
+   post off the wall while it looks (`held`).
 
 How long a post stays (supabase/migrations/20261117_amens_lifetimes.sql): a
 prayer request two weeks from when it goes up, and its writer can keep it up
@@ -272,6 +275,13 @@ REPORT_CATEGORIES = {
     "spam": "It's spam or selling something",
     "other": "Something else",
 }
+
+
+# How many reports a day one person can make that take a post off the wall at
+# once. Past that a report still goes to the desk (app/desk.py shows it as
+# "Reported, still up"), but the post stays up until someone there looks. The
+# reporter is told the same either way, so the limit can't be felt for.
+REPORT_TAKEDOWNS_PER_DAY = 3
 
 
 class ReportIn(BaseModel):
@@ -583,23 +593,37 @@ def _save_report(row: dict) -> list:
         return upsert(row)
 
 
+def _reports_today(user_id: str) -> int:
+    """How many posts this person has reported in the last day."""
+    since = _ago(days=1)
+    return _db(lambda: (
+        get_supabase().table("refuge_reports").select("post_id", count="exact")
+        .eq("user_id", user_id).gte("created_at", since).limit(1).execute().count or 0
+    ))
+
+
 @router.post("/me/refuge/posts/{post_id}/report")
 def report(post_id: uuid.UUID, body: ReportIn, background: BackgroundTasks, user: AuthUser = Depends(require_user)) -> dict:
-    """Takes the post off the wall straight away and sends it back to the desk,
-    where it goes on the trail (app/desk.py). Reporting a post again adds
-    nothing: one report per person."""
+    """Sends the post back to the desk, where it goes on the trail
+    (app/desk.py), and takes it off the wall straight away unless this person
+    has already reported `REPORT_TAKEDOWNS_PER_DAY` posts today. Reporting a
+    post again adds nothing: one report per person."""
     post = _post(str(post_id))
     if post["user_id"] == user.id:
         raise HTTPException(status_code=400, detail="That one's yours. You can take it down instead.")
+    live = on_wall(post, datetime.now(timezone.utc))
+    if not live and post["status"] not in ("reported", "held"):
+        raise HTTPException(status_code=404, detail="That post isn't on the wall anymore.")
+    takes_down = live and _reports_today(user.id) < REPORT_TAKEDOWNS_PER_DAY
     reason = (body.reason or "").strip() or None
     row = {"post_id": str(post_id), "user_id": user.id, "category": body.category, "reason": reason}
     is_new = _db(lambda: _save_report(row))
-    if post["status"] == "approved":
+    if is_new and takes_down:
         get_supabase().table("refuge_posts").update({"status": "reported"}).eq("id", str(post_id)).eq("status", "approved").execute()
     if is_new:
         from app import desk  # here, since app/desk.py imports this module
 
-        background.add_task(desk.report_received, str(post_id), post["status"], body.category, reason)
+        background.add_task(desk.report_received, str(post_id), post["status"], body.category, reason, takes_down)
     return {"status": "reported"}
 
 

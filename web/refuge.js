@@ -2030,7 +2030,7 @@
   // "How Amens works", opened from the info button beside the room's title.
   const HOW_AMENS_WORKS = [
     ["Share anonymously", "Choose \"Pray for me\" for something you're carrying, or \"Rejoice with me\" for good news. Share as much or as little as you like. Names and places are up to you, but links and contact details can't be posted."],
-    ["Checked as it goes up", "Every post is checked as it's shared. Most go on the wall straight away; anything the check isn't sure of waits for a person to look at it first. A report takes a post down at once. Nobody, not even the people who check, is shown who wrote it."],
+    ["Checked as it goes up", "Every post is checked as it's shared. Most go on the wall straight away; anything the check isn't sure of waits for a person to look at it first. A report sends a post to a person to look at, and usually takes it down while they do. Nobody, not even the people who check, is shown who wrote it."],
     ["Everyone gets prayed for", "There are no followers. Each person's wall shows posts they haven't prayed for first, starting with those fewest people have seen, so every request gets carried, not just the newest."],
     ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
     ["How long it stays", HOW_LONG],
@@ -2225,7 +2225,7 @@
     approve: (e) => ({ reported: "Put back after a report", held: "Put back after a hold", removed: "Restored" }[e.from_status] || "Approved"),
     remove: () => "Removed",
     hold: () => "Held off the wall",
-    report: (e) => (e.from_status === "approved" ? "Reported, taken off the wall" : "Reported again"),
+    report: (e) => (e.from_status !== "approved" ? "Reported again" : e.to_status === "reported" ? "Reported, taken off the wall" : "Reported, left up for the desk"),
   };
   const desk = { tab: "review", show: { review: "all", live: "all", log: "all" } };
 
@@ -2318,10 +2318,11 @@
       check.error ? "The automatic check didn't run. Read this one closely." : null,
       flagged.length ? `The automatic check noticed: ${flagged.join(", ")}.` : null,
       p.status === "pending" && !check.error && !flagged.length ? "Nothing was flagged. It's here because every post waits for the desk at the moment." : null,
+      p.still_up ? "Still on the wall. Whoever reported it had already taken down as many posts as one person can in a day." : null,
       p.put_back ? `Put back ${times(p.put_back)} before, and back again.` : null,
     ].filter(Boolean);
     const approve = el("button", {
-      class: "btn btn-ember btn-sm", type: "button", text: p.status === "pending" ? "Approve" : "Put it back",
+      class: "btn btn-ember btn-sm", type: "button", text: p.status === "pending" ? "Approve" : p.still_up ? "Keep it up" : "Put it back",
       onclick: async () => {
         approve.disabled = true;
         try {
@@ -2336,7 +2337,7 @@
     return el("article", { class: `burden desk-card fade-in${p.urgent ? " is-urgent" : ""}` }, [
       el("div", { class: "entry-meta" }, [
         p.urgent ? el("span", { class: "badge urgent", text: "Urgent" }) : null,
-        el("span", { class: "badge plain", text: QUEUE_STATUS[p.status] }),
+        el("span", { class: "badge plain", text: p.still_up ? "Reported, still up" : QUEUE_STATUS[p.status] }),
         el("span", { text: `${KIND_NAME[p.kind]}, shared ${cave().when(p.created_at).toLowerCase()}` }),
       ].filter(Boolean)),
       el("p", { class: "burden-text", text: p.body }),
@@ -2345,8 +2346,9 @@
       timeline(p),
       el("div", { class: "burden-actions" }, [
         approve,
+        p.still_up ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Hold while I look", onclick: () => decideSheet(p, "hold", rerender) }) : null,
         el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Remove", onclick: () => decideSheet(p, "remove", rerender) }),
-      ]),
+      ].filter(Boolean)),
     ].filter(Boolean));
   }
 
@@ -2412,7 +2414,8 @@
   async function deskTab(data, rerender) {
     const show = desk.show[desk.tab];
     if (desk.tab === "review") {
-      const rows = data.queue.filter((p) => show === "all" || (show === "urgent" ? p.urgent : p.status === show));
+      const matches = (p) => (show === "urgent" ? p.urgent : show === "reported" ? p.status === "reported" || p.still_up : p.status === show);
+      const rows = data.queue.filter((p) => show === "all" || matches(p));
       return {
         count: plural(rows.length, "post", "posts"),
         nodes: rows.length ? [el("div", { class: "desk-list" }, rows.map((p) => reviewCard(p, rerender)))] : [el("p", { class: "faint", text: "Nothing waiting here." })],
