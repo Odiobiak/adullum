@@ -144,6 +144,10 @@
     }
   }
 
+  function headWithInfo(label, about, aside = null) {
+    return el("div", { class: "card-head" }, [cave().titleInfo(el("h2", { class: "kicker", text: label }), about), aside]);
+  }
+
   function weekCard(week, onChange) {
     const days = week.days_this_week;
     const prayed = week.prayed_today;
@@ -163,10 +167,10 @@
       },
     });
     return el("section", { class: "card practice-card fade-in" }, [
-      cave().cardHead("This week", el("span", { class: "faint practice-aside", text: days ? `Prayed ${plural(days, "day", "days")}` : "A new week" })),
+      headWithInfo("This week", "A day lights up whenever you pray. Marking a prayer on your list as prayed counts too."),
       cave().weekDots(week.week, { label: "Days you prayed this week" }),
       el("div", { class: "practice-foot" }, [
-        el("p", { class: "faint", text: "Praying for something on your list counts too." }),
+        el("span", { class: "faint practice-aside", text: days ? `Prayed ${plural(days, "day", "days")}` : "A new week" }),
         button,
       ]),
     ]);
@@ -327,19 +331,16 @@
     ]));
   }
 
-  function fastCard(fasts, onChange) {
-    const start = () => fastSheet(null, onChange);
-    const pastLink = fasts.past.length
+  function pastFastsLink(fasts, onChange) {
+    return fasts.past.length
       ? el("button", { class: "linkish practice-link", type: "button", text: `Past fasts (${fasts.past.length})`, onclick: () => pastFastsSheet(fasts.past, onChange) })
       : null;
+  }
 
-    if (!fasts.active.length) {
-      return el("section", { class: "card practice-card fade-in" }, [
-        cave().cardHead("Fasting", null),
-        el("p", { class: "muted practice-lede", text: "Set aside a time to fast and pray, and keep track of the days here." }),
-        el("div", { class: "practice-foot" }, [pastLink || el("span"), el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Start a fast", onclick: start })]),
-      ]);
-    }
+  // Only drawn while a fast is underway (renderTab); a fast starts from the
+  // tab's New menu (cave.js::newPrayerMenu, through Prayers.startFast).
+  function fastCard(fasts, onChange) {
+    const start = () => fastSheet(null, onChange);
 
     const rows = fasts.active.map((f) => {
       const p = f.progress;
@@ -348,7 +349,7 @@
         type: "button", text: "Finish", onclick: () => finishFastSheet(f, onChange),
       });
       const pray = el("button", {
-        class: "act", type: "button", html: `${ICON.aquila}<span>Pray with Aquila</span>`,
+        class: "text-act", type: "button", html: `${ICON.aquila}<span>Pray with Aquila</span>`,
         onclick: () => prayWithAquila(`I'm fasting${f.intention ? ` and praying for this: ${f.intention}` : " and want to pray"}.`, f.passage_ref),
       });
       return el("div", { class: "fast" }, [
@@ -367,7 +368,7 @@
       ].filter(Boolean));
     });
     return el("section", { class: "card practice-card is-fasting fade-in" }, [
-      cave().cardHead("Fasting", pastLink),
+      headWithInfo("Fasting", "Only you can see this. Days are counted, never kept as a streak, and finishing early is still finishing.", pastFastsLink(fasts, onChange)),
       ...rows,
     ]);
   }
@@ -408,7 +409,7 @@
     const since = el("span", { class: "entry-since", text: `Praying since ${shortDate(p.created_at)}` });
     if (week.this_week) since.append(" · ", el("span", { class: "prayed-count", text: `prayed ${plural(week.this_week, "day", "days")} this week` }));
     const meta = el("div", { class: "entry-meta" }, [
-      answered ? el("span", { class: "badge answered", html: `${ICON.check}<span>Answered ${shortDate(p.answered_at)}</span>` }) : since,
+      answered ? el("span", { class: "answered-on", html: `${ICON.check}<span>Answered ${shortDate(p.answered_at)}</span>` }) : since,
       menu,
     ]);
 
@@ -417,7 +418,7 @@
       footer = null;
     } else {
       const prayed = el("button", {
-        class: `act${week.today ? " is-done" : ""}`,
+        class: `text-act${week.today ? " is-done" : ""}`,
         type: "button",
         "aria-pressed": String(week.today),
         html: `${week.today ? ICON.check : ICON.circle}<span>${week.today ? "Prayed today" : "Prayed"}</span>`,
@@ -429,21 +430,15 @@
       });
       footer = el("div", { class: "entry-actions" }, [
         prayed,
-        // On a phone this shows its icon alone (.act-collapse), so it keeps
-        // its name in aria-label and title.
-        el("button", {
-          class: "act act-collapse", type: "button", "aria-label": "Pray with Aquila", title: "Pray with Aquila",
-          html: `${ICON.aquila}<span>Pray with Aquila</span>`, onclick: () => prayWithAquila(p.body, p.passage_ref),
-        }),
-        // Scripture spoken aloud over this request (web/declare.js); opens its
-        // kept declaration when it has one.
-        el("button", {
-          class: "act", type: "button",
-          html: `${ICON.declare}<span>Declare over</span>`, onclick: () => window.Declare.open({ from: "prayer", prayer: { id: p.id, body: p.body } }),
-        }),
-        // Quiet on purpose, at the end of the row: there when it's time,
-        // without pressing the question every time the list is opened.
-        el("button", { class: "act-quiet", type: "button", html: `${ICON.check}<span>Answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
+        // Quieter than Prayed: there when it's time, without pressing the
+        // question every time the list is opened.
+        el("button", { class: "text-act is-quiet", type: "button", html: `${ICON.check}<span>Answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
+        el("div", { class: "entry-icons" }, [
+          cave().iconAct(ICON.aquila, "Pray with Aquila", () => prayWithAquila(p.body, p.passage_ref)),
+          // Scripture spoken aloud over this request (web/declare.js); opens
+          // its kept declaration when it has one.
+          cave().iconAct(ICON.declare, "Declare over this", () => window.Declare.open({ from: "prayer", prayer: { id: p.id, body: p.body } })),
+        ]),
       ]);
     }
 
@@ -452,7 +447,7 @@
       meta,
       el("p", { class: "prayer-body", text: p.body }),
       p.passage_ref
-        ? el("a", { class: "pill prayer-passage", href: `#${window.Reader.href(p.passage_ref)}`, html: ICON.book }, el("span", { text: p.passage_ref }))
+        ? el("a", { class: "prayer-passage", href: `#${window.Reader.href(p.passage_ref)}`, html: ICON.book }, el("span", { text: p.passage_ref }))
         : null,
       answered && p.answer_note
         ? el("div", { class: "answer-note" }, [el("strong", { text: "How it was answered" }), el("p", { text: p.answer_note })])
@@ -482,9 +477,15 @@
     } else {
       practice = el("div", { class: "practice-grid" }, [
         week.error ? null : weekCard(week, rerender),
-        fasts.error ? null : fastCard(fasts, rerender),
+        fasts.error || !fasts.active.length ? null : fastCard(fasts, rerender),
       ].filter(Boolean));
     }
+    // With no fast underway, finished ones are still a tap away, at the foot.
+    const pastFoot = !fasts.error && !fasts.active.length ? pastFastsLink(fasts, rerender) : null;
+    const listTitle = cave().titleInfo(
+      el("h2", { class: "section-title", text: "Prayer list" }),
+      "Keep what you're praying for here. Mark the days you pray for it, and when it's answered, look back on how God has been faithful."
+    );
     const prayedFor = (week && week.by_prayer) || {};
 
     if (!rows.length) {
@@ -492,7 +493,7 @@
         el("strong", { text: "Your prayer list is empty" }),
         "Keep what you're praying for here. Mark the days you pray for it, and when it's answered, look back on how God has been faithful.",
         el("div", {}, el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Add a prayer", onclick: () => openSheet({}, rerender) })),
-      ]));
+      ]), ...(pastFoot ? [pastFoot] : []));
       return;
     }
 
@@ -501,25 +502,28 @@
       .filter((p) => p.status === "answered")
       .sort((a, b) => (b.answered_at || "").localeCompare(a.answered_at || ""));
     const list = showing === "answered" ? answered : open;
-    const bar = cave().listBar(
-      showing === "answered" ? `${answered.length} answered` : `${open.length} open`,
+    const bar = el("div", { class: "list-bar prayer-list-bar" }, [
+      listTitle,
       cave().filterSelect("Which prayers to show", [
         ["open", `Open (${open.length})`],
         ["answered", `Answered (${answered.length})`],
-      ], showing, (value) => { showing = value; rerender(); })
-    );
+      ], showing, (value) => { showing = value; rerender(); }),
+    ]);
     const empty = showing === "answered"
       ? "Nothing marked answered yet. When a prayer is answered, mark it on the Open list."
       : "No open prayers right now.";
-    panel.replaceChildren(
+    panel.replaceChildren(...[
       practice,
-      el("h2", { class: "section-title prayer-list-title", text: "Prayer list" }),
       bar,
       list.length
         ? el("div", { class: "entries prayer-list" }, list.map((p) => prayerCard(p, prayedFor[p.id], rerender)))
-        : el("p", { class: "muted", text: empty })
-    );
+        : el("p", { class: "muted", text: empty }),
+      pastFoot,
+    ].filter(Boolean));
   }
 
-  window.Prayers = { renderTab, openSheet };
+  // For the tab's New menu: start a fast, then `onSaved` (which redraws the tab).
+  const startFast = (onSaved) => fastSheet(null, onSaved);
+
+  window.Prayers = { renderTab, openSheet, startFast };
 })();

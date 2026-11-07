@@ -40,7 +40,8 @@
     // Pebbles: a small cairn of three stones, like the stones of remembrance in Joshua 4.
     pebbles: svg('<ellipse cx="12" cy="18" rx="7.5" ry="3"/><ellipse cx="12" cy="12.2" rx="5.2" ry="2.6"/><ellipse cx="12" cy="7" rx="3.2" ry="2.1"/>'),
     still: svg('<path d="M3 12c3-3 6-3 9 0s6 3 9 0"/><path d="M3 17c3-3 6-3 9 0s6 3 9 0" opacity=".5"/><path d="M3 7c3-3 6-3 9 0s6 3 9 0" opacity=".5"/>'),
-    together: svg('<path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/>'),
+    // Amens: hands folded in prayer.
+    together: svg('<path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/>'),
     person: svg('<circle cx="12" cy="8" r="3.5"/><path d="M5 20a7 7 0 0 1 14 0"/>'),
     back: svg('<path d="M15 6l-6 6 6 6"/>'),
     forward: svg('<path d="M9 6l6 6-6 6"/>'),

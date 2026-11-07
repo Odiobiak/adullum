@@ -796,20 +796,12 @@
     return { ref, text: data.verses.map((v) => v.text).join(" "), translation: data.translation };
   }
 
+  // The welcome page's example answer quotes its passage from the database.
   async function showWelcome() {
-    try {
-      const v = await verseOfTheDay();
-      $("[data-votd-text]").textContent = `"${v.text}"`;
-      $("[data-votd-ref]").textContent = `${v.ref} · ${v.translation}`;
-      $("[data-votd-reflect]").onclick = () => app().submitQuery(`Help me reflect on ${v.ref}.`);
-      $("[data-votd-map]").onclick = () => window.Graph.open([`${v.book} ${v.chapter}:${v.verse}`]);
-    } catch {
-      $("#today").hidden = true;
-    }
     const preview = $("#previewPassage");
     if (preview && !preview.textContent) {
       try {
-        preview.textContent = `"${(await verseText("Matthew 11:28-29")).text}"`;
+        preview.textContent = `"${(await verseText("Matthew 11:28")).text}"`;
       } catch {
         /* the example still reads without its quote */
       }
@@ -1666,6 +1658,7 @@
     headerMenu("New", [
       { title: "Prayer", about: "Keep it on your list. Pray or declare over it any day.", onPick: () => window.Prayers.openSheet({}, () => showCave("prayers")) },
       { title: "Declare", about: "For something right now. Nothing is kept unless you tap Keep, and then it joins your prayer list.", onPick: () => window.Declare.open({ from: "quick" }) },
+      { title: "Fast", about: "Set aside days to fast and pray, and count them here. Only you can see it.", onPick: () => window.Prayers.startFast(() => showCave("prayers")) },
     ]);
   }
 
@@ -2009,6 +2002,7 @@
     listBar,
     filterSelect,
     moreMenu,
+    iconAct,
     weekDots,
     localDate,
     when,
