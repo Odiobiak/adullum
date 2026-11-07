@@ -164,10 +164,20 @@
     await (ROOM_ROUTES[route] || threshold)();
   }
 
-  function door(icon, title, line, open) {
-    return el("button", { class: "refuge-door", type: "button", onclick: open }, [
-      el("span", { class: "door-icon", html: icon }),
-      el("span", {}, [el("strong", { text: title }), el("span", { class: "line", text: line })]),
+  // What Refuge is, behind the info button beside "Private to you". Each
+  // room explains itself the same way once it's open.
+  const ABOUT_REFUGE = [
+    "A quiet room for any season. Talk it through with Aquila, write it out, breathe and pray, carry small goals with God, or share with others without your name.",
+    "Only you can see what you keep here, and Aquila won't bring any of it up anywhere else.",
+  ];
+
+  // A room's way in: its icon and name, nothing more. `badge` is a small
+  // count in the corner, with `label` saying what it counts.
+  function tile(icon, name, open, { wide = false, badge = null, label = null } = {}) {
+    return el("button", { class: `refuge-tile${wide ? " is-wide" : ""}`, type: "button", "aria-label": label, onclick: open }, [
+      el("span", { class: "tile-icon", html: icon }),
+      el("span", { class: "tile-name", text: name }),
+      badge ? el("span", { class: "tile-badge", "aria-hidden": "true", text: badge }) : null,
     ]);
   }
 
@@ -184,56 +194,61 @@
       if (panel) panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Refuge isn't open yet" }), err.message]));
       return;
     }
+    const back = carried(overview.carried);
     show(
-      el("section", { class: "refuge-threshold fade-in" }, [
-        el("p", { class: "refuge-promise", html: `${ICON.lock}<span>Only you can see this. Aquila won't bring any of it up anywhere else.</span>` }),
-        el("h2", { class: "refuge-q", text: "What's on your heart today?" }),
-        el("div", { class: "refuge-doors" }, [
-          door(ICON.pen, "Write it out", "Whatever you're carrying or hoping for. Keep it, or let it go.", () => writeRoom()),
-          door(aquilaMark() || ICON.talk, "Talk with Aquila", "Hurting, hoping or planning. She'll listen first.", () => talkRoom()),
-          door(ICON.pebbles, "Pebbles", "Goals and habits, carried with God one small step at a time.", pebblesRoom),
-          door(ICON.together, "Amens", "Share your burdens or joys anonymously. Let people pray and rejoice with you.", amensRoom),
-          door(ICON.still, "Be still", "Breathe slowly and pray a line of Scripture, when words won't come.", stillRoom),
+      el("section", { class: "refuge-home fade-in" }, [
+        el("div", { class: "refuge-bar" }, [
+          el("span", { class: "refuge-private", html: `${ICON.lock}<span>Private to you</span>` }),
+          cave().info(ABOUT_REFUGE, { label: "About Refuge" }),
         ]),
-        el("button", { class: "refuge-help-link", type: "button", html: `${ICON.person}<span>Need a person? Someone to talk to, a Christian counsellor, or a church nearby</span>`, onclick: helpRoom }),
+        el("div", { class: "refuge-rooms" }, [
+          tile(aquilaMark() || ICON.talk, "Talk with Aquila", () => talkRoom(), { wide: true }),
+          tile(ICON.pen, "Write it out", () => writeRoom()),
+          tile(ICON.still, "Be still", stillRoom),
+          tile(ICON.pebbles, "Pebbles", pebblesRoom),
+          tile(ICON.together, "Amens", amensRoom, back ? { badge: back.count, label: `Amens. ${back.line}` } : {}),
+        ]),
+        // Kept in plain sight: reaching a person should never be hidden.
+        el("button", { class: "refuge-help", type: "button", html: `${ICON.person}<span>Talk to a person</span>`, onclick: helpRoom }),
       ]),
-      carriedNote(overview.carried),
       growingToday(seeds),
       keptList(overview)
     );
   }
 
-  function carriedNote(c) {
-    if (!c) return null;
+  // What came back to the person's posts on the Amens wall: a count for the
+  // Amens tile, and the same news as a sentence for screen readers.
+  function carried(c) {
+    const total = c ? (c.reactions || 0) + (c.kind_words || 0) : 0;
+    if (!total) return null;
     const words = plural(c.kind_words, "kind word", "kind words");
     const line = c.reactions
       ? `${plural(c.reactions, "amen", "amens")}${c.kind_words ? ` and ${words}` : ""} came back to you.`
       : `${words} came back to you.`;
-    return el("div", { class: "carried-note fade-in" }, [
-      el("span", { html: ICON.together }),
-      el("span", { text: line }),
-      el("button", { class: "act", type: "button", text: "See", onclick: amensRoom }),
-    ]);
+    return { count: total > 99 ? "99+" : String(total), line };
   }
 
-  // Habits not yet done today, so they can be done from the threshold.
+  // Habits not yet done today, as chips: one tap marks a habit done.
   function growingToday(seeds) {
     const due = seeds.filter((s) => s.kind === "habit" && s.status === "growing" && !s.tended_today).slice(0, 3);
     if (!due.length) return null;
-    return el("section", { class: "fade-in" }, [
-      el("p", { class: "kicker", text: "For today" }),
-      el("div", { class: "today-list" }, due.map((s) => {
-        const row = el("div", { class: "today-row" }, [el("span", { class: "today-title", text: s.title })]);
-        row.append(el("button", { class: "act", type: "button", html: `${ICON.check}<span>Done</span>`, onclick: async () => {
+    return el("section", { class: "refuge-section fade-in" }, [
+      el("h3", { class: "refuge-sub", text: "Today" }),
+      el("div", { class: "today-chips" }, due.map((s) => {
+        const chip = el("button", { class: "chip-btn today-chip", type: "button", "aria-label": `Mark ${s.title} done today`, text: s.title });
+        chip.addEventListener("click", async () => {
+          chip.disabled = true;
           try {
             await api(`/me/refuge/seeds/${s.id}/tend`, { method: "POST", body: { today: cave().localToday(), tended: true } });
-            row.classList.add("is-done");
-            row.lastChild.replaceWith(el("span", { class: "today-done", html: `${ICON.check}<span>Done today</span>` }));
+            chip.classList.add("is-done");
+            chip.setAttribute("aria-label", `${s.title}, done today`);
+            chip.insertAdjacentHTML("afterbegin", ICON.check);
           } catch (err) {
+            chip.disabled = false;
             toast(err.message);
           }
-        } }));
-        return row;
+        });
+        return chip;
       })),
     ]);
   }
@@ -246,9 +261,8 @@
       ...overview.talks.map((t) => ({ type: "talk", at: t.updated_at, item: t })),
     ].sort((a, b) => b.at.localeCompare(a.at));
     if (!items.length) return null;
-    return el("section", { class: "fade-in" }, [
-      el("p", { class: "kicker", text: "Kept here, only for you" }),
-      el("p", { class: "faint", style: "font-size:13px;margin:-6px 0 10px", text: "Tap to read." }),
+    return el("section", { class: "refuge-section fade-in" }, [
+      cave().titleInfo(el("h3", { class: "refuge-sub", text: "Kept" }), "Only you can see these. Each stays blurred until you tap it, in case someone's looking over your shoulder."),
       el("div", { class: "kept-list" }, items.map(({ type, item }) => keptRow(type, item))),
     ]);
   }
