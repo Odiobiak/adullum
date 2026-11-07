@@ -82,3 +82,32 @@ class TestChatStream:
         assert json.loads(citations_line.removeprefix("data:").strip()) == [
             {"book": "Romans", "chapter": 8, "verse": 28, "translation": "BSB"}
         ]
+
+
+class TestPlanOwnership:
+    """A signed-in person's plan answers only to them; a guest's plan stays
+    open to its link (the emailed PDF link depends on that)."""
+
+    ROW = {"id": "p1", "start_date": "2026-11-01", "days": 1, "translation": "BSB", "overview": "", "schedule": []}
+
+    def _plan(self, monkeypatch, owner):
+        from unittest.mock import MagicMock
+
+        db = MagicMock()
+        db.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [{**self.ROW, "user_id": owner}]
+        monkeypatch.setattr(main, "get_supabase", lambda: db)
+
+    def test_someone_elses_plan_is_not_found(self, monkeypatch):
+        from app.auth import AuthUser, optional_user
+
+        self._plan(monkeypatch, "owner")
+        main.app.dependency_overrides[optional_user] = lambda: AuthUser(id="stranger", email=None)
+        try:
+            assert client.get("/plan/p1").status_code == 404
+        finally:
+            main.app.dependency_overrides.clear()
+        assert client.get("/plan/p1").status_code == 404  # signed out
+
+    def test_a_guest_plan_opens_by_its_link(self, monkeypatch):
+        self._plan(monkeypatch, None)
+        assert client.get("/plan/p1").status_code == 200

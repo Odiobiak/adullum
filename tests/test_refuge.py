@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import auth, cave, one_another, refuge
+from app import auth, cave, desk, one_another, refuge
 from app.agent import graph, nodes
 from app.auth import AuthUser
 from app.config import settings
@@ -17,7 +17,7 @@ from app.schemas import Verse
 
 client = TestClient(main.app)
 USER = AuthUser(id="11111111-1111-1111-1111-111111111111", email="ruth@example.com")
-ADMIN = AuthUser(id="33333333-3333-3333-3333-333333333333", email="keeper@example.com")
+ADMIN = AuthUser(id="33333333-3333-3333-3333-333333333333", email="keeper@example.com", email_confirmed=True)
 HEADERS = {"Authorization": "Bearer t"}
 POST_ID = "22222222-2222-2222-2222-222222222222"
 # A post that went up yesterday and is on the wall for a while yet.
@@ -73,7 +73,7 @@ def signed_in(monkeypatch):
 
 
 def use_db(monkeypatch, db):
-    for module in (one_another, refuge, cave):
+    for module in (one_another, refuge, cave, desk):
         monkeypatch.setattr(module, "get_supabase", lambda: db)
     return db
 
@@ -325,36 +325,138 @@ class TestWallRoutes:
         assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={"reason": "names someone"}, headers=HEADERS).status_code == 200
         assert ("refuge_posts", "update", {"status": "reported"}) in db.written
 
+    def test_a_new_report_goes_to_the_desk_with_why(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb(rows={
+            "refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}],
+            "refuge_reports": [{"post_id": POST_ID}],  # the upsert added one
+        }))
+        heard = []
+        monkeypatch.setattr(desk, "report_received", lambda *args: heard.append(args))
+        body = {"category": "danger", "reason": "  they sound scared "}
+        assert client.post(f"/me/refuge/posts/{POST_ID}/report", json=body, headers=HEADERS).status_code == 200
+        report = next(row for table, method, row in db.written if table == "refuge_reports")
+        assert report["category"] == "danger" and report["reason"] == "they sound scared"
+        assert heard == [(POST_ID, "approved", "danger", "they sound scared")]
+
+    def test_a_report_needs_a_known_reason(self, monkeypatch):
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved"}]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/report", json={"category": "boring"}, headers=HEADERS).status_code == 422
+
 
 class TestDesk:
     def test_signed_in_is_not_enough(self, monkeypatch, signed_in):
         monkeypatch.setattr(settings, "admin_emails", "keeper@example.com")
         assert client.get("/admin/refuge", headers=HEADERS).status_code == 403
 
-    def test_admins_see_the_queue_without_who_wrote_it(self, monkeypatch):
+    @pytest.fixture
+    def as_admin(self, monkeypatch):
         monkeypatch.setattr(auth, "_verify", lambda token: ADMIN)
         monkeypatch.setattr(settings, "admin_emails", " Keeper@Example.com , other@example.com")
-        rows = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "pending", "auto_check": {}, "created_at": "now"}]
-        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": rows}))
-        body = client.get("/admin/refuge", headers=HEADERS).json()
-        assert [p["id"] for p in body["pending"]] == [POST_ID]
-        select = next(args for table, method, args in db.calls if table == "refuge_posts" and method == "select")
-        assert "user_id" not in select[0]
 
-    def test_approving_puts_it_on_the_wall(self, monkeypatch):
-        monkeypatch.setattr(auth, "_verify", lambda token: ADMIN)
-        monkeypatch.setattr(settings, "admin_emails", "keeper@example.com")
-        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "kind": "rejoice"}]}))
-        assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve"}, headers=HEADERS).json() == {"status": "approved"}
-        patch = db.written[-1][2]
-        assert patch["status"] == "approved"
+    def test_admins_see_the_queue_without_who_wrote_it(self, monkeypatch, as_admin):
+        rows = [
+            {"id": "older", "kind": "burden", "body": "x", "status": "pending", "auto_check": {}, "created_at": "2026-11-01"},
+            {"id": POST_ID, "kind": "burden", "body": "y", "status": "reported", "auto_check": {}, "created_at": "2026-11-02"},
+        ]
+        reports = [{"post_id": POST_ID, "category": "danger", "reason": None, "created_at": "2026-11-03"}]
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": rows, "refuge_reports": reports}, counts={"refuge_posts": 7}))
+        body = client.get("/admin/refuge", headers=HEADERS).json()
+        # Someone may be in danger, so it jumps the older post.
+        assert [p["id"] for p in body["queue"]] == [POST_ID, "older"]
+        assert body["queue"][0]["urgent"] and body["queue"][0]["reports"] == [{"category": "danger", "reason": None, "created_at": "2026-11-03"}]
+        assert body["stats"]["to_review"] == 2 and body["stats"]["urgent"] == 1 and body["stats"]["on_wall"] == 7
+        selects = [args[0] for table, method, args in db.calls if method == "select" and table in ("refuge_posts", "refuge_reports", "refuge_moderation_log")]
+        assert selects and all("user_id" not in s for s in selects)
+
+    def test_approving_puts_it_on_the_wall_and_on_the_trail(self, monkeypatch, as_admin):
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"kind": "rejoice", "status": "pending"}], "rpc:desk_decide": "pending"}))
+        resp = client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve", "note": "  fine  "}, headers=HEADERS)
+        assert resp.json() == {"status": "approved"}
+        [params] = db.rpc_params("desk_decide")
+        assert params["new_status"] == "approved" and params["actor"] == ADMIN.id and params["note"] == "fine"
         # Good news gets its week from the moment it goes up.
-        went_up, ends = datetime.fromisoformat(patch["approved_at"]), datetime.fromisoformat(patch["expires_at"])
+        went_up, ends = datetime.fromisoformat(params["went_up"]), datetime.fromisoformat(params["ends"])
         assert (ends - went_up).days == one_another.LIFETIME_DAYS["rejoice"]
+
+    def test_putting_back_keeps_the_time_it_had(self, monkeypatch, as_admin):
+        post = {"kind": "burden", "status": "reported", "approved_at": "2026-11-01T00:00:00+00:00"}
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [post], "rpc:desk_decide": "reported"}))
+        client.post(f"/admin/refuge/{POST_ID}", json={"action": "approve"}, headers=HEADERS)
+        [params] = db.rpc_params("desk_decide")
+        assert params["went_up"] is None and params["ends"] is None
+
+    def test_only_a_post_on_the_wall_can_be_held(self, monkeypatch, as_admin):
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"kind": "burden", "status": "pending"}]}))
+        assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "hold"}, headers=HEADERS).status_code == 409
+
+    def test_a_second_decision_on_the_same_post_changes_nothing(self, monkeypatch, as_admin):
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"kind": "burden", "status": "removed"}]}))
+        assert client.post(f"/admin/refuge/{POST_ID}", json={"action": "remove"}, headers=HEADERS).json() == {"status": "removed"}
+        assert not db.rpc_params("desk_decide")
+
+    def test_the_wall_tab_says_how_long_each_post_has(self, monkeypatch, as_admin):
+        rows = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "approved", "created_at": "2026-11-01", **LIVE}]
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": rows}))
+        post = client.get("/admin/refuge/live?show=ending", headers=HEADERS).json()["posts"][0]
+        assert post["on_wall"] and post["days_left"] > 0 and post["reports"] == [] and post["history"] == []
+
+    def test_an_unconfirmed_email_is_never_an_admin(self, monkeypatch):
+        # Otherwise anyone could sign up with an admin's address before they do.
+        monkeypatch.setattr(settings, "admin_emails", ADMIN.email)
+        assert auth.is_admin(ADMIN)
+        assert not auth.is_admin(AuthUser(id="x", email=ADMIN.email, email_confirmed=False))
 
     def test_nobody_is_an_admin_by_default(self, monkeypatch):
         monkeypatch.setattr(settings, "admin_emails", "")
         assert not auth.is_admin(ADMIN)
+
+
+class TestDeskHelpers:
+    def test_violence_or_self_harm_or_danger_is_urgent(self):
+        assert desk.check_is_urgent({"flagged": ["violence/graphic"]})
+        assert desk.check_is_urgent({"flagged": ["self-harm"]})
+        assert not desk.check_is_urgent({"flagged": ["harassment"]}) and not desk.check_is_urgent(None)
+        assert desk.is_urgent({"auto_check": {}, "reports": [{"category": "danger"}]})
+        assert not desk.is_urgent({"auto_check": {}, "reports": [{"category": "spam"}]})
+
+    def test_a_post_put_back_more_than_once_is_counted(self):
+        history = [
+            {"action": "report", "from_status": "approved"},
+            {"action": "approve", "from_status": "reported"},
+            {"action": "hold", "from_status": "approved"},
+            {"action": "approve", "from_status": "held"},
+            {"action": "approve", "from_status": "pending"},
+        ]
+        assert desk.times_put_back(history) == 2
+
+    def test_a_report_reads_as_one_line(self):
+        assert desk.report_note("danger", None) == "Someone may be in danger"
+        assert desk.report_note("spam", "selling") == "It's spam or selling something: selling"
+        assert len(desk.report_note("other", "x" * 400)) == 300
+
+    def test_a_report_goes_on_the_trail_without_the_reporter(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb())
+        monkeypatch.setattr(desk, "get_supabase", lambda: db)
+        monkeypatch.setattr(desk, "alert_admins", lambda: pytest.fail("only danger alerts the admins"))
+        desk.report_received(POST_ID, "approved", "unkind", "cruel")
+        entry = next(row for table, method, row in db.written if table == "refuge_moderation_log")
+        assert entry["to_status"] == "reported" and "user_id" not in entry and "actor_id" not in entry
+
+    def test_danger_alerts_the_admins(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb(rows={"rpc:desk_admin_ids": ["a1", "a2"]}))
+        monkeypatch.setattr(desk, "get_supabase", lambda: db)
+        monkeypatch.setattr(settings, "admin_emails", "Keeper@example.com")
+        from app import push
+
+        sent = []
+        monkeypatch.setattr(push, "configured", lambda: True)
+        monkeypatch.setattr(push, "notify_user", lambda user_id, payload: sent.append((user_id, payload["url"])) or 1)
+        desk.report_received(POST_ID, "approved", "danger", None)
+        assert db.rpc_params("desk_admin_ids") == [{"emails": ["keeper@example.com"]}]
+        assert sent == [("a1", "#desk"), ("a2", "#desk")]
+
+    def test_the_writer_sees_a_held_post_as_waiting(self):
+        assert one_another.WRITER_STATUS["held"] == one_another.WRITER_STATUS["reported"] == "waiting"
 
 
 # ---------------------------------------------------------------------------

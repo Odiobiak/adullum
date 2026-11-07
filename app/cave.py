@@ -220,8 +220,8 @@ def me(user: AuthUser = Depends(require_user)) -> dict:
     desk_waiting = None
     if admin:
         # The menu shows how many posts are waiting on the admin desk. The
-        # import is here because app/one_another.py imports from this module.
-        from app.one_another import waiting_count
+        # import is here because app/desk.py imports from this module.
+        from app.desk import waiting_count
 
         try:
             desk_waiting = waiting_count()

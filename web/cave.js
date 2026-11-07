@@ -927,7 +927,10 @@
       ]),
       el("div", { class: "card-actions-row" }, [
         doneBtn,
-        el("a", { class: "act", href: `${apiBase()}/plan/${plan.id}/pdf`, html: `${ICON.download}<span>PDF</span>` }),
+        el("button", {
+          class: "act", type: "button", html: `${ICON.download}<span>PDF</span>`,
+          onclick: () => downloadFile(`/plan/${plan.id}/pdf`, `${plan.title}.pdf`).catch((err) => toast(err.message, { tone: "error" })),
+        }),
         el("button", {
           class: "act danger", type: "button", text: "Delete",
           onclick: async () => {
@@ -2031,6 +2034,70 @@
       }
     });
     $$("[data-sign-out]").forEach((b) => b.addEventListener("click", signOut));
+    $("#exportData").addEventListener("click", exportData);
+    $("#closeAccount").addEventListener("click", closeAccount);
+  }
+
+  // Saves a file from the server. It goes through fetch rather than a plain
+  // link because the request needs the sign-in header.
+  async function downloadFile(path, name) {
+    const resp = await fetch(`${apiBase()}${path}`, { headers: await authHeaders() });
+    if (!resp.ok) throw new Error(`The download didn't work (${resp.status}).`);
+    const url = URL.createObjectURL(await resp.blob());
+    const a = el("a", { href: url, download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // Everything the person keeps, as one zip (app/account.py).
+  async function exportData(e) {
+    const button = e.currentTarget;
+    button.disabled = true;
+    toast("Gathering everything. This can take a moment.", { tone: "info" });
+    try {
+      await downloadFile("/me/export", `Adullum export ${localToday()}.zip`);
+    } catch (err) {
+      toast(err.message, { tone: "error" });
+    } finally {
+      button.disabled = false;
+    }
+  }
+
+  // Closing an account removes everything in it for good, so the person
+  // types their email to confirm, and the sheet says plainly what goes.
+  function closeAccount() {
+    const typed = el("input", { class: "field", type: "email", autocomplete: "off", "aria-label": "Your email" });
+    const msg = formMessage();
+    const confirmBtn = el("button", { class: "btn btn-ghost btn-sm danger-text", type: "submit", text: "Delete my account" });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "closeAccountTitle" }, [
+      el("h3", { id: "closeAccountTitle", text: "Delete your account?" }),
+      el("p", { text: "This removes your conversations, journal, prayers, notes, Refuge, sermon notes and everything else you keep here, and anything you shared on the Amens wall. It can't be undone." }),
+      el("p", { class: "muted", text: "You may want to download your data first." }),
+      el("label", { class: "field-wrap" }, [`Type ${email()} to confirm`, typed]),
+      msg.node,
+      el("div", { class: "sheet-actions" }, [el("span", { style: "flex:1" }), el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), confirmBtn]),
+    ]);
+    const close = overlay(form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (typed.value.trim().toLowerCase() !== (email() || "").toLowerCase()) return msg.say("That isn't your email address.", true);
+      confirmBtn.disabled = true;
+      try {
+        await api("/me", { method: "DELETE", body: { confirm: typed.value.trim() } });
+        close();
+        writeSession(null);
+        profile = null;
+        lastName = "";
+        updateChrome();
+        app().go("welcome");
+        toast("Your account and everything in it have been deleted.");
+      } catch (err) {
+        msg.say(err.message, true);
+        confirmBtn.disabled = false;
+      }
+    });
   }
 
   // ---------------------------------------------------------------------

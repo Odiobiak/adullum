@@ -1599,13 +1599,32 @@
     });
   }
 
+  // Why a post is reported; the keys match app/one_another.py::REPORT_CATEGORIES.
+  // "danger" goes to the top of the admin desk and alerts the people there.
+  const REPORT_REASONS = [
+    ["danger", "Someone may be in danger"],
+    ["identifies", "It names or could identify someone"],
+    ["unkind", "It's hurtful or hateful"],
+    ["spam", "It's spam or selling something"],
+    ["other", "Something else"],
+  ];
+  const REPORT_LABEL = Object.fromEntries(REPORT_REASONS);
+
   function reportSheet(post, onReported) {
-    const reason = el("textarea", { class: "field", maxlength: "300", rows: "3", placeholder: "What's wrong with it? Optional." });
+    const category = el("select", { class: "field", required: true }, [
+      el("option", { value: "", text: "Choose one", disabled: true, selected: true }),
+      ...REPORT_REASONS.map(([value, text]) => el("option", { value, text })),
+    ]);
+    const danger = el("p", { class: "desk-note", hidden: true, text: "If you know someone is in danger right now, call your local emergency number. We'll look at this first." });
+    category.addEventListener("change", () => { danger.hidden = category.value !== "danger"; });
+    const reason = el("textarea", { class: "field", maxlength: "300", rows: "3", placeholder: "Anything else we should know? Optional." });
     const msg = cave().formMessage();
     const send = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Report" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "reportTitle" }, [
       cave().sheetTitle("reportTitle", "Report this", "It comes off the wall straight away, and a person looks at it again."),
-      el("label", { class: "field-wrap" }, ["Reason", reason]),
+      el("label", { class: "field-wrap" }, ["Why", category]),
+      danger,
+      el("label", { class: "field-wrap" }, ["Details", reason]),
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), send]),
     ]);
@@ -1614,7 +1633,7 @@
       e.preventDefault();
       send.disabled = true;
       try {
-        await api(`/me/refuge/posts/${post.id}/report`, { method: "POST", body: { reason: reason.value.trim() || null } });
+        await api(`/me/refuge/posts/${post.id}/report`, { method: "POST", body: { category: category.value, reason: reason.value.trim() || null } });
         close();
         toast("Thank you. A person will look at it.");
         onReported();
@@ -2187,54 +2206,240 @@
   }
 
   // ---------------------------------------------------------------------
-  // The admin desk (#desk), for the people in ADMIN_EMAILS
+  // The admin desk (#desk), for the people in ADMIN_EMAILS (app/desk.py).
+  // Numbers across the top, then three tabs: To review (flagged by the
+  // check, reported or held, urgent first), On the wall (each post's time
+  // there) and History (the audit trail). Never who wrote or reported a post.
   // ---------------------------------------------------------------------
-  function deskCard(post, rerender) {
-    const check = post.auto_check || {};
+  const KIND_NAME = { burden: "Prayer request", rejoice: "Good news" };
+  const QUEUE_STATUS = { pending: "Flagged by the check", reported: "Reported", held: "Held" };
+  const STATUS_NOW = { pending: "waiting", reported: "reported", held: "held", approved: "approved", removed: "removed" };
+  const DESK_TABS = [["review", "To review"], ["live", "On the wall"], ["log", "History"]];
+  const DESK_FILTERS = {
+    review: [["all", "Everything"], ["urgent", "Urgent"], ["pending", "Flagged by the check"], ["reported", "Reported"], ["held", "Held"]],
+    live: [["all", "Everything on the wall"], ["ending", "Ending in 2 days"], ["burden", "Prayer requests"], ["rejoice", "Good news"], ["answered", "Answered prayers"], ["kept_up", "Kept up"]],
+    log: [["all", "Every entry"], ["approve", "Approved or put back"], ["remove", "Removed"], ["hold", "Held"], ["report", "Reports"]],
+  };
+  // How an entry on the trail reads.
+  const TRAIL_WORDS = {
+    approve: (e) => ({ reported: "Put back after a report", held: "Put back after a hold", removed: "Restored" }[e.from_status] || "Approved"),
+    remove: () => "Removed",
+    hold: () => "Held off the wall",
+    report: (e) => (e.from_status === "approved" ? "Reported, taken off the wall" : "Reported again"),
+  };
+  const desk = { tab: "review", show: { review: "all", live: "all", log: "all" } };
+
+  const stamp = (iso) => new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const clip = (text, n) => (text.length > n ? `${text.slice(0, n - 1).trimEnd()}...` : text);
+  const times = (n) => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+  function openDesk(tab, show) {
+    desk.tab = tab;
+    if (show) desk.show[tab] = show;
+    renderDesk();
+  }
+
+  async function decide(post, action, note) {
+    await api(`/admin/refuge/${post.id}`, { method: "POST", body: { action, note: note || null } });
+    toast({ approve: "On the wall.", remove: "Removed.", hold: "Held off the wall." }[action]);
+  }
+
+  // Removing or holding asks for an optional note for the trail; approving is one tap.
+  function decideSheet(post, action, done) {
+    const [title, about, verb] = {
+      remove: ["Remove this post", "It leaves the wall for good. Its writer sees it as not shared, never why.", "Remove"],
+      hold: ["Hold it off the wall", "It comes off the wall now and waits under To review until you put it back or remove it. Its writer sees it as waiting.", "Hold"],
+    }[action];
+    const note = el("textarea", { class: "field", maxlength: "300", rows: "2", placeholder: "Optional. Only the desk sees this." });
+    const msg = cave().formMessage();
+    const send = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: verb });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "deskDecideTitle" }, [
+      cave().sheetTitle("deskDecideTitle", title, about),
+      el("label", { class: "field-wrap" }, ["Note for the record", note]),
+      msg.node,
+      el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), send]),
+    ]);
+    const close = cave().overlay(form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      send.disabled = true;
+      try {
+        await decide(post, action, note.value.trim());
+        close();
+        done();
+      } catch (err) {
+        msg.say(err.message, true);
+        send.disabled = false;
+      }
+    });
+  }
+
+  function deskStats(s) {
+    const tile = (n, label, tab, show, tone) => el("button", {
+      class: `desk-stat${tone && n ? ` ${tone}` : ""}`, type: "button", onclick: () => openDesk(tab, show),
+    }, [el("strong", { text: String(n) }), el("span", { text: label })]);
+    return el("div", { class: "desk-stats" }, [
+      tile(s.to_review, "To review", "review", "all"),
+      tile(s.urgent, "Urgent", "review", "urgent", "urgent"),
+      tile(s.reported, "Reported", "review", "reported"),
+      tile(s.on_wall, "On the wall", "live", "all"),
+      tile(s.ending_soon, "Ending in 2 days", "live", "ending"),
+      tile(s.decided_week, "Decisions this week", "log", "all"),
+    ]);
+  }
+
+  // A post's life so far, oldest first, folded away until it's wanted.
+  function timeline(p) {
+    const items = [["Shared", p.created_at]];
+    // A post approved on the desk has that on the trail; otherwise it went up by itself.
+    if (p.approved_at && !p.history.some((e) => e.action === "approve" && e.from_status === "pending")) items.push(["Went up", p.approved_at]);
+    p.history.forEach((e) => items.push([`${TRAIL_WORDS[e.action](e)}${e.actor_email ? ` by ${e.actor_email}` : ""}`, e.created_at, e.note]));
+    items.sort((a, b) => new Date(a[1]) - new Date(b[1]));
+    return el("details", { class: "desk-trail" }, [
+      el("summary", { text: `History (${items.length})` }),
+      el("ol", {}, items.map(([what, at, note]) => el("li", {}, [
+        el("span", { text: what }), el("time", { datetime: at, text: stamp(at) }), note ? el("p", { text: note }) : null,
+      ].filter(Boolean)))),
+    ]);
+  }
+
+  function reportsBlock(p) {
+    if (!p.reports.length) return null;
+    return el("div", { class: "desk-reports" }, [
+      el("strong", { text: `Reported ${times(p.reports.length)}` }),
+      ...p.reports.map((r) => el("p", { text: `${REPORT_LABEL[r.category] || REPORT_LABEL.other}${r.reason ? `: ${r.reason}` : ""} (${cave().when(r.created_at)})` })),
+    ]);
+  }
+
+  function reviewCard(p, rerender) {
+    const check = p.auto_check || {};
+    const flagged = check.flagged || [];
     const notes = [
       check.error ? "The automatic check didn't run. Read this one closely." : null,
-      check.flagged && check.flagged.length ? `The automatic check noticed: ${check.flagged.join(", ")}.` : null,
+      flagged.length ? `The automatic check noticed: ${flagged.join(", ")}.` : null,
+      p.status === "pending" && !check.error && !flagged.length ? "Nothing was flagged. It's here because every post waits for the desk at the moment." : null,
+      p.put_back ? `Put back ${times(p.put_back)} before, and back again.` : null,
     ].filter(Boolean);
-    const decide = (action) => async () => {
-      try {
-        await api(`/admin/refuge/${post.id}`, { method: "POST", body: { action } });
-        toast(action === "approve" ? "On the wall." : "Removed.");
-        rerender();
-      } catch (err) {
-        toast(err.message, { tone: "error" });
-      }
-    };
-    return el("article", { class: "burden desk-card fade-in" }, [
-      el("div", { class: "entry-meta" }, [el("span", { class: "badge plain", text: POST_KINDS[post.kind].choose }), el("span", { text: cave().when(post.created_at) })]),
-      el("p", { class: "burden-text", text: post.body }),
+    const approve = el("button", {
+      class: "btn btn-ember btn-sm", type: "button", text: p.status === "pending" ? "Approve" : "Put it back",
+      onclick: async () => {
+        approve.disabled = true;
+        try {
+          await decide(p, "approve");
+          rerender();
+        } catch (err) {
+          toast(err.message, { tone: "error" });
+          approve.disabled = false;
+        }
+      },
+    });
+    return el("article", { class: `burden desk-card fade-in${p.urgent ? " is-urgent" : ""}` }, [
+      el("div", { class: "entry-meta" }, [
+        p.urgent ? el("span", { class: "badge urgent", text: "Urgent" }) : null,
+        el("span", { class: "badge plain", text: QUEUE_STATUS[p.status] }),
+        el("span", { text: `${KIND_NAME[p.kind]}, shared ${cave().when(p.created_at).toLowerCase()}` }),
+      ].filter(Boolean)),
+      el("p", { class: "burden-text", text: p.body }),
       ...notes.map((n) => el("p", { class: "desk-note", text: n })),
-      post.reports.length ? el("div", { class: "desk-reports" }, [
-        el("strong", { text: plural(post.reports.length, "report", "reports") }),
-        ...post.reports.map((r) => el("p", { text: r.reason || "No reason given." })),
-      ]) : null,
+      reportsBlock(p),
+      timeline(p),
       el("div", { class: "burden-actions" }, [
-        el("button", { class: "btn btn-ember btn-sm", type: "button", text: post.status === "reported" ? "Put it back" : "Approve", onclick: decide("approve") }),
-        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Remove", onclick: decide("remove") }),
+        approve,
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Remove", onclick: () => decideSheet(p, "remove", rerender) }),
       ]),
     ].filter(Boolean));
+  }
+
+  function liveCard(p, rerender) {
+    const ending = p.days_left <= 2;
+    const facts = [
+      plural(p.amen_count || 0, "amen", "amens"),
+      p.kind_word_count ? plural(p.kind_word_count, "kind word", "kind words") : null,
+      p.kept_up ? `kept up ${times(p.kept_up)}` : null,
+      `up since ${new Date(p.approved_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`,
+    ].filter(Boolean).join(" · ");
+    return el("article", { class: "burden desk-card fade-in" }, [
+      el("div", { class: "entry-meta" }, [
+        el("span", { class: `badge ${ending ? "" : "plain"}`, text: p.days_left <= 1 ? "Last day" : `${p.days_left} days left` }),
+        el("span", { class: "badge plain", text: p.answered ? "Answered prayer" : KIND_NAME[p.kind] }),
+        el("span", { text: facts }),
+      ]),
+      el("p", { class: "burden-text", text: p.body }),
+      p.answer_note ? el("p", { class: "desk-note", text: `How it was answered: ${p.answer_note}` }) : null,
+      p.reports.length ? el("p", { class: "desk-note", text: `Reported ${times(p.reports.length)} before${p.put_back ? `, put back ${times(p.put_back)}` : ""}.` }) : null,
+      timeline(p),
+      el("div", { class: "burden-actions" }, [
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Hold while I look", onclick: () => decideSheet(p, "hold", rerender) }),
+        el("button", { class: "btn btn-ghost btn-sm danger-text", type: "button", text: "Remove", onclick: () => decideSheet(p, "remove", rerender) }),
+      ]),
+    ].filter(Boolean));
+  }
+
+  function logRow(e) {
+    const post = e.post;
+    return el("li", { class: "desk-log-row" }, [
+      el("div", { class: "desk-log-head" }, [
+        el("strong", { text: TRAIL_WORDS[e.action](e) }),
+        el("span", { class: "faint", text: `${e.actor_email || "From the wall"} · ${stamp(e.created_at)}` }),
+      ]),
+      e.note ? el("p", { class: "desk-log-note", text: e.note }) : null,
+      el("p", { class: "desk-log-post", text: post ? `${KIND_NAME[post.kind]}, now ${STATUS_NOW[post.status]}: "${clip(post.body, 140)}"` : "Its writer has since deleted this post." }),
+    ].filter(Boolean));
+  }
+
+  // A list that comes a page at a time from the server, with "Show more".
+  async function pagedList(path, key, draw, { tag = "div", cls = "desk-list", empty }) {
+    let data = await api(`${path}&page=0`);
+    const list = el(tag, { class: cls }, data[key].map(draw));
+    const more = el("button", {
+      class: "btn btn-ghost btn-sm desk-more", type: "button", text: "Show more", hidden: !data.has_more,
+      onclick: async () => {
+        more.disabled = true;
+        try {
+          data = await api(`${path}&page=${data.page + 1}`);
+          list.append(...data[key].map(draw));
+          more.hidden = !data.has_more;
+        } catch (err) {
+          toast(err.message, { tone: "error" });
+        }
+        more.disabled = false;
+      },
+    });
+    const count = `${data[key].length}${data.has_more ? "+" : ""}`;
+    return { count, nodes: data[key].length ? [list, more] : [el("p", { class: "faint", text: empty })] };
+  }
+
+  async function deskTab(data, rerender) {
+    const show = desk.show[desk.tab];
+    if (desk.tab === "review") {
+      const rows = data.queue.filter((p) => show === "all" || (show === "urgent" ? p.urgent : p.status === show));
+      return {
+        count: plural(rows.length, "post", "posts"),
+        nodes: rows.length ? [el("div", { class: "desk-list" }, rows.map((p) => reviewCard(p, rerender)))] : [el("p", { class: "faint", text: "Nothing waiting here." })],
+      };
+    }
+    if (desk.tab === "live") {
+      const page = await pagedList(`/admin/refuge/live?show=${show}`, "posts", (p) => liveCard(p, rerender), { empty: "Nothing on the wall here right now." });
+      return { count: `${page.count} on the wall, soonest to leave first`, nodes: page.nodes };
+    }
+    const page = await pagedList(`/admin/refuge/log?action=${show}`, "entries", logRow, { tag: "ol", cls: "desk-log", empty: "Nothing on the trail yet." });
+    return { count: `${page.count} entries, newest first`, nodes: page.nodes };
   }
 
   async function renderDesk() {
     const box = document.getElementById("deskPanel");
     if (!box) return;
-    box.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
+    // Redrawing after a decision keeps the page in place until the new one is ready.
+    if (!box.firstChild) box.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
       const data = await api("/admin/refuge");
-      const rerender = () => renderDesk();
-      const section = (title, lede, rows) => el("section", { class: "wall-section" }, [
-        el("h2", { class: "section-title", text: `${title} (${rows.length})` }),
-        el("p", { class: "muted", style: "font-size:15px;margin-bottom:12px", text: lede }),
-        ...(rows.length ? rows.map((p) => deskCard(p, rerender)) : [el("p", { class: "faint", text: "Nothing here." })]),
-      ]);
-      box.replaceChildren(el("div", { class: "refuge" }, [
-        section("Waiting to be read", "These passed the automatic check. Approve what's kind and safe to share; remove anything that names someone, could identify the writer, or doesn't belong.", data.pending),
-        section("Reported", "Taken off the wall because someone reported them. Put back what's fine; remove the rest.", data.reported),
-      ]));
+      const tab = await deskTab(data, renderDesk);
+      const tabs = el("div", { class: "seg desk-tabs", role: "tablist", "aria-label": "Admin desk" }, DESK_TABS.map(([key, label]) => el("button", {
+        type: "button", role: "tab", "aria-selected": String(desk.tab === key), onclick: () => openDesk(key),
+        text: key === "review" && data.stats.to_review ? `${label} (${data.stats.to_review})` : label,
+      })));
+      const filter = cave().filterSelect("Show", DESK_FILTERS[desk.tab], desk.show[desk.tab], (value) => openDesk(desk.tab, value));
+      box.replaceChildren(el("div", { class: "refuge desk" }, [deskStats(data.stats), tabs, cave().listBar(tab.count, filter), ...tab.nodes]));
     } catch (err) {
       box.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Couldn't open the desk" }), err.message]));
     }

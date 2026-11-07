@@ -123,6 +123,13 @@ class TestCleanBlocks:
             sermons.clean_blocks(other, USER.id, NOTE_ID)
         assert err.value.status_code == 422
 
+    @pytest.mark.parametrize("name", ["../../someone-else/their-note/photo.jpg", "..%2F..%2Fx.jpg", "sub/a.jpg", "a.jpg.exe"])
+    def test_a_photo_path_that_climbs_out_of_the_folder_is_refused(self, name):
+        # The storage library tidies "../" away when it builds a URL, so a
+        # prefix check alone would let an export fetch another person's photo.
+        with pytest.raises(HTTPException):
+            sermons.clean_blocks([{"id": "p", "type": "image", "path": f"{FOLDER}{name}"}], USER.id, NOTE_ID)
+
     def test_a_photo_in_the_notes_folder_is_kept(self):
         mine = [{"id": "p", "type": "image", "path": f"{FOLDER}a.jpg", "caption": ""}]
         assert sermons.clean_blocks(mine, USER.id, NOTE_ID)[0]["path"] == f"{FOLDER}a.jpg"
@@ -135,10 +142,12 @@ class TestCleanBlocks:
 
 def test_shared_view_carries_nothing_that_identifies_the_writer(monkeypatch):
     use_db(monkeypatch, FakeDb())
-    shown = sermons.shared_view(sermons.present(note_row(share_token="secret-token")))
+    shown = sermons.shared_view(sermons.present(note_row(share_token="secret-token")), "secret-token")
     assert "user_id" not in shown and "share_token" not in shown and "id" not in shown
     photo = next(b for b in shown["blocks"] if b["type"] == "image")
-    assert "path" not in photo and photo["url"]
+    # Served through the link itself: a signed storage link names the writer's account.
+    assert "path" not in photo and photo["url"].startswith("/shared/sermons/secret-token/photos/")
+    assert USER.id not in str(shown)
     step = next(b for b in shown["blocks"] if b["type"] == "todo")["items"][0]
     assert step == {"text": "Pray for Mum", "done": False}
 

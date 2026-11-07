@@ -15,11 +15,12 @@ How a post reaches the wall:
 2. A post the automatic check is clear about goes up straight away
    (`approved`, with `approved_at`). One it isn't sure of (a moderation flag,
    or the check not running at all) waits as `pending` on the admin desk
-   (/admin/refuge, the people in settings.admin_emails) until someone
+   (app/desk.py, the people in settings.admin_emails) until someone
    approves it. settings.amens_auto_approve turns going up straight away off,
    so that every post waits for the desk again.
 3. A report takes an approved post off the wall (`reported`) at once and puts
-   it back on the desk for another look.
+   it back on the desk for another look, with why (`REPORT_CATEGORIES`). The
+   desk can also hold a live post off the wall while it looks (`held`).
 
 How long a post stays (supabase/migrations/20261117_amens_lifetimes.sql): a
 prayer request two weeks from when it goes up, and its writer can keep it up
@@ -53,11 +54,12 @@ from functools import lru_cache
 from typing import Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from openai import OpenAI
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
-from app.auth import AuthUser, require_admin, require_user
+from app.auth import AuthUser, require_user
 from app.care import sounds_unsafe
 from app.cave import _db_call, _now
 from app.config import settings
@@ -261,13 +263,20 @@ class KindWordIn(BaseModel):
     choice: str = Field(max_length=40)
 
 
+# Why someone reported a post, shown on the report sheet and the admin desk
+# (app/desk.py). "danger" goes to the top of the desk and alerts the admins.
+REPORT_CATEGORIES = {
+    "danger": "Someone may be in danger",
+    "identifies": "It names or could identify someone",
+    "unkind": "It's hurtful or hateful",
+    "spam": "It's spam or selling something",
+    "other": "Something else",
+}
+
+
 class ReportIn(BaseModel):
+    category: Literal["danger", "identifies", "unkind", "spam", "other"] = "other"
     reason: str | None = Field(default=None, max_length=300)
-
-
-class ReviewIn(BaseModel):
-    action: Literal["approve", "remove"]
-    note: str | None = Field(default=None, max_length=300)
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +385,11 @@ def lifetime(post: dict, now: datetime) -> dict:
     }
 
 
+# Where a post stands, as its writer sees it. Reported and held both read as
+# waiting: the writer is never told someone reported it.
+WRITER_STATUS = {"pending": "waiting", "reported": "waiting", "held": "waiting", "approved": "shared", "removed": "not_shared"}
+
+
 def _wall_post(row: dict) -> dict:
     """A post as the wall sends it: never who wrote it."""
     return {
@@ -413,7 +427,7 @@ def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=2
         ]
         p.update(lifetime(p, now))
         # The desk's own words never reach the writer, only where it stands.
-        p["status"] = {"pending": "waiting", "reported": "waiting", "approved": "shared", "removed": "not_shared"}[p["status"]]
+        p["status"] = WRITER_STATUS[p["status"]]
         if p["status"] == "shared" and not p["on_wall"]:
             p["status"] = "ended"
     out["mine"] = mine
@@ -434,7 +448,7 @@ def kind_words(kind: PostKind, translation: str | None = None, user: AuthUser = 
 
 
 @router.post("/me/refuge/posts")
-def share(body: PostIn, user: AuthUser = Depends(require_user)) -> dict:
+def share(body: PostIn, background: BackgroundTasks, user: AuthUser = Depends(require_user)) -> dict:
     text = body.body.strip()
     if not text:
         raise HTTPException(status_code=422, detail="Write a little first.")
@@ -466,6 +480,10 @@ def share(body: PostIn, user: AuthUser = Depends(require_user)) -> dict:
         row["approved_at"] = went_up.isoformat()
         row["expires_at"] = expires_for(body.kind, went_up).isoformat()
     post = _db(lambda: db.table("refuge_posts").insert(row).execute().data[0])
+    from app import desk  # here, since app/desk.py imports this module
+
+    if not goes_up and desk.check_is_urgent(check):
+        background.add_task(desk.alert_admins)
     return {
         "outcome": "shared" if goes_up else "waiting",
         "post": {"id": post["id"], "kind": post["kind"], "body": post["body"], "created_at": post["created_at"]},
@@ -547,64 +565,42 @@ def mark_answered(post_id: uuid.UUID, body: AnsweredIn, user: AuthUser = Depends
     return {"answered_at": patch["answered_at"], "expires_at": patch.get("expires_at")}
 
 
+def _save_report(row: dict) -> list:
+    """Stores a report, returning it when it's new (one per person a post).
+    Before the admin desk's migration there's no category column; the report
+    still goes in, with the category folded into its reason, since a report
+    must never fail."""
+    def upsert(r: dict) -> list:
+        return get_supabase().table("refuge_reports").upsert(r, on_conflict="post_id,user_id", ignore_duplicates=True).execute().data or []
+
+    try:
+        return upsert(row)
+    except APIError as err:
+        if err.code not in ("42703", "PGRST204"):
+            raise
+        label = REPORT_CATEGORIES[row.pop("category")]
+        row["reason"] = f"{label}: {row['reason']}"[:300] if row["reason"] else label
+        return upsert(row)
+
+
 @router.post("/me/refuge/posts/{post_id}/report")
-def report(post_id: uuid.UUID, body: ReportIn, user: AuthUser = Depends(require_user)) -> dict:
-    """Takes the post off the wall straight away and sends it back to the desk."""
+def report(post_id: uuid.UUID, body: ReportIn, background: BackgroundTasks, user: AuthUser = Depends(require_user)) -> dict:
+    """Takes the post off the wall straight away and sends it back to the desk,
+    where it goes on the trail (app/desk.py). Reporting a post again adds
+    nothing: one report per person."""
     post = _post(str(post_id))
     if post["user_id"] == user.id:
         raise HTTPException(status_code=400, detail="That one's yours. You can take it down instead.")
-    db = get_supabase()
     reason = (body.reason or "").strip() or None
-    _db(lambda: db.table("refuge_reports").upsert({"post_id": str(post_id), "user_id": user.id, "reason": reason}, on_conflict="post_id,user_id", ignore_duplicates=True).execute())
+    row = {"post_id": str(post_id), "user_id": user.id, "category": body.category, "reason": reason}
+    is_new = _db(lambda: _save_report(row))
     if post["status"] == "approved":
-        db.table("refuge_posts").update({"status": "reported"}).eq("id", str(post_id)).eq("status", "approved").execute()
+        get_supabase().table("refuge_posts").update({"status": "reported"}).eq("id", str(post_id)).eq("status", "approved").execute()
+    if is_new:
+        from app import desk  # here, since app/desk.py imports this module
+
+        background.add_task(desk.report_received, str(post_id), post["status"], body.category, reason)
     return {"status": "reported"}
-
-
-# ---------------------------------------------------------------------------
-# /admin/refuge: the desk. Never shows who wrote anything.
-# ---------------------------------------------------------------------------
-def waiting_count() -> int:
-    """How many posts are waiting on the desk, for the badge in the menu."""
-    return (
-        get_supabase().table("refuge_posts").select("id", count="exact")
-        .in_("status", ["pending", "reported"]).limit(1).execute().count or 0
-    )
-
-
-@router.get("/admin/refuge")
-def desk(admin: AuthUser = Depends(require_admin)) -> dict:
-    db = get_supabase()
-    rows = _db(lambda: (
-        db.table("refuge_posts").select("id, kind, body, status, auto_check, created_at")
-        .in_("status", ["pending", "reported"]).order("created_at").limit(100).execute().data
-    ))
-    ids = [r["id"] for r in rows]
-    reports = db.table("refuge_reports").select("post_id, reason, created_at").in_("post_id", ids).execute().data if ids else []
-    for r in rows:
-        r["reports"] = [{"reason": x["reason"], "created_at": x["created_at"]} for x in reports if x["post_id"] == r["id"]]
-    return {
-        "pending": [r for r in rows if r["status"] == "pending"],
-        "reported": [r for r in rows if r["status"] == "reported"],
-    }
-
-
-@router.post("/admin/refuge/{post_id}")
-def review(post_id: uuid.UUID, body: ReviewIn, admin: AuthUser = Depends(require_admin)) -> dict:
-    status = "approved" if body.action == "approve" else "removed"
-    patch = {"status": status, "review_note": (body.note or "").strip() or None, "reviewed_at": _now()}
-    # A post going up for the first time starts its time on the wall now; one
-    # coming back after a report keeps the time it already had.
-    if status == "approved":
-        current = _db(lambda: get_supabase().table("refuge_posts").select("kind, approved_at").eq("id", str(post_id)).limit(1).execute().data)
-        if current and not current[0].get("approved_at"):
-            went_up = datetime.now(timezone.utc)
-            patch["approved_at"] = went_up.isoformat()
-            patch["expires_at"] = expires_for(current[0]["kind"], went_up).isoformat()
-    rows = _db(lambda: get_supabase().table("refuge_posts").update(patch).eq("id", str(post_id)).execute().data)
-    if not rows:
-        raise HTTPException(status_code=404, detail="That post isn't here anymore.")
-    return {"status": status}
 
 
 # ---------------------------------------------------------------------------

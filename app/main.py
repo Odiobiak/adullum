@@ -22,7 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 
-from app import bible, cave, churches, connections, declare, fasting, hearth, highlights, listen, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, saved, sermons, support
+from app import account, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, saved, sermons, support
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -67,11 +67,13 @@ app.add_middleware(
 )
 
 
+app.include_router(account.router)
 app.include_router(bible.router)
 app.include_router(cave.router)
 app.include_router(churches.router)
 app.include_router(connections.router)
 app.include_router(declare.router)
+app.include_router(desk.router)
 app.include_router(hearth.router)
 app.include_router(highlights.router)
 app.include_router(saved.router)
@@ -271,16 +273,21 @@ async def create_plan(request: PlanRequest, user: AuthUser | None = Depends(opti
     )
 
 
-def _get_plan_row(plan_id: str) -> dict:
+def _get_plan_row(plan_id: str, user: AuthUser | None) -> dict:
+    """A plan by its id. A guest's plan (no owner) is open to whoever has the
+    link, which is how the emailed PDF link works; a signed-in person's plan
+    is theirs alone, so it answers only to its owner."""
     rows = get_supabase().table("reading_plans").select("*").eq("id", plan_id).limit(1).execute().data
+    if rows and rows[0].get("user_id") and (not user or user.id != rows[0]["user_id"]):
+        rows = []
     if not rows:
         raise HTTPException(status_code=404, detail="Plan not found")
     return rows[0]
 
 
 @app.get("/plan/{plan_id}", response_model=PlanResponse)
-async def get_plan(plan_id: str) -> PlanResponse:
-    row = _get_plan_row(plan_id)
+async def get_plan(plan_id: str, user: AuthUser | None = Depends(optional_user)) -> PlanResponse:
+    row = _get_plan_row(plan_id, user)
     return PlanResponse(
         plan_id=row["id"],
         start_date=row["start_date"],
@@ -292,13 +299,13 @@ async def get_plan(plan_id: str) -> PlanResponse:
 
 
 @app.get("/plan/{plan_id}/pdf")
-async def plan_pdf(plan_id: str) -> Response:
+async def plan_pdf(plan_id: str, user: AuthUser | None = Depends(optional_user)) -> Response:
     """Renders on demand rather than storing a file: the schedule row is the
     source of truth, the PDF is just one view of it. The same URL serves both
     the xApp's download button and the link a Cognigy send_email tool puts in
     the "email me this plan" message.
     """
-    row = _get_plan_row(plan_id)
+    row = _get_plan_row(plan_id, user)
     pdf_bytes = render_plan_pdf(row)
     return Response(
         content=pdf_bytes,

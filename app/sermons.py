@@ -247,17 +247,34 @@ def folder(user_id: str, note_id: str) -> str:
     return f"{user_id}/{note_id}/"
 
 
+# A photo's file name inside its note's folder. No dots but the extension's,
+# no slashes and no percent signs, so a stored path can never climb out of
+# the folder ("../") once the storage library tidies it into a URL.
+_PHOTO_NAME = re.compile(r"[A-Za-z0-9_-]{1,64}\.(?:jpg|png|webp)")
+
+
+def photo_path_ok(path: object, user_id: str, note_id: str) -> bool:
+    """Whether `path` is a photo directly inside this note's own folder."""
+    prefix = folder(user_id, note_id)
+    return isinstance(path, str) and path.startswith(prefix) and bool(_PHOTO_NAME.fullmatch(path[len(prefix):]))
+
+
+def own_image_paths(note: dict) -> list[str]:
+    """The note's photo paths that really are its own, checked again on every
+    read so that a path stored before the check existed is never fetched."""
+    return sorted(p for p in image_paths(note.get("blocks") or []) if photo_path_ok(p, str(note.get("user_id")), str(note.get("id"))))
+
+
 def clean_blocks(blocks: list[dict], user_id: str, note_id: str) -> list[dict]:
     """Blocks as stored: a verse's reference in canonical form, and every
     photo checked to point inside this note's own folder, so a note can
     never show (or, once shared, hand out) someone else's photo."""
-    allowed = folder(user_id, note_id)
     cleaned = []
     for block in blocks:
         block = dict(block)
         if block.get("type") == "verse":
             block["ref"] = canonical_or_raw(block.get("ref")) or ""
-        if block.get("type") == "image" and block.get("path") and not block["path"].startswith(allowed):
+        if block.get("type") == "image" and block.get("path") and not photo_path_ok(block["path"], user_id, note_id):
             raise HTTPException(status_code=422, detail="That photo doesn't belong to this note.")
         if block.get("type") == "todo":
             block["items"] = [{**i, "prayer_id": str(i["prayer_id"]) if i.get("prayer_id") else None} for i in block.get("items") or []]
@@ -265,11 +282,15 @@ def clean_blocks(blocks: list[dict], user_id: str, note_id: str) -> list[dict]:
     return cleaned
 
 
-def shared_view(note: dict) -> dict:
+def shared_view(note: dict, token: str) -> dict:
     """What a read-only link shows: the note, minus everything that would
-    identify its writer or reach into their account."""
+    identify its writer or reach into their account. A photo is served
+    through this link (`shared_photo`), never a signed storage link, since
+    that names the writer's account id in its path."""
     blocks = []
-    for block in note.get("blocks") or []:
+    for index, block in enumerate(note.get("blocks") or []):
+        if block.get("type") == "image":
+            block = {**block, "url": f"/shared/sermons/{token}/photos/{index}" if block.get("url") else None}
         block = {k: v for k, v in block.items() if k != "path"}
         if block.get("type") == "todo":
             block["items"] = [{"text": i.get("text", ""), "done": bool(i.get("done"))} for i in block.get("items") or []]
@@ -345,7 +366,7 @@ def present(note: dict) -> dict:
     """A note as the page receives it: each block's references, and a signed
     link on every photo."""
     blocks = note.get("blocks") or []
-    urls = _signed_urls(sorted(image_paths(blocks)))
+    urls = _signed_urls(own_image_paths(note))
     shown = [{**b, "url": urls.get(b.get("path"))} if b.get("type") == "image" else b for b in blocks]
     out = {k: v for k, v in note.items() if k != "user_id"}
     out["blocks"] = shown
@@ -385,7 +406,7 @@ def _verse_texts(note: dict, translation: str) -> dict[str, str]:
 
 def _image_bytes(note: dict) -> dict[str, bytes]:
     images = {}
-    for path in sorted(image_paths(note.get("blocks") or [])):
+    for path in own_image_paths(note):
         try:
             images[path] = _bucket().download(path)
         except Exception:
@@ -608,11 +629,32 @@ def export_note(
 # ---------------------------------------------------------------------------
 # The read-only link: no account needed
 # ---------------------------------------------------------------------------
-@router.get("/shared/sermons/{token}")
-def shared_note(token: str) -> dict:
+def _shared_row(token: str) -> dict:
+    gone = HTTPException(status_code=404, detail="This sermon note isn't shared anymore.")
     if not re.fullmatch(r"[A-Za-z0-9_-]{8,64}", token):
-        raise HTTPException(status_code=404, detail="This sermon note isn't shared anymore.")
+        raise gone
     rows = _db(lambda: get_supabase().table("sermon_notes").select(_NOTE_FIELDS).eq("share_token", token).limit(1).execute().data)
     if not rows:
-        raise HTTPException(status_code=404, detail="This sermon note isn't shared anymore.")
-    return shared_view(present(rows[0]))
+        raise gone
+    return rows[0]
+
+
+@router.get("/shared/sermons/{token}")
+def shared_note(token: str) -> dict:
+    return shared_view(present(_shared_row(token)), token)
+
+
+@router.get("/shared/sermons/{token}/photos/{index}")
+def shared_photo(token: str, index: int) -> Response:
+    """One photo in a shared note, by its place among the note's blocks."""
+    note = _shared_row(token)
+    blocks = note.get("blocks") or []
+    path = blocks[index].get("path") if 0 <= index < len(blocks) and blocks[index].get("type") == "image" else None
+    if path not in own_image_paths(note):
+        raise HTTPException(status_code=404, detail="That photo isn't here.")
+    try:
+        data = _bucket().download(path)
+    except Exception as err:
+        raise HTTPException(status_code=404, detail="That photo isn't here.") from err
+    kind = {"jpg": "image/jpeg", "png": "image/png", "webp": "image/webp"}[path.rsplit(".", 1)[1]]
+    return Response(data, media_type=kind, headers={"Cache-Control": "private, max-age=3600"})

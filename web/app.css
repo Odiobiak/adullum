@@ -614,6 +614,12 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .site-foot { display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; color: var(--faint); font-size: 14px; border-top: 1px solid var(--divider); padding-top: 24px; padding-bottom: 40px; }
 .section { padding-bottom: 56px; }
 
+/* ---------- Privacy and terms ---------- */
+.legal { max-width: 720px; padding-bottom: 56px; line-height: 1.6; }
+.legal h2 { font-size: 19px; margin: 32px 0 8px; }
+.legal ul { padding-left: 20px; }
+.legal li { margin-bottom: 8px; }
+
 /* ---------- Sign in ---------- */
 .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); min-height: 100vh; }
 .story { padding: 32px 48px; display: flex; flex-direction: column; gap: 40px; background: radial-gradient(90% 70% at 50% 100%, var(--glow-strong) 0%, var(--surface) 50%, var(--ground) 100%); border-right: 1px solid var(--divider); }
@@ -1607,6 +1613,29 @@ body.still-open { overflow: hidden; }
 .desk-reports { font-size: 14px; padding: 10px 14px; border-radius: 12px; background: var(--ember-bg); border: 1px solid var(--ember-line); }
 .desk-reports strong { display: block; font-weight: 600; margin-bottom: 4px; }
 .desk-reports p + p { margin-top: 4px; }
+.desk-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 10px; margin: 0 0 18px; }
+.desk-stat { display: grid; gap: 2px; text-align: left; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); color: var(--muted); font-size: 13px; transition: border-color 0.15s ease; }
+.desk-stat strong { font-size: 22px; font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+.desk-stat:hover { border-color: var(--ember-line); }
+.desk-stat.urgent { border-color: var(--danger); }
+.desk-stat.urgent strong { color: var(--danger); }
+.desk-list { display: grid; gap: 12px; }
+.desk-card .badge { text-transform: none; }
+.desk-card.is-urgent { border-color: var(--danger); box-shadow: inset 3px 0 0 var(--danger); }
+.badge.urgent { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.desk-trail summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); }
+.desk-trail ol { list-style: none; margin: 10px 0 0; padding: 0 0 0 14px; border-left: 2px solid var(--divider); display: grid; gap: 8px; font-size: 13px; }
+.desk-trail li { display: grid; gap: 2px; }
+.desk-trail time { color: var(--faint); }
+.desk-trail li p { color: var(--soft); }
+.desk-log { list-style: none; margin: 0; padding: 0; display: grid; }
+.desk-log-row { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--divider); font-size: 14px; }
+.desk-log-row:first-child { border-top: 0; }
+.desk-log-head { display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; justify-content: space-between; }
+.desk-log-head .faint { font-size: 13px; }
+.desk-log-note { color: var(--soft); }
+.desk-log-post { color: var(--muted); font-size: 13px; }
+.desk-more { justify-self: center; margin-top: 12px; }
 
 /* Past conversations with Aquila: open, or rename and delete */
 .rail-row { position: relative; }

@@ -39,6 +39,9 @@ class AuthUser:
     # From the sign-up form, kept in Supabase's user metadata until the
     # profile row exists (see app/cave.py::_ensure_profile).
     display_name: str | None = None
+    # Whether Supabase has confirmed the person owns `email`. Admin rights go
+    # by email, so an unconfirmed address never carries them.
+    email_confirmed: bool = False
 
 
 def _auth_client() -> Client:
@@ -139,12 +142,25 @@ def _verify(token: str) -> AuthUser | None:
     if not resp or not resp.user:
         return None
     meta = resp.user.user_metadata or {}
-    user = AuthUser(id=resp.user.id, email=resp.user.email, display_name=meta.get("display_name"))
+    user = AuthUser(
+        id=resp.user.id,
+        email=resp.user.email,
+        display_name=meta.get("display_name"),
+        email_confirmed=bool(getattr(resp.user, "email_confirmed_at", None)),
+    )
     with _cache_lock:
         if len(_token_cache) >= _TOKEN_CACHE_MAX:
             _token_cache.clear()
         _token_cache[token] = (user, now + _TOKEN_TTL_SECONDS)
     return user
+
+
+def forget_user(user_id: str) -> None:
+    """Drops every cached verdict for this person, so a closed account's
+    tokens stop working now rather than when the cache runs out."""
+    with _cache_lock:
+        for token in [t for t, (u, _) in _token_cache.items() if u.id == user_id]:
+            del _token_cache[token]
 
 
 def _bearer(authorization: str | None) -> str | None:
@@ -171,12 +187,14 @@ def require_user(authorization: str | None = Header(default=None)) -> AuthUser:
     return user
 
 
+def admin_emails() -> set[str]:
+    """The addresses in settings.admin_emails, trimmed and lowercased."""
+    return {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
+
+
 def is_admin(user: AuthUser | None) -> bool:
     """Whether this person can open the admin desk (settings.admin_emails)."""
-    if not user or not user.email:
-        return False
-    admins = {e.strip().lower() for e in settings.admin_emails.split(",") if e.strip()}
-    return user.email.lower() in admins
+    return bool(user and user.email and user.email_confirmed) and user.email.lower() in admin_emails()
 
 
 def require_admin(authorization: str | None = Header(default=None)) -> AuthUser:
