@@ -16,6 +16,9 @@ client = TestClient(main.app)
 USER = AuthUser(id="11111111-1111-1111-1111-111111111111", email="ruth@example.com")
 HEADERS = {"Authorization": "Bearer t"}
 TODAY = date(2026, 11, 5)
+# The routes trust the browser's date only within a day of the server's
+# (app/days.py::parse_today), so route tests send the real one.
+NOW = date.today()
 
 
 class FakeQuery:
@@ -75,9 +78,9 @@ class TestRoutes:
         monkeypatch.setattr(auth, "_verify", lambda token: USER)
 
     def test_starting_a_fast_saves_it_for_this_person(self, monkeypatch):
-        db = FakeDb([{"id": "f1", "starts_on": TODAY.isoformat(), "days": 3, "status": "active"}])
+        db = FakeDb([{"id": "f1", "starts_on": NOW.isoformat(), "days": 3, "status": "active"}])
         monkeypatch.setattr(fasting, "get_supabase", lambda: db)
-        resp = client.post("/me/fasts", json={"kind": "daniel", "days": 3, "intention": "  Wisdom  ", "today": TODAY.isoformat()}, headers=HEADERS)
+        resp = client.post("/me/fasts", json={"kind": "daniel", "days": 3, "intention": "  Wisdom  ", "today": NOW.isoformat()}, headers=HEADERS)
         assert resp.status_code == 200 and resp.json()["progress"]["of"] == 3
         row = next(args[0] for name, args in db.calls if name == "insert")
         assert row["user_id"] == USER.id and row["intention"] == "Wisdom" and row["kind"] == "daniel"
@@ -87,12 +90,12 @@ class TestRoutes:
         assert client.post("/me/fasts", json={"days": 41}, headers=HEADERS).status_code == 422
 
     def test_finishing_records_the_day_and_stays_inside_ones_own(self, monkeypatch):
-        db = FakeDb([{"id": "f1", "starts_on": "2026-11-04", "days": 3, "status": "finished", "finished_on": TODAY.isoformat()}])
+        db = FakeDb([{"id": "f1", "starts_on": "2026-11-04", "days": 3, "status": "finished", "finished_on": NOW.isoformat()}])
         monkeypatch.setattr(fasting, "get_supabase", lambda: db)
-        resp = client.patch("/me/fasts/22222222-2222-2222-2222-222222222222", json={"status": "finished", "reflection": "Quieter.", "today": TODAY.isoformat()}, headers=HEADERS)
+        resp = client.patch("/me/fasts/22222222-2222-2222-2222-222222222222", json={"status": "finished", "reflection": "Quieter.", "today": NOW.isoformat()}, headers=HEADERS)
         assert resp.status_code == 200
         patch = next(args[0] for name, args in db.calls if name == "update")
-        assert patch["finished_on"] == TODAY.isoformat() and patch["reflection"] == "Quieter."
+        assert patch["finished_on"] == NOW.isoformat() and patch["reflection"] == "Quieter."
         assert ("eq", ("user_id", USER.id)) in db.calls
 
     def test_someone_elses_fast_is_a_404(self, monkeypatch):

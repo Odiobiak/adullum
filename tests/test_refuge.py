@@ -140,10 +140,11 @@ class TestPebbles:
         db = use_db(monkeypatch, FakeDb({
             "profiles": [{"id": USER.id, "display_name": "Ruth"}],
             "refuge_seeds": [habit, set_aside, goal],
-            "prayer_days": [{"day": "2026-11-05"}],
+            "prayer_days": [{"day": date.today().isoformat()}],
         }))
         monkeypatch.setattr(hearth, "get_supabase", lambda: db)
-        body = client.get("/me/home?today=2026-11-05", headers=HEADERS).json()
+        # The real date: the server trusts the browser's only within a day of its own.
+        body = client.get(f"/me/home?today={date.today().isoformat()}", headers=HEADERS).json()
         assert [p["id"] for p in body["pebbles"]] == ["h"]
         assert body["prayers"]["prayed_today"] is True
         # Only the general "I prayed today", the same mark the Prayers tab's button keeps.
