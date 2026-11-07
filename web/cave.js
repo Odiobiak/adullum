@@ -29,10 +29,14 @@
     check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>',
-    ember: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>',
     heart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>',
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>',
     forward: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 11v6M12 7.5v.01"/></svg>',
+    alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 6.5v7M12 17.5v.01"/></svg>',
+    // Aquila's memory: a clock turning back.
+    memory: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6L3.5 8.5"/><path d="M3.5 4v4.5H8M12 8v4.5l3 2"/></svg>',
     chat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>',
   };
 
@@ -104,20 +108,103 @@
     return runs.map((r) => r.label || (r.start === r.end ? `${r.book} ${r.start}` : `${r.book} ${r.start}-${r.end}`));
   }
 
-  let toastTimer = null;
-  function toast(text) {
-    let t = $("#toast");
-    if (!t) {
-      t = el("div", { id: "toast", class: "toast", role: "status", "aria-live": "polite" });
-      document.body.append(t);
-    }
-    t.textContent = text;
-    t.hidden = false;
-    t.style.animation = "none";
-    void t.offsetWidth;
-    t.style.animation = "";
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => (t.hidden = true), 3400);
+  // ---------------------------------------------------------------------
+  // Toasts: a small card that slides in (from the bottom on a wide screen,
+  // from the top on a phone, clear of the tab bar) and goes on its own.
+  //   toast("Saved.")                                  a tick, the default
+  //   toast(err.message, { tone: "error" })            stays a little longer
+  //   toast("Write a little first.", { tone: "info" })
+  //   toast("Kept.", { action: { label: "Open", href: "#journal" } })
+  // The thin line along the bottom shows the time left; it holds while the
+  // pointer or focus is on the card, and a swipe sideways sends it away.
+  // Up to three stack; the same words again replace the one showing.
+  // ---------------------------------------------------------------------
+  const TOAST_MS = { done: 3800, info: 5000, error: 6500 };
+  const TOAST_ICONS = { done: ICON.check, info: ICON.info, error: ICON.alert };
+
+  function toastStack() {
+    return $("#toasts") || document.body.appendChild(el("section", { id: "toasts", class: "toasts", "aria-label": "Notifications" }));
+  }
+
+  function toast(text, { tone = "done", action = null } = {}) {
+    if (!TOAST_MS[tone]) tone = "done";
+    const stack = toastStack();
+    for (const old of stack.children) if (old.dataset.text === text) old.remove();
+    while (stack.children.length >= 3) stack.firstElementChild.remove();
+
+    const node = el("div", { class: `toast is-${tone}`, role: tone === "error" ? "alert" : "status", "data-text": text, style: `--toast-ms:${TOAST_MS[tone]}ms` });
+    const leave = () => {
+      if (node.classList.contains("is-leaving")) return;
+      node.classList.add("is-leaving");
+      setTimeout(() => node.remove(), 220);
+    };
+    const act = action && el(action.href ? "a" : "button", {
+      class: "toast-action", text: action.label,
+      ...(action.href ? { href: action.href } : { type: "button" }),
+      onclick: () => { action.onClick?.(); leave(); },
+    });
+    node.append(
+      el("span", { class: "toast-icon", "aria-hidden": "true", html: TOAST_ICONS[tone] }),
+      el("p", { class: "toast-text", text }),
+      act || "",
+      el("button", { class: "toast-close", type: "button", "aria-label": "Dismiss", html: ICON.close, onclick: leave }),
+      el("span", { class: "toast-timer", "aria-hidden": "true" }),
+    );
+    holdWhileHere(node, TOAST_MS[tone], leave);
+    swipeAway(node, leave);
+    stack.append(node);
+  }
+
+  // Runs `leave` after `ms`, holding the count while the pointer or focus is
+  // on the card (the CSS line holds with it). Timed here rather than by the
+  // line's animation, which reduced motion switches off.
+  function holdWhileHere(node, ms, leave) {
+    let left = ms, started = Date.now(), timer = setTimeout(leave, left);
+    const here = { pointer: false, focus: false };
+    const set = (key, value) => {
+      const wasHeld = here.pointer || here.focus;
+      here[key] = value;
+      const held = here.pointer || here.focus;
+      if (held && !wasHeld) {
+        clearTimeout(timer);
+        left -= Date.now() - started;
+      } else if (!held && wasHeld) {
+        started = Date.now();
+        timer = setTimeout(leave, Math.max(left, 1500));
+      }
+    };
+    // A mouse only: a finger's tap would otherwise hold it with nothing to let go.
+    node.addEventListener("pointerenter", (e) => e.pointerType === "mouse" && set("pointer", true));
+    node.addEventListener("pointerleave", (e) => e.pointerType === "mouse" && set("pointer", false));
+    node.addEventListener("focusin", () => set("focus", true));
+    node.addEventListener("focusout", (e) => !node.contains(e.relatedTarget) && set("focus", false));
+  }
+
+  // Drag a toast sideways; far enough and it goes, otherwise it springs back.
+  function swipeAway(node, leave) {
+    let startX = null;
+    node.addEventListener("pointerdown", (e) => {
+      if (e.pointerType === "mouse" || e.target.closest("button, a")) return;
+      startX = e.clientX;
+      node.setPointerCapture(e.pointerId);
+      node.classList.add("is-dragging");
+    });
+    node.addEventListener("pointermove", (e) => {
+      if (startX === null) return;
+      const dx = e.clientX - startX;
+      node.style.transform = `translateX(${dx}px)`;
+      node.style.opacity = String(Math.max(0.2, 1 - Math.abs(dx) / 220));
+    });
+    const end = (e) => {
+      if (startX === null) return;
+      const far = Math.abs(e.clientX - startX) > 70;
+      startX = null;
+      node.classList.remove("is-dragging");
+      node.style.transform = node.style.opacity = "";
+      if (far) leave();
+    };
+    node.addEventListener("pointerup", end);
+    node.addEventListener("pointercancel", end);
   }
 
   // Shows `content` in a dimmed overlay that closes on Escape or an outside
@@ -293,6 +380,7 @@
         })
       ));
       wrap.append(menu);
+      unhide(menu, button);
       button.setAttribute("aria-expanded", "true");
       document.addEventListener("click", onOutside, true);
       document.addEventListener("keydown", onKey);
@@ -300,6 +388,21 @@
     });
     wrap.append(button);
     return wrap;
+  }
+
+  // Opens a menu the other way when its first line would be hidden, off
+  // screen or under a sticky bar (the reader bar covers menus that open up).
+  function unhide(menu, button) {
+    const covered = () => {
+      const r = menu.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > window.innerHeight) return true;
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + 4);
+      return !hit || !menu.contains(hit);
+    };
+    if (!covered()) return;
+    const opensUp = menu.getBoundingClientRect().bottom <= button.getBoundingClientRect().top;
+    menu.classList.add(opensUp ? "is-below" : "is-above");
+    if (covered()) menu.classList.remove("is-below", "is-above");
   }
 
   // A local date ("2026-11-05") as a Date at midday, so no timezone can tip
@@ -356,7 +459,7 @@
       if (!sw) return;
       e.stopPropagation();
       if (SUPPORTER_THEMES.has(sw.dataset.setTheme) && !isFriend()) {
-        toast(`${THEME_NAMES[sw.dataset.setTheme]} is a thank-you for friends of the cave.`);
+        toast(`${THEME_NAMES[sw.dataset.setTheme]} is a thank-you for friends of the cave.`, { tone: "info" });
         location.hash = "support";
         return;
       }
@@ -480,7 +583,7 @@
       setTimeout(() => toast("You're signed in."), 300);
     } else if (params.get("error_description")) {
       history.replaceState(null, "", location.pathname + location.search + "#signin");
-      setTimeout(() => toast(params.get("error_description").replace(/\+/g, " ")), 300);
+      setTimeout(() => toast(params.get("error_description").replace(/\+/g, " "), { tone: "error" }), 300);
     }
   }
 
@@ -645,7 +748,7 @@
         await sendLink();
         toast("Sent again. Give it a minute.");
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
 
@@ -733,7 +836,7 @@
       app().loadConversation(id, full.messages);
       if (then) setTimeout(() => app().submitQuery(then), 150);
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -745,44 +848,43 @@
       onDone();
     } catch (err) {
       if (button) button.disabled = false;
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
   // The box where someone tells Aquila what they'd like to read, at the top
   // of Reading plans in the Bible (#bible/plans).
+  // Plan with Aquila, kept to one line like the home's ask box: a small head
+  // (with the whole-Bible plan as a link at its end) and the box. The ideas
+  // show under it only while the box has focus and nothing typed yet.
   function planBuilder({ onBuilt }) {
     const id = "planRequest";
-    const input = el("textarea", { id, rows: "2", maxlength: "500", placeholder: "For example: the Gospels in a month, or two weeks on anxiety" });
+    const input = el("input", { id, type: "text", maxlength: "500", autocomplete: "off", enterkeyhint: "go", placeholder: "What would you like to read?" });
     const msg = formMessage();
-    const build = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Shape my plan" });
-    const whole = el("button", { class: "linkish", type: "button", text: "Or read the whole Bible in a year" });
+    const build = el("button", { class: "btn btn-ember", type: "submit", text: "Shape" });
+    const whole = el("button", { class: "linkish plan-ask-whole", type: "button", text: "Whole Bible in a year" });
     whole.onclick = () => startWholeBiblePlan(whole, onBuilt);
 
-    const form = el("form", { class: "plan-builder card" }, [
-      titleInfo(el("h2", { class: "section-title", text: "Plan with Aquila" }), PLAN_ABOUT),
+    const pick = (idea) => { input.value = idea; input.focus(); form.classList.add("has-text"); };
+    const form = el("form", { class: "plan-ask" }, [
+      el("div", { class: "plan-ask-head" }, [titleInfo(el("h2", { class: "plan-ask-title", text: "Plan with Aquila" }), PLAN_ABOUT), whole]),
       el("label", { class: "sr", for: id, text: "What would you like to read?" }),
-      input,
-      el("div", { class: "topics" }, PLAN_IDEAS.map((idea) =>
-        el("button", { class: "topic", type: "button", text: idea, onclick: () => { input.value = idea; input.focus(); } })
-      )),
+      el("div", { class: "ask-box" }, [input, build]),
+      el("div", { class: "plan-ideas" }, [
+        el("span", { text: "Try" }),
+        ...PLAN_IDEAS.map((idea) => el("button", { type: "button", text: idea, onmousedown: (e) => e.preventDefault(), onclick: () => pick(idea) })),
+      ]),
       msg.node,
-      el("div", { class: "builder-actions" }, [build, whole]),
     ]);
+    input.addEventListener("input", () => form.classList.toggle("has-text", Boolean(input.value.trim())));
 
-    input.addEventListener("keydown", (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        form.requestSubmit();
-      }
-    });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const request = input.value.trim();
       if (request.length < 3) return msg.say("Tell Aquila a little about what you'd like to read.", true);
       msg.say("");
       build.disabled = true;
-      build.textContent = "Shaping your plan...";
+      build.textContent = "Shaping...";
       try {
         const plan = await api("/me/plans/build", { method: "POST", body: { request, today: localToday(), translation: translation() } });
         toast(`"${plan.title}" starts today.`);
@@ -790,7 +892,7 @@
       } catch (err) {
         msg.say(err.message, true);
         build.disabled = false;
-        build.textContent = "Shape my plan";
+        build.textContent = "Shape";
       }
     });
     return form;
@@ -817,7 +919,7 @@
         paint(plan);
         if (next) toast(`Day ${plan.day} read. ${plan.completed} of ${plan.days} done.`);
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
 
@@ -828,7 +930,8 @@
       el("div", { class: "progress-line" }, [progressText, el("span", { text: `Day ${plan.day} of ${plan.days}` })]),
       el("div", { class: "refs" }, [
         el("span", { class: "kicker", text: "Today" }),
-        ...refs.map((r) => el("button", { class: "chapter", type: "button", text: r, title: `Read ${r} with Aquila`, onclick: () => app().submitQuery(`Walk me through ${r}.`) })),
+        // Each opens the chapter in the Bible ("John 3-4" opens at John 3).
+        ...refs.map((r) => el("a", { class: "chapter", href: `#${window.Reader.href(r)}`, text: r, title: `Read ${r} in the Bible` })),
       ]),
       el("div", { class: "card-actions-row" }, [
         doneBtn,
@@ -841,7 +944,7 @@
               await api(`/me/plans/${plan.id}`, { method: "DELETE" });
               onChange();
             } catch (err) {
-              toast(err.message);
+              toast(err.message, { tone: "error" });
             }
           },
         }),
@@ -969,7 +1072,7 @@
     try {
       return await api(path, { method: "POST", body: { today: localToday(), ...body } });
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       return false;
     }
   }
@@ -1088,7 +1191,8 @@
     const side = $("#homeSide");
     const notes = $("#homeNotes");
     if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
-    $("#homeDeclare").replaceChildren(window.Declare.homeLine());
+    const tiles = $("#homeTiles");
+    tiles.replaceChildren(window.Declare.homeLine());
 
     // The verse is public and cached for the day, so it loads alongside the
     // home request rather than after it.
@@ -1108,14 +1212,17 @@
     updateChrome();
     $("#homeEmbers").replaceChildren(...[data.embers ? emberChip(data.embers) : null].filter(Boolean));
 
-    // Amens is null until the Refuge migration has run, and homeCard returns
-    // null itself when there's nothing to tell. A church going live joins it
-    // at the top once its check returns; nothing else about churches shows
+    // Amens sits beside Declare. It's null until the Refuge migration has run,
+    // and homeCard returns null itself when there's nothing to tell, which
+    // leaves Declare the whole row. A church going live gets the full-width
+    // line above once its check returns; nothing else about churches shows
     // here (web/church.js).
-    notes.replaceChildren(...[data.amens ? window.Refuge.homeCard(data.amens) : null].filter(Boolean));
+    tiles.querySelectorAll(".home-tile.is-amens").forEach((old) => old.remove());
+    const amens = data.amens ? window.Refuge.homeCard(data.amens) : null;
+    if (amens) tiles.prepend(el("div", { class: "home-tile is-amens" }, amens));
+    notes.replaceChildren();
     window.Church.homeLive().then((live) => {
-      notes.querySelectorAll(".home-note.is-live").forEach((old) => old.remove());
-      if (live && notes.isConnected) notes.prepend(live);
+      if (live && notes.isConnected) notes.replaceChildren(live);
     }).catch(() => {});
 
     const v = await versePromise;
@@ -1253,7 +1360,7 @@
 
   function openJournal(item = {}, onSaved) {
     if (!signedIn()) {
-      toast("Create a free account to keep a journal.");
+      toast("Create a free account to keep a journal.", { tone: "info" });
       app().go("join");
       return;
     }
@@ -1300,7 +1407,7 @@
           },
         });
         close();
-        toast("Saved to your journal.");
+        toast("Saved to your journal.", { action: { label: "Open", href: "#journal" } });
         if (onSaved) onSaved(entry);
       } catch (err) {
         msg.say(err.message, true);
@@ -1318,7 +1425,7 @@
 
   let speaking = null;
   function listen(btn, text) {
-    if (!("speechSynthesis" in window)) return toast("Your browser can't read aloud.");
+    if (!("speechSynthesis" in window)) return toast("Your browser can't read aloud.", { tone: "info" });
     if (speaking === btn) {
       speechSynthesis.cancel();
       return;
@@ -1383,7 +1490,7 @@
               try {
                 shareCard(await verseText(refs[0]));
               } catch {
-                toast("Couldn't make the card. Try again in a moment.");
+                toast("Couldn't make the card. Try again in a moment.", { tone: "error" });
               }
             },
           })
@@ -1398,7 +1505,7 @@
     const mark = el("a", {
       class: "memory-mark", href: "#remembers",
       title: "Aquila drew on what she remembers about you. See or change it in Settings.",
-      html: `${ICON.ember.replace("<svg ", '<svg fill="#F4A14C" ')}<span>Aquila remembered something you shared</span>`,
+      html: `${ICON.memory}<span>Aquila remembered something you shared</span>`,
     });
     msg.querySelector(".stages").after(mark);
   }
@@ -1687,7 +1794,7 @@
         try {
           node.replaceWith(journalCard(await api(`/me/journal/${e.id}`, { method: "PATCH", body: { reflection: ta.value.trim() } })));
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       };
     };
@@ -1711,7 +1818,7 @@
                 await api(`/me/journal/${e.id}`, { method: "DELETE" });
                 node.remove();
               } catch (err) {
-                toast(err.message);
+                toast(err.message, { tone: "error" });
               }
             },
           },
@@ -1755,7 +1862,7 @@
         }, [
           el("span", { class: "swatch", "data-swatch": key, "aria-hidden": "true" }),
           name,
-          SUPPORTER_THEMES.has(key) ? el("span", { class: "theme-friend", html: ICON.ember, "aria-label": "Supporter theme" }) : null,
+          SUPPORTER_THEMES.has(key) ? el("span", { class: "theme-friend", html: ICON.heart, "aria-label": "Supporter theme" }) : null,
         ]);
       })
     );
@@ -1782,7 +1889,7 @@
         toast(toggle.checked ? "Aquila will remember." : "Aquila won't keep new notes, or use old ones.");
       } catch (err) {
         toggle.checked = !toggle.checked;
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const list = rows.length
@@ -1800,7 +1907,7 @@
                 await api(`/me/memories/${m.id}`, { method: "DELETE" });
                 item.remove();
               } catch (err) {
-                toast(err.message);
+                toast(err.message, { tone: "error" });
               }
             },
           }));
@@ -1819,7 +1926,7 @@
                 await api("/me/memories", { method: "DELETE" });
                 renderMemories(panel);
               } catch (err) {
-                toast(err.message);
+                toast(err.message, { tone: "error" });
               }
             },
           })])
@@ -1841,14 +1948,14 @@
     $("#nameForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const name = $("#settingsName").value.trim();
-      if (!name) return toast("Add a name first.");
+      if (!name) return toast("Add a name first.", { tone: "info" });
       try {
         const p = await api("/me", { method: "PATCH", body: { display_name: name } });
         profile = { ...profile, ...p };
         updateChrome();
         toast("Saved.");
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
     $$("[data-sign-out]").forEach((b) => b.addEventListener("click", signOut));

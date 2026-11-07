@@ -18,7 +18,7 @@
   const app = () => window.AdullumApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
 
   const SAVE_DELAY_MS = 800;
   const PHOTO_MAX_SIDE = 1600;
@@ -172,7 +172,7 @@
       } catch (err) {
         dirty = true;
         if (note === current) setStatus("Couldn't save. Your next edit tries again.", false);
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
     return saving;
@@ -275,7 +275,7 @@
     try {
       note = await api(`/me/sermons/${id}`);
     } catch (err) {
-      return toast(err.message);
+      return toast(err.message, { tone: "error" });
     }
     if (!panel) return;
     current = note;
@@ -303,7 +303,7 @@
       if (panel && panel.querySelector(".sermon-search")) panel.querySelector(".sermon-search").value = "";
       await openNote(note.id, { scroll: true, focusTitle: true });
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -540,7 +540,7 @@
   }
 
   async function uploadPhoto(file, block) {
-    if (!file.type.startsWith("image/")) return toast("That isn't a photo. Try a picture of a slide or your notebook.");
+    if (!file.type.startsWith("image/")) return toast("That isn't a photo. Try a picture of a slide or your notebook.", { tone: "info" });
     const note = current;
     block.uploading = true;
     renderBlocks();
@@ -554,7 +554,7 @@
     } catch (err) {
       delete block.uploading;
       if (note === current) renderBlocks();
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -593,7 +593,7 @@
 
   async function addToPrayers(item, button) {
     const body = (item.text || "").trim();
-    if (!body) return toast("Write the step first, then add it to your prayers.");
+    if (!body) return toast("Write the step first, then add it to your prayers.", { tone: "info" });
     button.disabled = true;
     const main = current.passages && current.passages[0];
     try {
@@ -606,7 +606,7 @@
       renderConnected();
     } catch (err) {
       button.disabled = false;
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -697,7 +697,7 @@
       if (!notes.length) return renderEmpty();
       showList();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -798,7 +798,7 @@
           showOn(res.token);
         } catch (err) {
           e.target.disabled = false;
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       } }),
     ]));
@@ -808,8 +808,8 @@
       const field = el("input", { class: "field", readonly: true, value: url, "aria-label": "Link to this note", onfocus: (e) => e.target.select() });
       const copy = el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Copy link", onclick: () => {
         const done = () => toast("Link copied. Paste it into your group chat.");
-        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { field.select(); toast("Press Ctrl+C or Cmd+C to copy."); });
-        else { field.select(); toast("Press Ctrl+C or Cmd+C to copy."); }
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(url).then(done, () => { field.select(); toast("Press Ctrl+C or Cmd+C to copy.", { tone: "info" }); });
+        else { field.select(); toast("Press Ctrl+C or Cmd+C to copy.", { tone: "info" }); }
       } });
       const native = navigator.share ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Share...", onclick: () => navigator.share({ title: note.title || "Sermon notes", url }).catch(() => {}) }) : null;
       const stop = el("button", { class: "btn btn-ghost btn-sm danger-text", type: "button", text: "Stop sharing", onclick: async () => {
@@ -821,7 +821,7 @@
           toast("This note is private again.");
           showOff();
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       } });
       body.replaceChildren(field, el("div", { class: "sheet-actions" }, [stop, el("span", { style: "flex:1" }), native, copy]));
@@ -872,7 +872,7 @@
         await download(`/me/sermons/${note.id}/export?format=${format}&translation=${tr}`, `Sermon.${format}`);
         close();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       } finally {
         button.disabled = false;
       }
@@ -892,7 +892,7 @@
             await download(`/me/sermons/export.zip?translation=${tr}`, "Sermon notes.zip");
             close();
           } catch (err) {
-            toast(err.message);
+            toast(err.message, { tone: "error" });
           }
         } }),
         el("span", { style: "flex:1" }),

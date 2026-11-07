@@ -24,7 +24,7 @@
   const app = () => window.AdullumApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
   // Aquila's wing mark, shared with the rest of the app (AQUILA_MARK in index.html).
   const aquilaMark = () => (app() && app().aquilaMark) || "";
   // Her mark in its gradient circle, as she appears beside what she says.
@@ -245,7 +245,7 @@
             chip.insertAdjacentHTML("afterbegin", ICON.check);
           } catch (err) {
             chip.disabled = false;
-            toast(err.message);
+            toast(err.message, { tone: "error" });
           }
         });
         return chip;
@@ -296,7 +296,7 @@
       setTimeout(() => row.remove(), 400);
       toast(message);
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -352,25 +352,25 @@
             // The hope becomes the goal, what they'd ask God is why it
             // matters, and the first small step is its first step.
             const hope = steps[0].box.value.trim();
-            if (!hope) return toast("Write what you're hoping for first.");
+            if (!hope) return toast("Write what you're hoping for first.", { tone: "info" });
             const firstStep = steps[2].box.value.trim();
             plantSheet({ kind: "goal", title: hope.slice(0, 200), note: steps[1].box.value.trim() || null, steps: firstStep ? [firstStep.slice(0, 200)] : [] }, pebblesRoom);
           } })
         : null,
       el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Keep it, only for me", onclick: async () => {
         const body = writing();
-        if (!body) return toast("Write a little first.");
+        if (!body) return toast("Write a little first.", { tone: "info" });
         try {
           await api("/me/refuge/writings", { method: "POST", body: { shape, body } });
           toast("Kept. Only you can open it.");
           threshold();
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       } }),
       el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Let it go", onclick: () => {
         const body = writing();
-        if (!body) return toast("Write a little first.");
+        if (!body) return toast("Write a little first.", { tone: "info" });
         release(body, spec.release, shape);
       } }),
     ];
@@ -442,7 +442,7 @@
       talk = { messages: kept.messages, keptId: kept.id };
       talkRoom();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -451,7 +451,7 @@
     try {
       await api(`/me/refuge/talks/${talk.keptId}`, { method: "PUT", body: { messages: wire(talk.messages) } });
     } catch {
-      toast("Couldn't keep the latest part of this talk.");
+      toast("Couldn't keep the latest part of this talk.", { tone: "error" });
     }
   }
 
@@ -474,7 +474,7 @@
     say();
     keepBtn.onclick = async () => {
       if (talk.keptId) return;
-      if (talk.messages.length < 2) return toast("Say something first, then you can keep it.");
+      if (talk.messages.length < 2) return toast("Say something first, then you can keep it.", { tone: "info" });
       try {
         const kept = await api("/me/refuge/talks", { method: "POST", body: { messages: wire(talk.messages) } });
         talk.keptId = kept.id;
@@ -482,7 +482,7 @@
         keepBtn.classList.add("is-done");
         say();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const erase = el("button", { class: "act danger", type: "button", text: "Erase", onclick: async () => {
@@ -491,7 +491,7 @@
         try {
           await api(`/me/refuge/talks/${talk.keptId}`, { method: "DELETE" });
         } catch (err) {
-          return toast(err.message);
+          return toast(err.message, { tone: "error" });
         }
       }
       talk = null;
@@ -774,7 +774,7 @@
         await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body });
         rerender();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const remove = {
@@ -784,7 +784,7 @@
           await api(`/me/refuge/seeds/${seed.id}`, { method: "DELETE" });
           rerender();
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       },
     };
@@ -812,7 +812,7 @@
         await api(`/me/refuge/seeds/${seed.id}/tend`, { method: "POST", body: { today: cave().localToday(), day, tended } });
         rerender();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const metWeek = seed.week_done >= seed.per_week;
@@ -845,7 +845,7 @@
         await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body });
         rerender();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const complete = m && m.fraction >= 1;
@@ -920,7 +920,7 @@
         seeds = await api(`/me/refuge/seeds?today=${cave().localToday()}`);
         draw();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const newPebble = (kind) => plantSheet(kind ? { kind } : null, refresh);
@@ -1566,7 +1566,7 @@
     try {
       choices = await api(`/me/refuge/kind-words?kind=${shownKind(post)}&translation=${encodeURIComponent(translation())}`);
     } catch (err) {
-      return toast(err.message);
+      return toast(err.message, { tone: "error" });
     }
     const msg = cave().formMessage();
     const options = choices.map((w, i) => el("label", { class: "choice" }, [
@@ -1653,7 +1653,7 @@
         if (onChange) onChange("amen");
       } catch (err) {
         react.disabled = false;
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const words = el("button", { class: `act${post.sent_kind_word ? " is-done" : ""}`, type: "button", disabled: post.sent_kind_word, text: post.sent_kind_word ? "Kind words sent" : "Send kind words" });
@@ -1823,7 +1823,7 @@
       toast("It's on the wall for two more weeks.");
       rerender();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -1888,7 +1888,7 @@
             await api(`/me/refuge/posts/${post.id}`, { method: "DELETE" });
             rerender();
           } catch (err) {
-            toast(err.message);
+            toast(err.message, { tone: "error" });
           }
         } }),
       ]),
@@ -2049,7 +2049,7 @@
         paint();
       } catch (err) {
         box.checked = !box.checked;
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
     paint();
@@ -2090,7 +2090,7 @@
           else more.remove();
         } catch (err) {
           more.disabled = false;
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       },
     }) : null;
@@ -2179,7 +2179,7 @@
         el("p", { class: "kicker", style: "margin:6px 0 0", text: "Not sure what to say? You could start with this" }),
         el("p", { class: "say-this", text: words }),
         el("div", {}, el("button", { class: "act", type: "button", text: "Copy", onclick: () => {
-          if (navigator.clipboard) navigator.clipboard.writeText(words).then(() => toast("Copied.")).catch(() => toast("Couldn't copy."));
+          if (navigator.clipboard) navigator.clipboard.writeText(words).then(() => toast("Copied.")).catch(() => toast("Couldn't copy.", { tone: "error" }));
         } })),
       ])
     ));
@@ -2200,7 +2200,7 @@
         toast(action === "approve" ? "On the wall." : "Removed.");
         rerender();
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     return el("article", { class: "burden desk-card fade-in" }, [

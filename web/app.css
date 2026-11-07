@@ -459,13 +459,25 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--ember) 0%, var(--ember-hi) 100%); border-radius: var(--pill); transition: width 0.4s ease; }
 .progress-line { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; color: var(--faint); margin: 8px 0 14px; }
 .chapter { padding: 5px 12px; border-radius: var(--pill); background: var(--raised); font-size: 13px; font-weight: 600; color: var(--text); border: 0; }
-button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
+a.chapter { text-decoration: none; }
+a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
 
 /* Shaping a plan with Aquila (home card and Reading plans in the Bible) */
-.plan-builder textarea { display: block; width: 100%; min-height: 4.5rem; background: var(--ground); border: 1px solid var(--line-2); border-radius: var(--radius-sm); padding: 11px 14px; font-size: 16px; line-height: 1.45; resize: vertical; }
-.plan-builder textarea:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); }
-.plan-builder .topics { margin: 10px 0 14px; }
-.plan-builder .builder-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; }
+/* Plan with Aquila (cave.js::planBuilder): a head line and one ask box. */
+.plan-ask { margin: 0 0 24px; }
+.plan-ask-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 8px; }
+.plan-ask-head .title-info { margin: 0; }
+.plan-ask-title { margin: 0; font-size: 15px; font-weight: 600; }
+.plan-ask-whole { font-size: 13.5px; padding: 4px 0; white-space: nowrap; }
+/* One line that scrolls sideways on a narrow screen, fading at its edge. */
+.plan-ideas { display: none; align-items: center; gap: 4px; margin: 8px 0 0; padding: 0 4px; font-size: 13.5px; color: var(--faint); white-space: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+.plan-ideas::-webkit-scrollbar { display: none; }
+.plan-ask:focus-within:not(.has-text) .plan-ideas { display: flex; }
+.plan-ideas span { flex: none; margin-right: 4px; }
+.plan-ideas button { flex: none; padding: 3px 6px; border: 0; border-radius: var(--radius-sm); background: none; color: var(--soft); font: inherit; cursor: pointer; }
+.plan-ideas button:hover { background: var(--hover); color: var(--ember-hi); }
+.plan-ideas button + button::before { content: "·"; margin-right: 8px; color: var(--faint); pointer-events: none; }
+.plan-ideas button:last-child { margin-right: 24px; }
 
 /* ---------- Ask Aquila ---------- */
 .ask-layout { display: flex; min-height: calc(100vh - 61px); }
@@ -572,6 +584,9 @@ button.chapter:hover { background: var(--hover); color: var(--ember-hi); }
    card, and the card rises above its neighbours while it's open. */
 .entry:has(.more-menu) { position: relative; z-index: 5; }
 .entry .entry-actions .more-menu { top: auto; bottom: calc(100% + 4px); }
+/* cave.js::unhide flips a menu that would open under a bar or off screen. */
+.more .more-menu.is-below { top: calc(100% + 4px); bottom: auto; }
+.more .more-menu.is-above { top: auto; bottom: calc(100% + 4px); }
 .tag { font-size: 13px; color: var(--ember); }
 .plan-list { display: flex; flex-direction: column; gap: 16px; margin-top: 24px; }
 .plan-item .overview { color: var(--muted); font-size: 15px; margin: 2px 0 14px; }
@@ -628,7 +643,35 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .disclaimer-modal h3 { font-size: 19px; margin: 0 0 10px; }
 .disclaimer-modal p { color: var(--muted); font-size: 15px; margin: 0 0 12px; }
 
-.toast { position: fixed; left: 50%; top: 72px; transform: translateX(-50%); z-index: 80; background: var(--text); color: var(--ground); padding: 11px 20px; border-radius: var(--pill); font-size: 15px; font-weight: 500; box-shadow: 0 18px 40px var(--shadow); max-width: calc(100vw - 32px); text-align: center; animation: rise 0.2s ease both; }
+/* Toasts (cave.js::toast): a small card with an icon for its tone, from the
+   bottom on a wide screen and from the top on a phone, so it never sits on
+   the tab bar, the composer or the player. The line along the bottom is the
+   time left, and it holds while the card is hovered or focused. */
+.toasts { position: fixed; z-index: 80; left: 50%; bottom: calc(24px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); width: min(400px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.toast { --tone: var(--sage); --tone-bg: var(--sage-bg); position: relative; overflow: hidden; pointer-events: auto; touch-action: pan-y; display: flex; align-items: center; gap: 10px; padding: 9px 6px 9px 10px; background: color-mix(in srgb, var(--surface) 98%, transparent); backdrop-filter: blur(20px) saturate(1.3); -webkit-backdrop-filter: blur(20px) saturate(1.3); color: var(--text); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 14px 36px var(--shadow), 0 2px 6px var(--shadow); animation: toast-in 0.34s cubic-bezier(0.2, 0.9, 0.3, 1.15) both; transition: transform 0.2s ease, opacity 0.2s ease; }
+.toast.is-info { --tone: var(--ember); --tone-bg: var(--ember-bg); }
+.toast.is-error { --tone: var(--danger); --tone-bg: color-mix(in srgb, var(--danger) 13%, var(--surface)); }
+.toast.is-dragging { transition: none; }
+.toast.is-leaving { animation: toast-out 0.22s ease forwards; }
+.toast-icon { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--tone-bg); color: var(--tone); }
+.toast-icon svg { width: 15px; height: 15px; }
+.toast-text { flex: 1; min-width: 0; margin: 0; font-size: 14.5px; font-weight: 500; line-height: 1.35; }
+.toast-action { flex: none; display: inline-flex; align-items: center; min-height: var(--h-btn-sm); padding: 0 12px; border: 0; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font: inherit; font-size: 13.5px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.toast-action:hover { background: var(--ember-line); }
+.toast-close { flex: none; display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--faint); cursor: pointer; }
+.toast-close:hover { background: var(--hover); color: var(--text); }
+.toast-close svg { width: 14px; height: 14px; }
+.toast-timer { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--tone); opacity: 0.55; transform-origin: left; animation: toast-timer var(--toast-ms) linear forwards; }
+@media (hover: hover) { .toast:hover .toast-timer { animation-play-state: paused; } }
+.toast:focus-within .toast-timer, .toast.is-dragging .toast-timer { animation-play-state: paused; }
+@keyframes toast-in { from { opacity: 0; transform: translateY(14px) scale(0.97); } }
+@keyframes toast-out { to { opacity: 0; transform: translateY(8px) scale(0.97); } }
+@keyframes toast-timer { to { transform: scaleX(0); } }
+@media (max-width: 720px) {
+  .toasts { bottom: auto; top: calc(10px + env(safe-area-inset-top, 0px)); flex-direction: column-reverse; }
+  @keyframes toast-in { from { opacity: 0; transform: translateY(-14px) scale(0.97); } }
+  @keyframes toast-out { to { opacity: 0; transform: translateY(-10px) scale(0.97); } }
+}
 
 /* ---------- Knowledge graph (web/graph.js) ---------- */
 .graph-overlay { position: fixed; inset: 0; z-index: 50; background: var(--ground); display: flex; flex-direction: column; animation: appear 0.2s ease both; }
@@ -907,6 +950,7 @@ button.wd:active { transform: scale(0.88); }
 /* ---------- Saved (web/saved.js) ----------
    An answer shows its opening, fading out, until "Read all" opens the rest. */
 .saved-card .badge { text-transform: none; }
+.saved-card .entry-actions .more { margin-left: auto; }
 .saved-answer { font-size: 15px; line-height: 1.6; color: var(--soft); white-space: pre-wrap; max-height: 9.6em; overflow: hidden; -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent); mask-image: linear-gradient(180deg, #000 55%, transparent); }
 .saved-card.is-open .saved-answer { max-height: none; -webkit-mask-image: none; mask-image: none; }
 .saved-answer .heading { margin-top: 14px; padding-top: 10px; }
@@ -1608,7 +1652,8 @@ body.still-open { overflow: hidden; }
   .sermon-list { position: static; max-height: none; }
   /* On a phone an open note takes the list's place; All sermons goes back. */
   .sermons:not(.is-list) .sermon-list { display: none; }
-  .sermon-items { grid-auto-flow: column; grid-auto-columns: minmax(200px, 75%); overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; padding-bottom: 4px; }
+  /* The list stacks top to bottom, one sermon a row, never a sideways carousel. */
+  .sermons.is-list .sermon-items { grid-template-columns: minmax(0, 1fr); gap: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1711,7 +1756,7 @@ body.still-open { overflow: hidden; }
 .journal-pinned { margin-bottom: 16px; align-items: start; }
 .refl-entry .badge { text-transform: none; }
 
-.refl-flame { width: 12px; height: 12px; flex: none; color: var(--ember); }
+.refl-mark { width: 13px; height: 13px; flex: none; color: var(--ember); }
 .refl-kicker, .refl-entry .tag { display: inline-flex; align-items: center; gap: 6px; }
 .refl-entry-word { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--ember-hi); }
 
@@ -2115,7 +2160,32 @@ button.refl-status-pill { cursor: pointer; }
 /* ---------- Home (cave.js::showHome) ----------
    Notifications first, one line each; then the verse, Today and Goals as
    quiet lists, so the page reads as a few rows rather than a wall of cards. */
-.home-ask { margin: 0 0 20px; }
+/* The ask box: a book mark, the question, the mic, and a round send button
+   that stays quiet until something is typed. */
+.home-ask { margin: 0 0 20px; min-height: 56px; padding: 6px 6px 6px 16px; gap: 6px; box-shadow: 0 14px 34px -24px var(--shadow), 0 1px 0 var(--line); }
+.home-ask-mark { flex: none; display: grid; place-items: center; color: var(--ember); }
+.home-ask-mark svg { width: 19px; height: 19px; }
+.home-ask input { padding-left: 4px; }
+.home-ask-mic { border: 0; background: transparent; color: var(--muted); }
+.home-ask-mic:hover { background: var(--hover); color: var(--ember); }
+.home-ask-send { flex: none; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: var(--ember-grad, var(--ember)); color: var(--ember-ink); box-shadow: 0 6px 16px -6px var(--ember-glow); cursor: pointer; transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease; }
+.home-ask-send svg { width: 19px; height: 19px; }
+.home-ask-send:active { transform: scale(0.94); }
+.home-ask:has(input:placeholder-shown) .home-ask-send { background: var(--raised); color: var(--faint); box-shadow: none; }
+
+/* Amens and Declare side by side; one alone takes the row. On a phone each
+   is a small tile: icon on top, then its title and one line. */
+.home-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin: 0 0 14px; }
+.home-tiles:empty { display: none; }
+.home-tile { position: relative; min-width: 0; display: grid; }
+.home-tile > .info-btn { position: absolute; top: 50%; right: 40px; transform: translateY(-50%); margin: 0; }
+.home-tile .home-note { height: 100%; }
+@media (max-width: 720px) {
+  .home-tile:not(:only-child) .home-note { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px 14px; }
+  .home-tile:not(:only-child) .home-note-go { display: none; }
+  .home-tile:not(:only-child) .home-note-text strong { white-space: normal; line-height: 1.3; }
+  .home-tile:not(:only-child) > .info-btn { top: 6px; right: 6px; transform: none; }
+}
 .home-notes { display: grid; gap: 8px; margin: 0 0 14px; }
 .home-notes:empty { display: none; }
 [data-view="home"] .cols, [data-view="home"] .maincol, [data-view="home"] .sidecol { gap: 16px; }
@@ -2220,14 +2290,6 @@ button.refl-status-pill { cursor: pointer; }
 /* Declare (web/declare.js): Scripture spoken aloud over what someone faces.
    The home line, the form, the words (each line in Inter with its verse in
    the serif under it), and the full-screen "Speak it aloud". */
-.home-declare { display: flex; align-items: center; gap: 8px; margin: 0 0 16px; padding: 6px 8px 6px 10px; border-radius: var(--pill); border: 1px solid var(--ember-line); background: var(--card-warm); }
-.home-declare-go { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; font-size: 15px; }
-.home-declare-go strong { font-weight: 600; }
-.home-declare-go .home-note-icon { width: 30px; height: 30px; }
-.home-declare-go .home-note-icon svg { width: 16px; height: 16px; }
-.home-declare-arrow { flex: 1; display: flex; justify-content: flex-end; align-items: center; min-height: var(--h-btn-sm); padding-right: 6px; color: var(--faint); }
-.home-declare-arrow svg { width: 18px; height: 18px; }
-.home-declare:hover { border-color: var(--ember); }
 
 .declare-page { max-width: 640px; }
 .declare-head { display: grid; gap: 6px; margin: 0 0 20px; }

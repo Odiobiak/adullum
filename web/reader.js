@@ -409,7 +409,7 @@
         await navigator.clipboard.writeText(`"${s.text}" ${s.ref} (${s.translation})`);
         cave().toast("Copied.");
       } catch {
-        cave().toast("Your browser didn't allow copying.");
+        cave().toast("Your browser didn't allow copying.", { tone: "error" });
       }
     });
   }
@@ -501,7 +501,7 @@
   // selected verse is already highlighted.
   function toggleHighlightPicker() {
     if (!cave().signedIn()) {
-      cave().toast("Create a free account to highlight verses.");
+      cave().toast("Create a free account to highlight verses.", { tone: "info" });
       app().go("join");
       return;
     }
@@ -530,7 +530,7 @@
       clearSelection();
       paintHighlights();
     } catch (err) {
-      cave().toast(err.message);
+      cave().toast(err.message, { tone: "error" });
     }
   }
 
@@ -542,7 +542,7 @@
       clearSelection();
       paintHighlights();
     } catch (err) {
-      cave().toast(err.message);
+      cave().toast(err.message, { tone: "error" });
     }
   }
 
@@ -620,7 +620,7 @@
             node.remove();
             if (onChange) onChange();
           } catch (err) {
-            cave().toast(err.message);
+            cave().toast(err.message, { tone: "error" });
           }
         },
       }),
@@ -634,7 +634,7 @@
 
   function openNoteSheet(s, onSaved) {
     if (!cave().signedIn()) {
-      cave().toast("Create a free account to keep notes.");
+      cave().toast("Create a free account to keep notes.", { tone: "info" });
       app().go("join");
       return;
     }
@@ -664,7 +664,7 @@
               body: { book: s.book, chapter: s.chapter, verse_start: s.start, verse_end: s.end, translation: s.translation, verse_text: s.text, body: text },
             });
         close();
-        cave().toast(existing ? "Note saved." : `Note kept on ${note.ref}.`);
+        cave().toast(existing ? "Note saved." : `Note kept on ${note.ref}.`, { action: { label: "My notes", href: "#bible/notes" } });
         if (!existing) clearSelection();
         if (current && note.book === current.book && note.chapter === current.chapter) loadNotes(loadToken);
         if (onSaved) onSaved(note);
@@ -737,7 +737,7 @@
               node.remove();
               if (onChange) onChange();
             } catch (err) {
-              cave().toast(err.message);
+              cave().toast(err.message, { tone: "error" });
             }
           },
         }),

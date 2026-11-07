@@ -25,7 +25,7 @@
   const app = () => window.AdullumApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
 
   const SPANS = [["month", "Month"], ["quarter", "Quarter"], ["year", "Year"], ["season", "Season"]];
   // How a question names the stretch being looked back on.
@@ -47,7 +47,10 @@
   // The halfway check-ins someone has put away, by reflection id, on this device.
   const CHECK_IN_KEY = "adullumCheckInsPutAway";
 
-  const FLAME = '<svg class="refl-flame" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2c1 4 6 6 6 12a6 6 0 0 1-12 0c0-3 2-5 3-6 0 2 1 3 2 3 0-4 1-6 1-9z"/></svg>';
+  // What Adullum counts for the person (from their cave, or from Pebbles)
+  // carries the cave's own arch; a reflection itself, a sun on the horizon.
+  const CAVE_MARK = '<svg class="refl-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M4 28C4 15 9 5 16 5s12 10 12 23M12.5 28c0-4.5 1.6-7.5 3.5-7.5s3.5 3 3.5 7.5"/></svg>';
+  const HORIZON = '<svg class="refl-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v3M5.6 9.1l1.8 1.8M18.4 9.1l-1.8 1.8"/></svg>';
   const ICON_SUMMARY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>';
   const ICON_CHEVRON = '<svg class="refl-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
 
@@ -91,7 +94,7 @@
   // ---------------------------------------------------------------------
   function openStart() {
     if (!cave().signedIn()) {
-      toast("Create a free account to keep a journal.");
+      toast("Create a free account to keep a journal.", { tone: "info" });
       app().go("join");
       return;
     }
@@ -294,7 +297,7 @@
         menu,
       ]),
       el("header", { class: "refl-head" }, [
-        el("p", { class: "kicker ember refl-kicker", html: FLAME }, ["Reflection"]),
+        el("p", { class: "kicker ember refl-kicker", html: HORIZON }, ["Reflection"]),
         nameInput(),
         el("p", { class: "refl-dates-line", text: `${r.label} into ${r.ahead_label}` }),
       ]),
@@ -353,7 +356,7 @@
       await api(`/me/reflections/${r.id}`, { method: "DELETE" });
       toast("Reflection deleted.");
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
     app().go("journal");
   }
@@ -367,14 +370,15 @@
       if (!open || open.dirty) throw new Error("Your reflection didn't save. Check your connection and try again.");
       const kept = await api(`/me/reflections/${r.id}/keep`, { method: "POST", body: { today: cave().localToday() } });
       if (open && open.prayAsking && r.look_ahead.asking.trim()) {
-        await api("/me/prayers", { method: "POST", body: { body: r.look_ahead.asking.trim() } }).catch((err) => toast(err.message));
+        await api("/me/prayers", { method: "POST", body: { body: r.look_ahead.asking.trim() } }).catch((err) => toast(err.message, { tone: "error" }));
       }
       const goPlan = open && open.startPlan;
       open = null;
-      toast(kept.planted ? `Kept. ${kept.planted === 1 ? "One goal is" : `${kept.planted} goals are`} in Pebbles now.` : "Kept. It's pinned in your journal.");
+      toast(kept.planted ? `Kept. ${kept.planted === 1 ? "One goal is" : `${kept.planted} goals are`} in Pebbles now.` : "Kept. It's pinned in your journal.",
+          kept.planted ? { action: { label: "Pebbles", href: "#pebbles" } } : {});
       app().go(goPlan ? "bible/plans" : "journal");
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       button.disabled = false;
     }
   }
@@ -460,7 +464,7 @@
     ]);
   }
 
-  // "What you count": cave numbers (with a flame) and the person's own.
+  // "What you count": cave numbers (with the cave mark) and the person's own.
   function countTiles(updateLine) {
     const { r } = open;
     const numbers = r.look_back.numbers;
@@ -468,7 +472,7 @@
       if (n.key) {
         return el("div", { class: "refl-tile" }, [
           el("strong", { text: n.value }),
-          el("span", { html: FLAME }, [n.label]),
+          el("span", { html: CAVE_MARK }, [n.label]),
           xButton(`Take out ${n.label}`, () => { numbers.splice(numbers.indexOf(n), 1); touch(); redraw(); }),
         ]);
       }
@@ -484,7 +488,7 @@
     });
     const missing = Object.keys(r.cave_counts).filter((key) => !numbers.some((n) => n.key === key));
     return el("section", { class: "refl-group" }, [
-      el("div", { class: "refl-group-head" }, [el("h4", { text: "What you count" }), el("small", { html: `${FLAME}<span>from your cave, the rest are yours</span>` })]),
+      el("div", { class: "refl-group-head" }, [el("h4", { text: "What you count" }), el("small", { html: `${CAVE_MARK}<span>from your cave, the rest are yours</span>` })]),
       el("div", { class: "refl-tiles" }, [...tiles, add]),
       missing.length ? el("div", { class: "refl-chips" }, missing.map((key) => el("button", {
         class: "chip-btn", type: "button", text: `+ ${r.cave_counts[key]}`,
@@ -513,7 +517,7 @@
         });
       }
       return el("li", {}, [
-        el("span", { class: "refl-goal-name", html: g.seed_id ? FLAME : "" }, [g.title]),
+        el("span", { class: "refl-goal-name", html: g.seed_id ? CAVE_MARK : "" }, [g.title]),
         status,
         xButton(`Take out ${g.title}`, () => { goals.splice(goals.indexOf(g), 1); touch(); redraw(); }),
       ]);
@@ -530,7 +534,7 @@
     });
     const missing = (r.summary.goals || []).filter((g) => !goals.some((x) => x.seed_id === g.seed_id));
     return el("section", { class: "refl-panel" }, [
-      el("div", { class: "refl-group-head" }, [el("h4", { text: "Goals" }), el("small", { html: `${FLAME}<span>from Pebbles</span>` })]),
+      el("div", { class: "refl-group-head" }, [el("h4", { text: "Goals" }), el("small", { html: `${CAVE_MARK}<span>from Pebbles</span>` })]),
       rows.length ? el("ul", { class: "refl-goals" }, rows) : null,
       missing.length ? el("div", { class: "refl-chips" }, missing.map((g) => el("button", {
         class: "chip-btn", type: "button", text: `+ ${g.title}`,
@@ -798,7 +802,7 @@
       const last = n.key ? r.summary.aim_lasts[n.key] : n.last;
       let label;
       if (n.key) {
-        label = el("span", { html: FLAME }, [n.label]);
+        label = el("span", { html: CAVE_MARK }, [n.label]);
       } else {
         label = el("input", { class: "refl-tile-label", value: n.label, placeholder: "what you'll count", "aria-label": "What it counts", maxlength: "60" });
         label.disabled = !!n.seed_id;
@@ -821,7 +825,7 @@
       ...r.look_back.numbers.filter((n) => !n.key && n.label.trim() && !numbers.some((x) => !x.key && sameName(x.label, n.label))).map((n) => ({ key: null, label: n.label.trim(), last: n.value })),
     ];
     return el("section", { class: "refl-group refl-aims" }, [
-      blockTitle("Numbers to aim for", "Set a number to reach. Those with a flame Adullum counts for you. Your own go to Pebbles when you keep this, so you can move them along as you go."),
+      blockTitle("Numbers to aim for", "Set a number to reach. Those marked with the cave Adullum counts for you. Your own go to Pebbles when you keep this, so you can move them along as you go."),
       el("div", { class: "refl-tiles" }, [...tiles, add]),
       offers.length ? el("div", { class: "refl-chips" }, offers.map((o) => el("button", {
         class: "chip-btn", type: "button", text: `+ ${o.label}`,
@@ -890,7 +894,7 @@
       }).catch(() => {});
     }
     return el("article", { class: "card warm refl-plan fade-in" }, [
-      el("p", { class: "kicker ember refl-kicker", html: FLAME }, [`Reflection · ${r.label} into ${r.ahead_label}`]),
+      el("p", { class: "kicker ember refl-kicker", html: HORIZON }, [`Reflection · ${r.label} into ${r.ahead_label}`]),
       r.title ? el("h3", { class: "refl-plan-title", text: r.title }) : null,
       la.word ? el("p", { class: "refl-plan-word", text: la.word }) : null,
       verse,
@@ -913,7 +917,7 @@
     const word = (r.look_ahead || {}).word;
     const node = el("article", { class: "entry refl-entry fade-in" }, [
       el("div", { class: "entry-meta" }, [
-        el("span", { class: "tag", html: `${FLAME}<span>Reflection</span>` }),
+        el("span", { class: "tag", html: `${HORIZON}<span>Reflection</span>` }),
         el("span", { text: cave().when(r.updated_at || r.created_at) }),
         draft ? el("span", { class: "badge plain", text: "In progress" }) : null,
       ]),
@@ -930,7 +934,7 @@
               await api(`/me/reflections/${r.id}`, { method: "DELETE" });
               node.remove();
             } catch (err) {
-              toast(err.message);
+              toast(err.message, { tone: "error" });
             }
           },
         }])),

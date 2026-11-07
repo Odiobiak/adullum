@@ -431,7 +431,7 @@
     } catch (err) {
       if (!ui) return;
       if (ui.nodes.size) {
-        window.Cave ? window.Cave.toast(err.message) : alert(err.message);
+        window.Cave ? window.Cave.toast(err.message, { tone: "error" }) : alert(err.message);
       } else {
         showStarters(err.message);
       }

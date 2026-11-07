@@ -16,7 +16,7 @@
   const cave = () => window.Cave;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
   const apiBase = () => (((document.getElementById("apiBase") || {}).value || "").trim() || location.origin).replace(/\/$/, "");
 
   const supported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -73,25 +73,25 @@
   async function enable() {
     if (!supported()) {
       if (isIOS() && !installed()) installHelp();
-      else toast("This browser can't show notifications. You can add it to your calendar instead.");
+      else toast("This browser can't show notifications. You can add it to your calendar instead.", { tone: "info" });
       return false;
     }
     if (Notification.permission === "denied") {
-      toast("Notifications are blocked for Adullum. Allow them in this browser's site settings.");
+      toast("Notifications are blocked for Adullum. Allow them in this browser's site settings.", { tone: "error" });
       return false;
     }
     const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
     if (permission !== "granted") return false;
     const key = await publicKey();
     if (!key) {
-      toast("Notifications aren't set up on this server yet.");
+      toast("Notifications aren't set up on this server yet.", { tone: "info" });
       return false;
     }
     try {
       await subscribe(key);
       return true;
     } catch (err) {
-      toast(err.message || "Couldn't turn notifications on.");
+      toast(err.message || "Couldn't turn notifications on.", { tone: "error" });
       return false;
     }
   }

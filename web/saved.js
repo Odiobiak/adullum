@@ -8,7 +8,7 @@
 (function () {
   const cave = () => window.Cave;
   const el = (...args) => cave().el(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
   const app = () => window.AdullumApp;
 
   const FILTERS = [["all", "Everything"], ["verse", "Verses"], ["answer", "Answers"]];
@@ -20,20 +20,20 @@
   // ---------------------------------------------------------------------
   async function post(path, body) {
     if (!cave().signedIn()) {
-      toast("Create a free account to save things.");
+      toast("Create a free account to save things.", { tone: "info" });
       return null;
     }
     try {
       return await cave().api(path, { method: "POST", body });
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       return null;
     }
   }
 
   async function verse(ref, translation) {
     const item = await post("/me/saved/verse", { ref, translation });
-    if (item) toast(item.already ? `${item.ref} is already saved.` : `${item.ref} saved.`);
+    if (item) toast(item.already ? `${item.ref} is already saved.` : `${item.ref} saved.`, { action: { label: "View", href: "#bible/saved" } });
     return item;
   }
 
@@ -43,7 +43,7 @@
       answer: text,
       citations: citations.map(({ book, chapter, verse: v }) => ({ book, chapter, verse: v })),
     });
-    if (item) toast("Saved.");
+    if (item) toast("Saved.", { action: { label: "View", href: "#bible/saved" } });
     return item;
   }
 
@@ -53,7 +53,7 @@
       await cave().api(`/me/saved/${id}`, { method: "DELETE" });
       return true;
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       return false;
     }
   }
@@ -65,7 +65,8 @@
     return el("div", { class: "entry-meta" }, [el("span", { class: "badge plain", text: label }), el("span", { text: cave().when(item.created_at) })]);
   }
 
-  // The "⋯" menu every card ends with; Remove takes the card off the page.
+  // The "⋯" menu every card ends with, after an optional primary action;
+  // Remove takes the card off the page.
   function actions(primary, item, node, extra, onRemoved) {
     return el("div", { class: "entry-actions" }, [
       primary,
@@ -83,8 +84,7 @@
       el("h3", {}, el("a", { href: `#${window.Reader.href(item.ref)}`, text: item.ref })),
       el("p", { class: "verse", text: item.verse_text }),
       actions(
-        el("button", { class: "act", type: "button", text: "Ask Aquila", onclick: () => app().submitQuery(`On ${item.ref}: What does this mean?`) }),
-        item, node,
+        null, item, node,
         [
           { label: "Write about it", onClick: () => cave().openJournal({ passage_ref: item.ref, verse_text: item.verse_text }) },
           { label: "See connections", onClick: () => window.Graph.open([`${item.book} ${item.chapter}:${item.verse_start}`]) },

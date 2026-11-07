@@ -174,7 +174,7 @@
           onclick: () => {
             snooze();
             node.remove();
-            toast("It'll be in the account menu whenever you want it.");
+            toast("It'll be in the account menu whenever you want it.", { tone: "info" });
           },
         }),
       ]),

@@ -25,7 +25,7 @@
   const app = () => window.AdullumApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
 
   // Which half of the list the tab is showing: "open" or "answered".
   let showing = "open";
@@ -64,7 +64,7 @@
   // Add a prayer, or edit one when `existing` is given.
   function openSheet({ existing } = {}, onSaved) {
     if (!cave().signedIn()) {
-      toast("Create a free account to keep a prayer list.");
+      toast("Create a free account to keep a prayer list.", { tone: "info" });
       app().go("join");
       return;
     }
@@ -139,7 +139,7 @@
       await api("/me/prayers/log", { method: "POST", body: { today: cave().localToday(), prayer_id: prayerId, prayed } });
       return true;
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       return false;
     }
   }
@@ -307,7 +307,7 @@
       await api(`/me/fasts/${f.id}`, { method: "DELETE" });
       onChange();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -385,7 +385,7 @@
           await api(`/me/prayers/${p.id}`, { method: "DELETE" });
           rerender();
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       },
     };
@@ -396,7 +396,7 @@
               await api(`/me/prayers/${p.id}`, { method: "PATCH", body: { status: "open" } });
               rerender();
             } catch (err) {
-              toast(err.message);
+              toast(err.message, { tone: "error" });
             }
           },
         }, remove]

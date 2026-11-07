@@ -24,7 +24,7 @@
   const cave = () => window.Cave;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
   const $ = (sel) => document.querySelector(sel);
 
   const svg = (d, fill = "none") => `<svg viewBox="0 0 24 24" fill="${fill}" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
@@ -267,7 +267,7 @@
       button.paint(true);
       toast(`Reminder set for ${fullWhen(saved.remind_at)}.`);
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
   async function turnOff(button, key) {
@@ -277,7 +277,7 @@
       button.paint(false);
       toast("Reminder off.");
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
@@ -583,7 +583,7 @@
         if (alerts.checked) window.Notify.enable();
       } catch (err) {
         alerts.checked = !alerts.checked;
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     });
     let source = null;
@@ -615,7 +615,7 @@
           churches = null;
           location.hash = "church";
         } catch (err) {
-          toast(err.message);
+          toast(err.message, { tone: "error" });
         }
       } }),
     );
@@ -961,7 +961,7 @@
         closePlayer();
         await openSermons();
         await window.Sermons.open(note.id);
-        if (!note.from_transcript) toast("Drafted from the description, since the captions weren't available.");
+        if (!note.from_transcript) toast("Drafted from the description, since the captions weren't available.", { tone: "info" });
       } catch (err) {
         clearInterval(ticker);
         steps.hidden = true;
@@ -1024,7 +1024,7 @@
         await openSermons();
         await window.Sermons.open(note.id);
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
         save.disabled = false;
       }
     };
@@ -1074,7 +1074,7 @@
       try {
         week = { ...week, ...(await api(`/me/sermons/${week.id}/week`, { method: "POST", body })) };
       } catch (err) {
-        toast(err.message);
+        toast(err.message, { tone: "error" });
       }
     };
     const action = (step) => {

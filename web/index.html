@@ -125,7 +125,7 @@
       <div class="features">
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg><h3>The Bible</h3><p>Four public-domain translations, with your notes, highlights and saved verses beside the text, and reading plans laid out day by day.</p></div>
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12h5"/></svg><h3>Aquila</h3><p>Ask about any passage and get an answer drawn from the text, with chapter and verse. Follow a verse to the passages it connects to.</p></div>
-        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3c2.2 3 4.5 5.2 4.5 8.5a4.5 4.5 0 0 1-9 0C7.5 8.2 9.8 6 12 3z"/><path d="M12 16v5"/></svg><h3>Prayer</h3><p>A prayer list that remembers what God answered, a gentle record of praying and fasting, and Scripture to declare over what you face.</p></div>
+        <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-12.4 7.6L3.5 20.5l1.4-4.6A8.5 8.5 0 1 1 21 11.5z"/><path d="M12.2 15s-3.7-2.2-3.7-4.8a1.9 1.9 0 0 1 3.7-.7 1.9 1.9 0 0 1 3.7.7c0 2.6-3.7 4.8-3.7 4.8z"/></svg><h3>Prayer</h3><p>A prayer list that remembers what God answered, a gentle record of praying and fasting, and Scripture to declare over what you face.</p></div>
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20c0-8 4-14 9-14s9 6 9 14"/><path d="M9 20c0-3.5 1.3-6 3-6s3 2.5 3 6M2 20h20"/></svg><h3>Refuge</h3><p>Write it out, talk it through with Aquila, or be still for a while. Share a burden without your name and let others pray for you.</p></div>
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v5M10 4h4"/><path d="M5 21V11l7-4 7 4v10z"/><path d="M10 21v-4h4v4"/></svg><h3>Church</h3><p>Keep sermon notes, join your church's service when it's live, and carry Sunday's passage through the week.</p></div>
         <div><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M14 6l4 4"/></svg><h3>Journal</h3><p>A private journal, and reflections that look back on a month or a year and set out the next.</p></div>
@@ -260,16 +260,17 @@
           <h1 class="page-title" id="greet">Welcome back</h1>
         </div>
       </div>
-      <!-- Live now, Amens: one line each, only while there's something to tell. -->
+      <!-- A church live now: one full-width line, only while it's live. -->
       <div class="home-notes" id="homeNotes"></div>
+      <!-- Amens (only when there's something to tell) and Declare, side by side (cave.js::showHome). -->
+      <div class="home-tiles" id="homeTiles"></div>
       <form class="ask-box home-ask" id="homeAsk">
+        <span class="home-ask-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
         <label for="homeQuery" class="sr">Ask Aquila</label>
-        <input id="homeQuery" autocomplete="off" placeholder="What would you like to study?">
-        <button type="button" class="iconbtn" data-voice aria-label="Talk with Aquila out loud"><span data-mic></span></button>
-        <button class="btn btn-ember" type="submit">Ask</button>
+        <input id="homeQuery" autocomplete="off" enterkeyhint="send" placeholder="Ask Aquila about Scripture">
+        <button type="button" class="iconbtn home-ask-mic" data-voice aria-label="Talk with Aquila out loud"><span data-mic></span></button>
+        <button class="home-ask-send" type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </form>
-      <!-- Declare: one line, its explanation behind an info button (web/declare.js). -->
-      <div id="homeDeclare"></div>
       <div class="home-verse" id="homeVerse"></div>
       <div class="cols">
         <div class="maincol" id="homeMain"></div>
@@ -1072,7 +1073,7 @@ function armConnectTimeout() {
     if (callTimer) return;
     hangUp();
     endCallUI();
-    window.Cave.toast("The call didn't connect. Check your microphone permission and try again.");
+    window.Cave.toast("The call didn't connect. Check your microphone permission and try again.", { tone: "error" });
   }, 30000);
 }
 
@@ -1092,7 +1093,7 @@ function watchSession(session) {
 
 async function startVoiceWidget() {
   if (typeof window.initWebRTCWidget !== "function") {
-    window.Cave.toast("The voice service didn't load. Check your connection and reload the page.");
+    window.Cave.toast("The voice service didn't load. Check your connection and reload the page.", { tone: "error" });
     return;
   }
   document.body.classList.add("voice-active");
@@ -1122,7 +1123,7 @@ async function startVoiceWidget() {
     }
     voiceWidget = null;
     document.body.classList.remove("voice-active", "voice-mounted");
-    window.Cave.toast(`Couldn't start the call: ${err.message}. Please try again.`);
+    window.Cave.toast(`Couldn't start the call: ${err.message}. Please try again.`, { tone: "error" });
   }
 }
 

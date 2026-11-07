@@ -14,7 +14,6 @@
   const ICON = {
     declare: svg('<path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/>'),
     back: svg('<path d="M15 18l-6-6 6-6"/>'),
-    go: svg('<path d="M9 18l6-6-6-6"/>'),
     speak: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
     close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
   };
@@ -31,7 +30,7 @@
   const cave = () => window.Cave;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
-  const toast = (text) => cave().toast(text);
+  const toast = (...args) => cave().toast(...args);
   const page = () => document.getElementById("declarePage");
   // The one translation preference (index.html's hidden #translation).
   function translation() {
@@ -68,14 +67,12 @@
   }
 
   // The home screen's one line, with the explanation behind its info button.
+  // Declare's card on the home screen, beside Amens (cave.js::showHome), with
+  // what Declare is behind its info button.
   function homeLine() {
-    return el("div", { class: "home-declare" }, [
-      el("a", { class: "home-declare-go", href: "#declare", onclick: () => { context = { from: "home" }; current = null; } }, [
-        el("span", { class: "home-note-icon", html: ICON.declare }), el("strong", { text: "Declare" }),
-      ]),
-      cave().info(ABOUT, { label: "About Declare" }),
-      el("a", { class: "home-declare-arrow", href: "#declare", "aria-label": "Open Declare", html: ICON.go, onclick: () => { context = { from: "home" }; current = null; } }),
-    ]);
+    const note = cave().homeNote({ href: "#declare", icon: ICON.declare, title: "Declare", detail: "God's word over what you face" });
+    note.addEventListener("click", () => { context = { from: "home" }; current = null; });
+    return el("div", { class: "home-tile" }, [note, cave().info(ABOUT, { label: "About Declare" })]);
   }
 
   function backTo(label, onclick) {
@@ -245,7 +242,7 @@
       toast({ home: "Kept. It's under Declare.", prayer: "Kept with your prayer.", quick: "Kept on your prayer list." }[from]);
       renderWords();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       button.disabled = false;
     }
   }
@@ -262,7 +259,7 @@
       current = { ...res, situation: d.situation, name: d.name };
       renderWords();
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
       button.disabled = false;
       button.textContent = "Other words";
     }
@@ -276,7 +273,7 @@
       current = null;
       location.hash = context.from === "home" ? "declare" : "prayers";
     } catch (err) {
-      toast(err.message);
+      toast(err.message, { tone: "error" });
     }
   }
 
