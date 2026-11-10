@@ -25,7 +25,7 @@ request after a while can take ~50 seconds to wake up; after that it's fast)
   keep going instead of stopping at one answer.
 - **Reachable from more than one place.** The same agent answers the web chat,
   and over [MCP](https://modelcontextprotocol.io) a Cognigy AI Agent, so you can
-  also talk to Aquila out loud from the page. One brain, multiple front doors.
+  also talk to Aquila out loud from Refuge. One brain, multiple front doors.
 
 ## Try it out
 
@@ -106,7 +106,7 @@ and health check, opening a GitHub issue only if something actually breaks.
 - [x] MCP server so external agents (Cognigy) can call Aquila as a tool
 - [x] Langfuse tracing across every surface (web, MCP)
 - [x] Deployed, with failure-only alerting on build/health issues
-- [x] Cognigy Voice Gateway, so you can talk to Aquila out loud from the page
+- [x] Cognigy Voice Gateway, so you can talk to Aquila out loud from Refuge
 - [ ] Filling the silence on a voice turn, which is several seconds of pipeline
 - [ ] Supabase Auth-backed user accounts, saved studies, chat history
 - [ ] React Native / Expo mobile client against the same FastAPI service

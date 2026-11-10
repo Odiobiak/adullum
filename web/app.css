@@ -1274,6 +1274,9 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .soft-composer textarea { flex: 1; border: 0; background: transparent; resize: none; padding: 10px 0; font-size: 16px; min-height: 44px; max-height: 160px; }
 .soft-composer textarea:focus { outline: none; }
 .soft-composer:focus-within { border-color: var(--ember-line); box-shadow: 0 0 0 4px var(--ring); }
+/* Talk out loud sits quietly beside Send, the only way into the voice call. */
+.soft-composer .soft-mic { border: 0; background: transparent; color: var(--muted); }
+.soft-composer .soft-mic:hover { background: var(--hover); color: var(--ember); }
 .listening { display: flex; gap: 12px; align-items: center; }
 .care-card { padding: 6px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--sage-line); display: grid; }
 .care-line { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 15px; }
@@ -2410,8 +2413,6 @@ button.refl-status-pill { cursor: pointer; }
 .ask-lg-mark { flex: none; display: grid; place-items: center; color: var(--ember); }
 .ask-lg-mark svg { width: 19px; height: 19px; }
 .ask-lg input { padding-left: 4px; }
-.ask-lg-mic { border: 0; background: transparent; color: var(--muted); }
-.ask-lg-mic:hover { background: var(--hover); color: var(--ember); }
 .ask-lg-send { flex: none; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: var(--ember-grad, var(--ember)); color: var(--ember-ink); box-shadow: 0 6px 16px -6px var(--ember-glow); cursor: pointer; transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease; }
 .ask-lg-send svg { width: 19px; height: 19px; }
 .ask-lg-send:active { transform: scale(0.94); }

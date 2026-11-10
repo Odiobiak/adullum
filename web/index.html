@@ -98,7 +98,6 @@
         <div class="try-line" data-topics data-fill="welcomeQuery"><span>Try</span></div>
         <div class="hero-links">
           <a class="voice-link" href="#bible"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg>Read the Bible</a>
-          <button type="button" class="voice-link" data-voice><span data-mic></span>Talk out loud</button>
         </div>
       </div>
 
@@ -486,7 +485,6 @@
         <span class="ask-lg-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
         <label for="homeQuery" class="sr">Ask Aquila</label>
         <input id="homeQuery" autocomplete="off" enterkeyhint="send" placeholder="Ask Aquila about Scripture">
-        <button type="button" class="iconbtn ask-lg-mic" data-voice aria-label="Talk with Aquila out loud"><span data-mic></span></button>
         <button class="ask-lg-send" type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
       </form>
       <div class="home-verse" id="homeVerse"></div>
@@ -525,7 +523,6 @@
           <form class="ask-box" id="form">
             <label for="query" class="sr">Your question</label>
             <textarea id="query" rows="1" placeholder="Ask Aquila about Scripture"></textarea>
-            <button type="button" class="iconbtn" data-voice aria-label="Talk with Aquila out loud"><span data-mic></span></button>
             <button class="btn btn-ember" type="submit" id="submit"><span class="spinner"></span><span class="send-label">Ask</span></button>
           </form>
           <div class="error" id="error" role="alert"></div>
@@ -1327,6 +1324,8 @@ function loadConversation(id, messages) {
 // The small surface web/cave.js and web/graph.js call back into.
 window.AdullumApp = {
   submitQuery,
+  // The voice call is offered only in Refuge's Talk with Aquila (web/refuge.js).
+  openVoice,
   renderAnswerHtml,
   loadConversation,
   newConversation,
@@ -1337,7 +1336,8 @@ window.AdullumApp = {
 };
 
 // =====================================================================
-// Voice, over Cognigy's WebRTC voice gateway: the same agent, out loud.
+// Voice, over Cognigy's WebRTC voice gateway: the same agent, out loud. Its
+// only way in is "Talk out loud" in Refuge's Talk with Aquila (web/refuge.js).
 // =====================================================================
 // This must be the plain https Endpoint config URL, NOT the wss:// gateway
 // URL. initWebRTCWidget() fetches it to read the endpoint config and works out
@@ -1526,7 +1526,6 @@ function openVoice() {
   disclaimerOverlay.hidden = false;
   $("#disclaimerAccept").focus();
 }
-$$("[data-voice]").forEach((b) => b.addEventListener("click", openVoice));
 $("#disclaimerCancel").addEventListener("click", () => (disclaimerOverlay.hidden = true));
 $("#disclaimerAccept").addEventListener("click", () => {
   try {

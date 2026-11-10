@@ -13,7 +13,6 @@ from mcp.server.mcpserver import MCPServer
 
 from app.agent.graph import agent
 from app.config import settings
-from app.observability import get_langfuse_handler, trace_attributes
 
 # synthesize() shapes its answer with Markdown headings for the web client's
 # renderer. A voice gateway speaks whatever this tool returns verbatim, so
@@ -55,14 +54,14 @@ async def ask_aquila(query: str, translation: str | None = None, session_id: str
         translation: Bible translation to answer from (e.g. "BSB"). Falls
             back to the app's configured default translation if omitted.
         session_id: Optional caller-supplied id (e.g. a Cognigy conversation
-            id) to group this call with others from the same conversation in
-            Langfuse. Omit if the caller has no natural session concept.
+            id). Accepted for callers that send one; nothing is traced, so
+            it isn't used.
     """
-    handler = get_langfuse_handler()
-    config = {"callbacks": [handler] if handler else []}
+    # The page offers the voice call only inside Refuge, which promises its
+    # talks are never traced, so these runs pass no Langfuse callback, like
+    # app/refuge.py's.
     resolved_translation = translation or settings.default_translation
-    with trace_attributes(session_id=session_id, tags=["mcp"], trace_name="mcp-ask-aquila"):
-        result = await agent.ainvoke({"query": query, "translation": resolved_translation}, config=config)
+    result = await agent.ainvoke({"query": query, "translation": resolved_translation}, config={"callbacks": []})
     citations = [
         {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation}
         for v in result.get("citations", [])
