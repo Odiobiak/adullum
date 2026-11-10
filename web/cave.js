@@ -495,10 +495,15 @@
   // visit draws it at once while the fresh one loads (showHome). Only for
   // today and only for the account that saw it.
   const HOME_KEY = "adullumHome";
-  function readHome() {
+  // The kept home for this person, from any day; readHome takes only today's.
+  function keptHome() {
     const kept = readStore(HOME_KEY, null);
     const id = session && session.user && session.user.id;
-    return kept && id && kept.user === id && kept.data && kept.data.today === localToday() ? kept.data : null;
+    return kept && id && kept.user === id && kept.data ? kept.data : null;
+  }
+  function readHome() {
+    const kept = keptHome();
+    return kept && kept.today === localToday() ? kept : null;
   }
   function keepHome(data) {
     const id = session && session.user && session.user.id;
@@ -1361,7 +1366,12 @@
     // Draw the home kept from last time at once, then the fresh one over it.
     const kept = readHome();
     if (kept) drawHome(kept);
-    else if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
+    else {
+      // Amens isn't tied to a day, so on the day's first open an older copy
+      // holds its place and Declare doesn't jump aside when the reply lands.
+      drawAmens((keptHome() || {}).amens);
+      if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
+    }
     const edits = homeEdits;
     let data;
     try {
@@ -1383,6 +1393,13 @@
     if (kept) $$('[data-view="home"] .fade-in').forEach((node) => node.classList.remove("fade-in"));
   }
 
+  function drawAmens(glance) {
+    const tiles = $("#homeTiles");
+    tiles.querySelectorAll(".home-tile.is-amens").forEach((old) => old.remove());
+    const amens = glance ? window.Refuge.homeCard(glance) : null;
+    if (amens) tiles.prepend(el("div", { class: "home-tile is-amens" }, amens));
+  }
+
   function drawHome(data) {
     // /me may still be loading on a fresh visit, so the home payload's profile
     // fills in the name rather than waiting for it.
@@ -1395,11 +1412,7 @@
     // and homeCard returns null itself when there's nothing to tell, which
     // leaves Declare the whole row. A church going live gets the full-width
     // line above (showHome); nothing else about churches shows here.
-    const tiles = $("#homeTiles");
-    tiles.querySelectorAll(".home-tile.is-amens").forEach((old) => old.remove());
-    const amens = data.amens ? window.Refuge.homeCard(data.amens) : null;
-    if (amens) tiles.prepend(el("div", { class: "home-tile is-amens" }, amens));
-
+    drawAmens(data.amens);
     $("#homeStart").replaceChildren(...[startCard(data)].filter(Boolean));
     $("#homeMain").replaceChildren(todayCard(data));
     // The halfway check-in on a reflection's plan leads the side while it

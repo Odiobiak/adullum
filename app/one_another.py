@@ -352,33 +352,22 @@ def carried_summary(user: AuthUser) -> dict | None:
 AMENS_WEEK_DAYS = 7
 
 
-def featured_post(posts: list[dict], amened: set[str]) -> dict | None:
-    """The newest post this person hasn't said amen to yet, or None once
-    they've said amen to everything. `posts` is newest first."""
-    return next((p for p in posts if p["id"] not in amened), None)
-
-
 def amens_glance(user: AuthUser) -> dict:
     """For the home screen's Amens notice: the wall's public side only.
 
     Refuge promises that what someone keeps or shares there never follows
     them onto another screen, so nothing here is about this person's own
-    posts. It's how many amens the whole wall said this week, how many posts
-    by other people have gone up since they last looked that they haven't
-    said amen to, and the first post their own wall would show them.
+    posts. It's how many amens the whole wall said this week and how many
+    posts by other people have gone up since they last looked that they
+    haven't said amen to. Both are cheap counts: the home waits on its slowest
+    part, so the wall's own sorted query (`amens_wall`) stays off this path.
     """
     week_start = (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat()
-    days, waiting, first = gather(
+    days, waiting = gather(
         lambda: get_supabase().table("refuge_amen_days").select("amens").gte("day", week_start).execute().data,
         lambda: _rpc("amens_waiting", {"viewer": user.id, "since": _since_last_look(user)}) or 0,
-        lambda: _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": 1, "skip": 0}),
     )
-    post = featured_post(first, {p["id"] for p in first if p.get("reacted")})
-    return {
-        "this_week": sum(d["amens"] for d in days),
-        "waiting": waiting,
-        "post": {"id": post["id"], "kind": post["kind"], "body": post["body"], "amens": post.get("amen_count") or 0} if post else None,
-    }
+    return {"this_week": sum(d["amens"] for d in days), "waiting": waiting}
 
 
 # ---------------------------------------------------------------------------

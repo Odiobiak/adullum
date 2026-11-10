@@ -659,33 +659,20 @@ class TestAmensGlance:
     must only ever show the wall's public side, never the person's own posts.
     """
 
-    def test_featured_is_the_newest_post_still_waiting_for_an_amen(self):
-        posts = [{"id": "newest"}, {"id": "middle"}, {"id": "oldest"}]
-        assert one_another.featured_post(posts, {"newest"}) == {"id": "middle"}
-        assert one_another.featured_post(posts, {"newest", "middle", "oldest"}) is None
-        assert one_another.featured_post([], set()) is None
-
-    def test_glance_counts_the_week_and_features_someone_elses_post(self, monkeypatch):
+    def test_glance_counts_the_week_and_whats_waiting(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb(rows={
             "refuge_amen_days": [{"amens": 5}, {"amens": 7}],
             "rpc:amens_waiting": 3,
-            "rpc:amens_wall": [{"id": "first", "kind": "rejoice", "body": "I got the job.", "amen_count": 2, "reacted": False}],
         }))
 
-        glance = one_another.amens_glance(USER)
-
-        assert glance["this_week"] == 12
-        assert glance["waiting"] == 3
-        assert glance["post"] == {"id": "first", "kind": "rejoice", "body": "I got the job.", "amens": 2}
-        # Both read the wall as this person sees it: other people's posts only
-        # (amens_wall and amens_waiting leave out the viewer's own).
+        assert one_another.amens_glance(USER) == {"this_week": 12, "waiting": 3}
+        # The count reads the wall as this person sees it: other people's
+        # posts only (amens_waiting leaves out the viewer's own).
         assert db.rpc_params("amens_waiting")[0]["viewer"] == USER.id
-        assert db.rpc_params("amens_wall")[0]["viewer"] == USER.id
         assert not db.filtered("refuge_posts", "user_id", USER.id)
-
-    def test_a_post_already_prayed_for_isnt_featured(self, monkeypatch):
-        use_db(monkeypatch, FakeDb(rows={"rpc:amens_wall": [{"id": "done", "kind": "burden", "body": "x", "amen_count": 9, "reacted": True}]}))
-        assert one_another.amens_glance(USER)["post"] is None
+        # The wall's sorted query is the slowest one there is, and the home
+        # waits on its slowest part, so the glance never runs it.
+        assert not db.rpc_params("amens_wall")
 
 
 # ---------------------------------------------------------------------------
