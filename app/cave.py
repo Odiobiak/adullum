@@ -28,7 +28,7 @@ from supabase_auth.errors import AuthError
 from app import auth, memory
 from app.auth import AuthUser, require_user
 from app.config import settings
-from app.db import get_supabase
+from app.db import gather, get_supabase
 
 log = logging.getLogger(__name__)
 
@@ -202,31 +202,31 @@ def _ensure_profile(user: AuthUser) -> dict:
 
 @router.get("/me")
 def me(user: AuthUser = Depends(require_user)) -> dict:
-    profile = _ensure_profile(user)
     db = get_supabase()
+    admin = auth.is_admin(user)
+    count_tables = {"journal": "journal_entries", "sessions": "chat_sessions", "memories": "user_memories", "plans": "reading_plans"}
 
     def count(table: str) -> int:
-        return db.table(table).select("id", count="exact").eq("user_id", user.id).limit(1).execute().count or 0
+        return _db_call(lambda: db.table(table).select("id", count="exact").eq("user_id", user.id).limit(1).execute().count or 0)
 
-    counts = _db_call(
-        lambda: {
-            "journal": count("journal_entries"),
-            "sessions": count("chat_sessions"),
-            "memories": count("user_memories"),
-            "plans": count("reading_plans"),
-        }
-    )
-    admin = auth.is_admin(user)
-    desk_waiting = None
-    if admin:
-        # The menu shows how many posts are waiting on the admin desk. The
+    def desk_count() -> int | None:
+        # The menu shows admins how many posts are waiting on the desk. The
         # import is here because app/desk.py imports from this module.
+        if not admin:
+            return None
         from app.desk import waiting_count
 
         try:
-            desk_waiting = waiting_count()
+            return waiting_count()
         except Exception:
             log.warning("couldn't count the admin desk", exc_info=True)
+            return None
+
+    # Every query here is its own round trip, so they all go at once.
+    profile, desk_waiting, *tallies = gather(
+        lambda: _ensure_profile(user), desk_count, *[lambda t=t: count(t) for t in count_tables.values()]
+    )
+    counts = dict(zip(count_tables, tallies))
     return {
         "user": {"id": user.id, "email": user.email},
         "profile": profile,

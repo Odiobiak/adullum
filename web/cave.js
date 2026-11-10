@@ -487,6 +487,30 @@
       /* storage unavailable: signed in for this tab only */
     }
     session = s;
+    // Signing out (or closing the account) takes the kept home with it.
+    if (!s) forgetHome();
+  }
+
+  // The last home screen this person saw, kept on the device so the next
+  // visit draws it at once while the fresh one loads (showHome). Only for
+  // today and only for the account that saw it.
+  const HOME_KEY = "adullumHome";
+  function readHome() {
+    const kept = readStore(HOME_KEY, null);
+    const id = session && session.user && session.user.id;
+    return kept && id && kept.user === id && kept.data && kept.data.today === localToday() ? kept.data : null;
+  }
+  function keepHome(data) {
+    const id = session && session.user && session.user.id;
+    // Aquila's memories ride along with the home but aren't shown on it.
+    if (id) writeStore(HOME_KEY, { user: id, data: { ...data, memories: [] } });
+  }
+  function forgetHome() {
+    try {
+      localStorage.removeItem(HOME_KEY);
+    } catch {
+      /* nothing was kept */
+    }
   }
   let session = readSession();
   let profile = null;
@@ -964,6 +988,13 @@
   function clip(text, n) {
     return text.length > n ? `${text.slice(0, n - 1).trimEnd()}...` : text;
   }
+  // Someone's own words on one line, for a row or a quote.
+  function oneLine(text) {
+    return String(text || "").replace(/\s+/g, " ").trim();
+  }
+  function amount(n) {
+    return Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+  }
 
   // One line that reads like a notification: an icon (with an optional count),
   // a title and a detail, opening `href`. Amens (web/refuge.js) and a church
@@ -1047,6 +1078,8 @@
     }
     const tick = el("button", { class: "today-tick", type: "button", "aria-label": tickLabel || title, "aria-pressed": String(done), html: ICON.check });
     tick.addEventListener("click", async () => {
+      homeEdits++;
+      forgetHome();
       const next = tick.getAttribute("aria-pressed") !== "true";
       const paint = (on) => {
         tick.setAttribute("aria-pressed", String(on));
@@ -1091,8 +1124,12 @@
 
   // `summary` is app/prayers.py::prayer_summary plus `prayed_today`, which is
   // null until the prayer-practice migration has run (then there's no tick).
+  // The detail names one open request, a different one each day.
   function prayRow(summary) {
-    const detail = summary.open ? `${plural(summary.open, "open request")}` : "Your prayer list";
+    const focus = summary.for_today ? oneLine(summary.for_today.body) : null;
+    const detail = !summary.open ? "Your prayer list"
+      : !focus ? plural(summary.open, "open request")
+      : summary.open > 1 ? `${focus} · ${summary.open} open` : focus;
     if (summary.prayed_today === null || summary.prayed_today === undefined) {
       return todayRow({ icon: ICON.heart, title: "Pray", detail, href: "#prayers" });
     }
@@ -1124,12 +1161,43 @@
     return row;
   }
 
+  // A fast underway (app/hearth.py::fast_underway), counted by its days and
+  // never judged: the last planned day reads "Last day", after it "Ready to finish".
+  function fastRow(fast) {
+    const p = fast.progress;
+    const when = !p.last_day_reached ? `Day ${p.day} of ${p.of}`
+      : p.ends_on < localToday() ? "Ready to finish" : p.of === 1 ? "Today" : "Last day";
+    return todayRow({
+      icon: TODAY_ICON.fast, title: window.Prayers.fastTitle(fast), href: "#prayers",
+      detail: fast.intention ? `${when} · ${oneLine(fast.intention)}` : when,
+    });
+  }
+
+  // A Pebbles goal whose date is within two weeks (app/hearth.py::goal_coming_up).
+  function goalRow(goal) {
+    const m = goal.measure;
+    const count = !m ? null
+      : m.by === "number" ? `${amount(m.done)} of ${amount(m.of)}${goal.unit ? ` ${goal.unit}` : ""}`
+      : `${m.done} of ${plural(m.of, "step")}`;
+    const due = goal.due_in === 0 ? "Due today" : goal.due_in === 1 ? "Due tomorrow" : `${plural(goal.due_in, "day")} left`;
+    return todayRow({ icon: TODAY_ICON.goal, title: goal.title, detail: [count, due].filter(Boolean).join(" · "), href: "#pebbles" });
+  }
+
+  const TODAY_ICON = {
+    // An hourglass for the days of a fast, a flag for a goal.
+    fast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/></svg>',
+    goal: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 21V4M5 4h11l-2 4 2 4H5"/></svg>',
+  };
+
+  // Everything Today can hold, in the order a day might go.
   function todayCard(data) {
     const habits = (data.pebbles || []).filter((s) => s.kind === "habit").slice(0, HOME_HABITS);
     const rows = [
       planRow(data.plan),
       data.prayers ? prayRow(data.prayers) : null,
+      data.fast ? fastRow(data.fast) : null,
       ...habits.map(habitRow),
+      data.goal ? goalRow(data.goal) : null,
     ].filter(Boolean);
     const tally = el("span", { class: "card-aside" });
     const list = el("ul", { class: "today-items" }, rows);
@@ -1237,18 +1305,34 @@
     ]);
   }
 
-  // A journal entry from a while back. The person's own words, so Inter,
-  // not the serif kept for Scripture.
-  function revisitCard(r) {
-    const where = r.passage_ref || r.question || "a passage";
-    return card(cardHead("From your journal", el("span", { class: "card-aside", text: agoPhrase(r.created_at) })), {}, [
-      el("p", { class: "revisit-quote", text: `"${clip(r.reflection, 140)}"` }),
-      el("p", { class: "faint home-quiet", text: where }),
-      el("button", {
-        class: "text-act", type: "button", text: "Return to it with Aquila",
-        onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${r.reflection.slice(0, 300)}"`),
-      }),
+  // Looking back: a journal entry from a while ago and an answered prayer
+  // (a stone of help, 1 Samuel 7:12), whichever there are. Both are the
+  // person's own words, so Inter, not the serif kept for Scripture.
+  function lookBackCard(entry, answered) {
+    const item = (label, ago, body) => el("div", { class: "look-back-item" }, [
+      el("p", { class: "look-back-label" }, [el("span", { text: label }), el("span", { class: "card-aside", text: agoPhrase(ago) })]),
+      ...body,
     ]);
+    const where = entry && (entry.passage_ref || entry.question || "a passage");
+    const items = [
+      entry ? item("From your journal", entry.created_at, [
+        el("p", { class: "revisit-quote", text: `"${clip(entry.reflection, 140)}"` }),
+        el("p", { class: "faint home-quiet", text: where }),
+        el("button", {
+          class: "text-act", type: "button", text: "Return to it with Aquila",
+          onclick: () => app().submitQuery(`I'd like to come back to ${where}. Last time I wrote: "${entry.reflection.slice(0, 300)}"`),
+        }),
+      ]) : null,
+      answered ? item("Answered prayer", answered.answered_at, [
+        el("p", { class: "revisit-quote", text: `"${clip(oneLine(answered.body), 140)}"` }),
+        answered.answer_note ? el("p", { class: "faint home-quiet", text: clip(oneLine(answered.answer_note), 120) }) : null,
+        el("button", {
+          class: "text-act", type: "button", text: "Give thanks with Aquila",
+          onclick: () => app().submitQuery(`I prayed about "${oneLine(answered.body).slice(0, 300)}" and it was answered${answered.answer_note ? `: "${oneLine(answered.answer_note).slice(0, 300)}"` : ""}. Help me give thanks to God for it.`),
+        }),
+      ]) : null,
+    ].filter(Boolean);
+    return items.length ? card("Look back", {}, items) : null;
   }
 
   function setGreeting() {
@@ -1256,27 +1340,50 @@
     $("#greet").textContent = `Good ${partOfDay()}${name ? `, ${name}` : ""}`;
   }
 
+  // Ticks made on the home since its last request began (see todayRow).
+  let homeEdits = 0;
+
   async function showHome() {
     setGreeting();
     $("#dayLine").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
     const main = $("#homeMain");
-    const side = $("#homeSide");
-    const notes = $("#homeNotes");
-    if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
-    const tiles = $("#homeTiles");
-    tiles.replaceChildren(window.Declare.homeLine());
+    $("#homeTiles").replaceChildren(window.Declare.homeLine());
 
-    // The verse is public and cached for the day, so it loads alongside the
-    // home request rather than after it.
-    const versePromise = verseOfTheDay().catch(() => null);
+    // The verse and a church going live are requests of their own, drawn as
+    // each arrives rather than after the home request.
+    verseOfTheDay().catch(() => null).then((v) => $("#homeVerse").replaceChildren(...(v ? [verseCard(v)] : [])));
+    const notes = $("#homeNotes");
+    notes.replaceChildren();
+    window.Church.homeLive().then((live) => {
+      if (live && notes.isConnected) notes.replaceChildren(live);
+    }).catch(() => {});
+
+    // Draw the home kept from last time at once, then the fresh one over it.
+    const kept = readHome();
+    if (kept) drawHome(kept);
+    else if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
+    const edits = homeEdits;
     let data;
     try {
       data = await api(`/me/home?today=${localToday()}`);
     } catch (err) {
+      // With the kept home on screen, it stays rather than giving way to an error.
+      if (kept) return;
       main.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Your cave isn't open yet" }), err.message]));
-      side.replaceChildren();
+      $("#homeSide").replaceChildren();
       return;
     }
+    // A tick made while this loaded is already on screen, and this reply may
+    // predate it, so it's neither drawn nor kept.
+    if (homeEdits !== edits) return;
+    keepHome(data);
+    if (kept && JSON.stringify({ ...data, memories: [] }) === JSON.stringify(kept)) return;
+    drawHome(data);
+    // Over a kept home the cards change in place rather than rising in again.
+    if (kept) $$('[data-view="home"] .fade-in').forEach((node) => node.classList.remove("fade-in"));
+  }
+
+  function drawHome(data) {
     // /me may still be loading on a fresh visit, so the home payload's profile
     // fills in the name rather than waiting for it.
     if (data.profile) profile = { ...(profile || {}), ...data.profile };
@@ -1287,27 +1394,20 @@
     // Amens sits beside Declare. It's null until the Refuge migration has run,
     // and homeCard returns null itself when there's nothing to tell, which
     // leaves Declare the whole row. A church going live gets the full-width
-    // line above once its check returns; nothing else about churches shows
-    // here (web/church.js).
+    // line above (showHome); nothing else about churches shows here.
+    const tiles = $("#homeTiles");
     tiles.querySelectorAll(".home-tile.is-amens").forEach((old) => old.remove());
     const amens = data.amens ? window.Refuge.homeCard(data.amens) : null;
     if (amens) tiles.prepend(el("div", { class: "home-tile is-amens" }, amens));
-    notes.replaceChildren();
-    window.Church.homeLive().then((live) => {
-      if (live && notes.isConnected) notes.replaceChildren(live);
-    }).catch(() => {});
 
     $("#homeStart").replaceChildren(...[startCard(data)].filter(Boolean));
-
-    const v = await versePromise;
-    $("#homeVerse").replaceChildren(...(v ? [verseCard(v)] : []));
-    main.replaceChildren(todayCard(data));
+    $("#homeMain").replaceChildren(todayCard(data));
     // The halfway check-in on a reflection's plan leads the side while it
     // lasts (two weeks from the middle of the stretch, app/reflections.py).
-    side.replaceChildren(...[
+    $("#homeSide").replaceChildren(...[
       data.reflection ? window.Reflections.homeCard(data.reflection) : null,
       continueCard(data.last_session),
-      data.revisit ? revisitCard(data.revisit) : null,
+      lookBackCard(data.revisit, data.remember),
       window.Support.homeCard(),
     ].filter(Boolean));
   }

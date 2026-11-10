@@ -2514,6 +2514,10 @@ button.refl-status-pill { cursor: pointer; }
 .revisit-quote { margin: 0 0 4px; font-size: 15px; font-style: italic; line-height: 1.5; color: var(--soft); }
 .revisit-quote + .home-quiet { margin-bottom: 8px; }
 
+/* Look back: a journal entry and an answered prayer, one under the other. */
+.look-back-label { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.look-back-item + .look-back-item { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--divider); }
+
 @media (prefers-reduced-motion: reduce) {
   .home-note.is-live .home-note-icon::after { animation: none; }
 }

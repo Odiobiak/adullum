@@ -34,6 +34,37 @@ class TestEmbers:
         assert hearth.compute_embers(days, TODAY)["streak"] == 1
 
 
+class TestGoalComingUp:
+    def goal(self, due_in, **extra):
+        return {"id": f"g{due_in}", "kind": "goal", "status": "growing", "due_in": due_in, "measure": None, **extra}
+
+    def test_soonest_within_two_weeks(self):
+        pebbles = [self.goal(10), self.goal(3), self.goal(30), self.goal(None)]
+        assert hearth.goal_coming_up(pebbles, TODAY)["id"] == "g3"
+
+    def test_leaves_out_late_reached_and_set_aside_goals(self):
+        pebbles = [
+            self.goal(-1),
+            self.goal(2, measure={"fraction": 1.0}),
+            self.goal(4, status="set_aside"),
+            {"id": "h", "kind": "habit", "status": "growing", "due_in": 1},
+        ]
+        assert hearth.goal_coming_up(pebbles, TODAY) is None
+
+
+class TestFastUnderway:
+    def fast(self, fid, starts_on, days=3):
+        return {"id": fid, "kind": "full", "detail": None, "intention": None, "starts_on": starts_on, "days": days, "status": "active", "finished_on": None}
+
+    def test_the_fast_begun_first_with_its_day(self):
+        fasts = [self.fast("later", "2026-11-04"), self.fast("first", "2026-11-03")]
+        picked = hearth.fast_underway(fasts, TODAY)
+        assert picked["id"] == "first" and picked["progress"]["day"] == 2 and picked["progress"]["of"] == 3
+
+    def test_one_planned_ahead_waits(self):
+        assert hearth.fast_underway([self.fast("ahead", "2026-11-09")], TODAY) is None
+
+
 class TestPlanToday:
     plan = {
         "id": "p1",

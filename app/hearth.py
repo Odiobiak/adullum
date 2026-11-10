@@ -1,10 +1,14 @@
 """The hearth: everything the signed-in home screen shows, in one request.
 
 GET /me/home gathers the person's embers (a streak of days they came in),
-where they left off, today's reading, their prayer list at a glance (and
-whether they've prayed today), their active habits from Pebbles, a glance at the Amens wall, a journal entry
-worth returning to, the halfway check-in on a reflection's plan, and a couple
-of things Aquila remembers. Each part is fetched on its own and
+where they left off, today's reading, their prayer list at a glance (one
+request to name today, and whether they've prayed), a fast underway, their
+active habits and a goal coming due from Pebbles, a glance at the Amens wall,
+a journal entry and an answered prayer worth returning to, the halfway
+check-in on a reflection's plan, and a couple of things Aquila remembers.
+
+Every part is fetched at the same time (app/db.py::gather), so the screen
+waits for the slowest part rather than the sum of all of them, and each
 degrades to null on failure, so a missing table (a migration not yet run)
 blanks one card instead of the whole screen.
 
@@ -26,10 +30,11 @@ from app.auth import AuthUser, require_user
 from app.cave import _ensure_profile, revisit
 from app.config import settings
 from app.days import parse_today as _parse_today  # re-exported: reading_plans and tests read it from here
-from app.db import get_supabase
+from app.db import gather, get_supabase
+from app.fasting import fast_progress
 from app.one_another import amens_glance
 from app.plan import plan_today  # re-exported: tests and callers read it from here
-from app.prayers import prayer_summary
+from app.prayers import answered_to_remember, prayer_summary
 from app.reflections import reflection_glance
 from app.refuge import pebbles_with_progress
 from app.retrieval import lookup_by_reference, parse_reference
@@ -42,6 +47,9 @@ DAY_LABELS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"]
 
 # Enough active habits for the home screen's Today list.
 HOME_HABITS = 6
+
+# A dated goal joins Today once its date is this close.
+GOAL_SOON_DAYS = 14
 
 # Chosen for someone arriving tired: comfort, presence, rest, courage. Kept to
 # three verses or fewer each so the card stays a single breath long.
@@ -79,6 +87,28 @@ def compute_embers(active_days: set[date], today: date) -> dict:
     return {"week": week, "streak": streak, "lit_today": today in active_days}
 
 
+def goal_coming_up(pebbles: list[dict], today: date) -> dict | None:
+    """The active goal whose date comes soonest, once it's within two weeks
+    and not yet reached. `pebbles` is refuge.py::pebbles_with_progress."""
+    soon = [
+        s for s in pebbles
+        if s["kind"] == "goal" and s["status"] == "growing"
+        and s.get("due_in") is not None and 0 <= s["due_in"] <= GOAL_SOON_DAYS
+        and (s.get("measure") or {}).get("fraction", 0) < 1
+    ]
+    return min(soon, key=lambda s: s["due_in"]) if soon else None
+
+
+def fast_underway(fasts: list[dict], today: date) -> dict | None:
+    """The fast begun longest ago that's still going today, with its
+    progress ("Day 2 of 21"). One planned for later doesn't count yet."""
+    begun = sorted((f for f in fasts if f["status"] == "active" and f["starts_on"] <= today.isoformat()), key=lambda f: f["starts_on"])
+    if not begun:
+        return None
+    fast = begun[0]
+    return {k: fast.get(k) for k in ("id", "kind", "detail", "intention")} | {"progress": fast_progress(fast, today)}
+
+
 def _record_visit(user: AuthUser, day: date) -> None:
     try:
         get_supabase().table("user_activity").upsert(
@@ -102,14 +132,13 @@ def _part(name: str, fn):
 @router.get("/me/home")
 def home(today: str | None = Query(default=None), user: AuthUser = Depends(require_user)) -> dict:
     day = _parse_today(today)
-    profile = _ensure_profile(user)
-    _record_visit(user, day)
     db = get_supabase()
 
     def embers():
         since = (day - timedelta(days=60)).isoformat()
         rows = db.table("user_activity").select("day").eq("user_id", user.id).gte("day", since).execute().data
-        return compute_embers({date.fromisoformat(r["day"]) for r in rows}, day)
+        # Today is being recorded alongside this read, so it counts already.
+        return compute_embers({date.fromisoformat(r["day"]) for r in rows} | {day}, day)
 
     def last_session():
         rows = (
@@ -138,16 +167,11 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         )
         return plan_today(rows[0], day) if rows else None
 
-    def prayers():
-        rows = (
-            db.table("prayers").select("id, body, passage_ref, status, answered_at, created_at")
+    def prayer_rows():
+        return (
+            db.table("prayers").select("id, body, passage_ref, status, answer_note, answered_at, created_at")
             .eq("user_id", user.id).order("created_at", desc=True).limit(300).execute().data
         )
-        summary = prayer_summary(rows, day)
-        # Null until the prayer-practice migration has run, so Today offers
-        # no tick it can't keep.
-        summary["prayed_today"] = _part("prayed_today", prayed_today)
-        return summary
 
     def prayed_today():
         rows = (
@@ -156,8 +180,12 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
         )
         return bool(rows)
 
-    def pebbles():
-        return [s for s in pebbles_with_progress(user, day) if s["status"] == "growing" and s["kind"] == "habit"][:HOME_HABITS]
+    def fast():
+        rows = (
+            db.table("fasts").select("id, kind, detail, intention, starts_on, days, status, finished_on")
+            .eq("user_id", user.id).eq("status", "active").execute().data
+        )
+        return fast_underway(rows, day)
 
     def memories():
         rows = (
@@ -165,6 +193,29 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
             .order("created_at", desc=True).limit(2).execute().data
         )
         return [r["content"] for r in rows]
+
+    # The profile is the one part that isn't optional: a missing table there
+    # is the setup 503. Everything else fails to null on its own.
+    parts = {
+        "embers": embers, "last_session": last_session, "plan": plan, "prayer_rows": prayer_rows,
+        "prayed_today": prayed_today, "fast": fast, "pebbles": lambda: pebbles_with_progress(user, day),
+        "amens": lambda: amens_glance(user), "revisit": lambda: revisit(user),
+        "reflection": lambda: reflection_glance(user, day), "memories": memories,
+    }
+    profile, _, *results = gather(
+        lambda: _ensure_profile(user),
+        lambda: _record_visit(user, day),
+        *[lambda name=name, fn=fn: _part(name, fn) for name, fn in parts.items()],
+    )
+    got = dict(zip(parts, results))
+
+    rows = got["prayer_rows"]
+    prayers = None
+    if rows is not None:
+        # prayed_today is null until the prayer-practice migration has run,
+        # so Today offers no tick it can't keep.
+        prayers = {**prayer_summary(rows, day), "prayed_today": got["prayed_today"]}
+    pebbles = got["pebbles"]
 
     return {
         "profile": {
@@ -174,19 +225,27 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
             "joined": profile.get("created_at"),
         },
         "today": day.isoformat(),
-        "embers": _part("embers", embers),
-        "last_session": _part("last_session", last_session),
-        "plan": _part("plan", plan),
-        "prayers": _part("prayers", prayers),
-        # The person's own active habits. Nothing else from Refuge.
-        "pebbles": _part("pebbles", pebbles),
+        "embers": got["embers"],
+        "last_session": got["last_session"],
+        "plan": got["plan"],
+        "prayers": prayers,
+        # Underway today, or null; Today shows it as "Day 2 of 21".
+        "fast": got["fast"],
+        # The person's own active habits, and a goal whose date is close.
+        # Nothing else from Refuge.
+        "pebbles": None if pebbles is None else [
+            s for s in pebbles if s["status"] == "growing" and s["kind"] == "habit"
+        ][:HOME_HABITS],
+        "goal": goal_coming_up(pebbles, day) if pebbles else None,
         # The wall's public side only, never this person's own posts; see
         # app/one_another.py::amens_glance.
-        "amens": _part("amens", lambda: amens_glance(user)),
-        "revisit": (_part("revisit", lambda: revisit(user)) or {}).get("entry"),
+        "amens": got["amens"],
+        "revisit": (got["revisit"] or {}).get("entry"),
+        # An answered prayer from a while back, to look back on.
+        "remember": answered_to_remember(rows, day) if rows else None,
         # Only while someone is halfway through a reflection's plan; null otherwise.
-        "reflection": _part("reflection", lambda: reflection_glance(user, day)),
-        "memories": _part("memories", memories) or [],
+        "reflection": got["reflection"],
+        "memories": got["memories"] or [],
     }
 
 

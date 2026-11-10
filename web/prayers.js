@@ -525,5 +525,6 @@
   // For the tab's New menu: start a fast, then `onSaved` (which redraws the tab).
   const startFast = (onSaved) => fastSheet(null, onSaved);
 
-  window.Prayers = { renderTab, openSheet, startFast };
+  // fastTitle names a fast on the home screen's Today list too (cave.js::fastRow).
+  window.Prayers = { renderTab, openSheet, startFast, fastTitle };
 })();

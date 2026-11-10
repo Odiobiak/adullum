@@ -115,23 +115,45 @@ def prayer_memory_text(prayer: dict) -> str:
     return f'{answered}: "{note[:240]}"' if note else f"{answered}."
 
 
+def _answered_on(row: dict) -> date | None:
+    stamp = row.get("answered_at") if row["status"] == "answered" else None
+    return datetime.fromisoformat(stamp).date() if stamp else None
+
+
+def _of_the_day(rows: list[dict], today: date) -> dict | None:
+    """One of `rows`, the same all day and the next one tomorrow."""
+    return rows[today.toordinal() % len(rows)] if rows else None
+
+
 def prayer_summary(rows: list[dict], today: date) -> dict:
     """What the home screen shows: how many are open, how many were answered
-    in the last month, and the most recent open one to name. `rows` is the
-    person's prayers, newest first."""
+    in the last month, and one open request to name today, a different one
+    each day so every request comes round. `rows` is the person's prayers,
+    newest first."""
     since = today - timedelta(days=RECENT_ANSWERS_DAYS)
     open_rows = [r for r in rows if r["status"] == "open"]
-    answered_recently = [
-        r for r in rows
-        if r["status"] == "answered" and r.get("answered_at")
-        and datetime.fromisoformat(r["answered_at"]).date() >= since
-    ]
+    answered_recently = [r for r in rows if (_answered_on(r) or date.min) >= since]
     return {
         "open": len(open_rows),
         "answered_recently": len(answered_recently),
         "total": len(rows),
         "latest_open": open_rows[0] if open_rows else None,
+        "for_today": _of_the_day(open_rows, today),
     }
+
+
+# An answer comes back to the home screen only once it's this old, so it
+# reads as remembering rather than an echo of last week.
+REMEMBER_AFTER_DAYS = 14
+
+
+def answered_to_remember(rows: list[dict], today: date) -> dict | None:
+    """An answered prayer from a while back, for the home screen's look back
+    (a stone of help, 1 Samuel 7:12). A different one each day."""
+    cutoff = today - timedelta(days=REMEMBER_AFTER_DAYS)
+    older = [r for r in rows if (_answered_on(r) or date.max) <= cutoff]
+    pick = _of_the_day(older, today)
+    return {k: pick.get(k) for k in ("id", "body", "answer_note", "answered_at")} if pick else None
 
 
 def prayer_week(marks: list[dict], today: date) -> dict:

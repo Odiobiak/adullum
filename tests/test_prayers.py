@@ -80,6 +80,28 @@ def test_summary_counts_open_and_recent_answers():
     summary = prayers.prayer_summary(rows, today)
     assert (summary["open"], summary["answered_recently"], summary["total"]) == (2, 1, 4)
     assert summary["latest_open"]["id"] == "a"
+    assert summary["for_today"]["status"] == "open"
+
+
+def test_a_different_open_request_each_day():
+    rows = [{"id": i, "status": "open"} for i in "abc"]
+    day = date(2026, 11, 5)
+    picks = [prayers.prayer_summary(rows, day + timedelta(days=n))["for_today"]["id"] for n in range(3)]
+    assert sorted(picks) == ["a", "b", "c"]
+    assert prayers.prayer_summary([], day)["for_today"] is None
+
+
+def test_remembers_only_answers_old_enough_to_look_back_on():
+    today = date(2026, 11, 5)
+    stamp = lambda days: (datetime(2026, 11, 5, tzinfo=timezone.utc) - timedelta(days=days)).isoformat()
+    rows = [
+        {"id": "fresh", "body": "last week", "status": "answered", "answer_note": None, "answered_at": stamp(7)},
+        {"id": "open", "body": "still open", "status": "open", "answered_at": None},
+        {"id": "old", "body": "the job", "status": "answered", "answer_note": "She got it.", "answered_at": stamp(60)},
+    ]
+    picked = prayers.answered_to_remember(rows, today)
+    assert picked == {"id": "old", "body": "the job", "answer_note": "She got it.", "answered_at": stamp(60)}
+    assert prayers.answered_to_remember(rows[:2], today) is None
 
 
 class TestRoutes:

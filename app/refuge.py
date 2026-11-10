@@ -33,7 +33,7 @@ from app.agent.graph import agent
 from app.auth import AuthUser, require_user
 from app.cave import _db_call, _now
 from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
-from app.db import get_supabase
+from app.db import gather, get_supabase
 from app.one_another import _db, carried_summary
 from app.prayers import normalize_passage
 
@@ -292,9 +292,11 @@ def pebbles_with_progress(user: AuthUser, day: date) -> list[dict]:
     as seven marks and how many of them are done. The Pebbles room lists them
     all; the home screen (app/hearth.py) shows the active habits."""
     db = get_supabase()
-    seeds = _pebbles_db(lambda: db.table("refuge_seeds").select(_SEED_FIELDS).eq("user_id", user.id).order("created_at", desc=True).execute().data)
     since = (day - timedelta(days=MARKABLE_DAYS - 1)).isoformat()
-    checkins = _db(lambda: db.table("refuge_checkins").select("seed_id, day").eq("user_id", user.id).gte("day", since).execute().data)
+    seeds, checkins = gather(
+        lambda: _pebbles_db(lambda: db.table("refuge_seeds").select(_SEED_FIELDS).eq("user_id", user.id).order("created_at", desc=True).execute().data),
+        lambda: _db(lambda: db.table("refuge_checkins").select("seed_id, day").eq("user_id", user.id).gte("day", since).execute().data),
+    )
     for s in seeds:
         if s["kind"] == "habit":
             done = {date.fromisoformat(c["day"]) for c in checkins if c["seed_id"] == s["id"]}

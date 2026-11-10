@@ -66,7 +66,7 @@ from app.auth import AuthUser, require_user
 from app.care import sounds_unsafe
 from app.cave import _db_call, _now
 from app.config import settings
-from app.db import get_supabase
+from app.db import gather, get_supabase
 from app.retrieval import lookup_by_reference, parse_reference
 
 log = logging.getLogger(__name__)
@@ -135,7 +135,10 @@ KIND_WORDS: dict[str, dict] = {
 
 
 @lru_cache(maxsize=256)
+@lru_cache(maxsize=256)
 def _verse_text(ref: str, translation: str) -> str | None:
+    """A kind word's verse. Kept in memory, since the words never change and
+    the wall shows the same few on every visit."""
     parsed = parse_reference(ref)
     verses = lookup_by_reference(parsed, translation) if parsed else []
     return " ".join(v.text for v in verses) or None
@@ -364,13 +367,12 @@ def amens_glance(user: AuthUser) -> dict:
     by other people have gone up since they last looked that they haven't
     said amen to, and the first post their own wall would show them.
     """
-    days = (
-        get_supabase().table("refuge_amen_days").select("amens")
-        .gte("day", (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat())
-        .execute().data
+    week_start = (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat()
+    days, waiting, first = gather(
+        lambda: get_supabase().table("refuge_amen_days").select("amens").gte("day", week_start).execute().data,
+        lambda: _rpc("amens_waiting", {"viewer": user.id, "since": _since_last_look(user)}) or 0,
+        lambda: _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": 1, "skip": 0}),
     )
-    waiting = _rpc("amens_waiting", {"viewer": user.id, "since": _since_last_look(user)}) or 0
-    first = _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": 1, "skip": 0})
     post = featured_post(first, {p["id"] for p in first if p.get("reacted")})
     return {
         "this_week": sum(d["amens"] for d in days),
@@ -416,16 +418,37 @@ def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=2
     the first page everything they've shared, with what came back to them,
     and whether their evening digest is on."""
     db = get_supabase()
-    rows = _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": WALL_PAGE + 1, "skip": page * WALL_PAGE})
+
+    def page_of_wall():
+        return _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": WALL_PAGE + 1, "skip": page * WALL_PAGE})
+
+    def shared():
+        mine = _db(lambda: (
+            db.table("refuge_posts").select("id, kind, body, status, created_at, amen_count, kind_word_count, approved_at, expires_at, answered_at, answer_note")
+            .eq("user_id", user.id).order("created_at", desc=True).limit(20).execute().data
+        ))
+        return mine, (_rpc("kind_word_tally", {"post_ids": [p["id"] for p in mine]}) if mine else [])
+
+    def digest_on():
+        try:
+            profile = db.table("profiles").select("amens_digest").eq("id", user.id).limit(1).execute().data
+            return profile[0].get("amens_digest", True) if profile else True
+        except Exception:
+            return None  # the setting isn't there yet; the page leaves the switch out
+
+    def opened_now():
+        # The wall is open now: what's new on the home notice counts from here.
+        db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
+
+    if page:
+        rows = page_of_wall()
+    else:
+        # The first page brings everything at once: four round trips side by side.
+        rows, (mine, tally), digest, _ = gather(page_of_wall, shared, digest_on, opened_now)
     out = {"posts": [_wall_post(r) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
     if page:
         return out
 
-    mine = _db(lambda: (
-        db.table("refuge_posts").select("id, kind, body, status, created_at, amen_count, kind_word_count, approved_at, expires_at, answered_at, answer_note")
-        .eq("user_id", user.id).order("created_at", desc=True).limit(20).execute().data
-    ))
-    tally = _rpc("kind_word_tally", {"post_ids": [p["id"] for p in mine]}) if mine else []
     now = datetime.now(timezone.utc)
     for p in mine:
         p["reactions"] = p.pop("amen_count", 0) or 0
@@ -441,13 +464,7 @@ def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=2
         if p["status"] == "shared" and not p["on_wall"]:
             p["status"] = "ended"
     out["mine"] = mine
-    try:
-        profile = db.table("profiles").select("amens_digest").eq("id", user.id).limit(1).execute().data
-        out["digest"] = profile[0].get("amens_digest", True) if profile else True
-    except Exception:
-        out["digest"] = None  # the setting isn't there yet; the page leaves the switch out
-    # The wall is open now: what's new on the home notice counts from here.
-    db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
+    out["digest"] = digest
     return out
 
 

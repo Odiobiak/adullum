@@ -136,17 +136,25 @@ class TestPebbles:
 
         habit = {"id": "h", "kind": "habit", "title": "Walk", "per_week": 5, "status": "growing", "steps": [], "target": None, "due_on": None}
         set_aside = {"id": "s", "kind": "habit", "title": "Run", "per_week": 3, "status": "set_aside", "steps": [], "target": None, "due_on": None}
-        goal = {"id": "g", "kind": "goal", "title": "Read Ruth", "status": "growing", "steps": [], "target": None, "due_on": None}
+        soon = (date.today() + timedelta(days=5)).isoformat()
+        goal = {"id": "g", "kind": "goal", "title": "Read Ruth", "status": "growing", "steps": [], "target": None, "due_on": soon}
+        fast = {"id": "f", "kind": "daniel", "detail": None, "intention": "Clarity", "starts_on": date.today().isoformat(), "days": 21, "status": "active", "finished_on": None}
         db = use_db(monkeypatch, FakeDb({
             "profiles": [{"id": USER.id, "display_name": "Ruth"}],
             "refuge_seeds": [habit, set_aside, goal],
             "prayer_days": [{"day": date.today().isoformat()}],
+            "fasts": [fast],
         }))
         monkeypatch.setattr(hearth, "get_supabase", lambda: db)
         # The real date: the server trusts the browser's only within a day of its own.
         body = client.get(f"/me/home?today={date.today().isoformat()}", headers=HEADERS).json()
         assert [p["id"] for p in body["pebbles"]] == ["h"]
+        assert body["goal"]["id"] == "g" and body["goal"]["due_in"] == 5
+        assert body["fast"]["id"] == "f" and body["fast"]["progress"]["day"] == 1
         assert body["prayers"]["prayed_today"] is True
+        # This visit counts toward the streak even though it was recorded alongside the read.
+        assert body["embers"]["lit_today"] is True
+        assert db.filtered("fasts", "user_id", USER.id)
         # Only the general "I prayed today", the same mark the Prayers tab's button keeps.
         assert db.filtered("prayer_days", "user_id", USER.id) and db.filtered("prayer_days", "prayer_id", "null", "is_")
 
