@@ -400,6 +400,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .empty .btn { margin-top: 16px; }
 .error { color: var(--danger); font-size: 14px; margin-top: 8px; }
 .error:empty { display: none; }
+.error.is-gentle { color: var(--muted); } /* a daily limit, not a failure */
 
 /* One ask box, used on welcome, home, and in the Ask composer. A pill while it
    holds one line; the composer's grows, so it gets a large radius instead. */

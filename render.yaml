@@ -49,5 +49,10 @@ services:
         sync: false
       - key: LANGFUSE_HOST
         value: https://cloud.langfuse.com
+      # Only Cognigy may open the MCP server once this is set (app/main.py::_guard_mcp).
+      - key: MCP_SECRET
+        sync: false
+      # Daily limits (app/quota.py) keep their defaults from app/config.py;
+      # add QUOTA_* or DAILY_BUDGET_USD here to change one.
       - key: MCP_ALLOWED_HOSTS
         value: 127.0.0.1:8000,localhost:8000,adullum.onrender.com

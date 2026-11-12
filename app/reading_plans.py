@@ -17,6 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
+from app import quota
 from app.auth import AuthUser, require_user
 from app.cave import _db_call
 from app.config import settings
@@ -87,6 +88,7 @@ def build_plan(body: BuildPlanBody, user: AuthUser = Depends(require_user)) -> d
     """Shape a plan with Aquila from a request in the person's own words, and
     keep it. It starts on their local today."""
     day = _parse_today(body.today)
+    quota.spend("question", user.id)
     try:
         plan = draft_custom_plan(body.request, day)
     except ValueError as err:

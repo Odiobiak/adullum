@@ -27,7 +27,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app import prayers
+from app import prayers, quota
 from app.agent.nodes import DeclareLine, suggest_declare_refs, write_declaration
 from app.auth import AuthUser, require_user
 from app.bible import TRANSLATIONS
@@ -168,6 +168,7 @@ def declare(body: DeclareIn, user: AuthUser = Depends(require_user)) -> dict:
         raise HTTPException(status_code=422, detail="Say a few words about what you're facing.")
     if sounds_unsafe(situation):
         return {"care": True}
+    quota.spend("question", user.id)
     translation = (body.translation or settings.default_translation).upper()
     if translation not in TRANSLATIONS:
         translation = settings.default_translation

@@ -563,7 +563,9 @@
     if (resp.status === 401 && session) endSession();
     if (!resp.ok) {
       const detail = data && data.detail;
-      throw new Error(typeof detail === "string" ? detail : Array.isArray(detail) ? "Please check what you entered." : `Something went wrong (${resp.status}).`);
+      const err = new Error(typeof detail === "string" ? detail : Array.isArray(detail) ? "Please check what you entered." : `Something went wrong (${resp.status}).`);
+      err.status = resp.status; // 429 is a daily limit (app/quota.py), said gently and not to be retried
+      throw err;
     }
     return data;
   }

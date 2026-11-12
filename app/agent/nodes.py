@@ -299,12 +299,15 @@ def format_citations(state: AgentState) -> AgentState:
 # ---------------------------------------------------------------------------
 class Followups(BaseModel):
     questions: list[str] = Field(
-        description="Two or three short follow-up questions, written in the user's own voice."
+        description="Two short follow-up questions, written in the user's own voice."
     )
 
 
+# Two keeps the "Keep going" block light and the call a little cheaper.
+FOLLOWUP_COUNT = 2
+
 FOLLOWUP_SYSTEM_PROMPT = """You are helping someone continue a study they have just started. \
-Given their question and the answer they received, suggest three questions they might \
+Given their question and the answer they received, suggest two questions they might \
 genuinely want to ask next.
 
 Each one should open a door the answer left ajar: the passage behind the passage, a tension \
@@ -327,7 +330,7 @@ def suggest_followups(state: AgentState, config: RunnableConfig) -> AgentState:
         result: Followups = structured.invoke(
             [SystemMessage(FOLLOWUP_SYSTEM_PROMPT), HumanMessage(prompt)], config=config
         )
-        return {"followups": [q.strip() for q in result.questions if q.strip()][:3]}
+        return {"followups": [q.strip() for q in result.questions if q.strip()][:FOLLOWUP_COUNT]}
     except Exception:
         return {"followups": []}
 
@@ -343,8 +346,11 @@ def suggest_followups(state: AgentState, config: RunnableConfig) -> AgentState:
 # A little warmth in the wording; the study path stays at 0 for consistency.
 _warm_llm = ChatOpenAI(model=settings.chat_model, api_key=settings.openai_api_key, temperature=0.5)
 
-# How much of a long talk goes into each prompt.
-LISTEN_HISTORY_LIMIT = 24
+# How much of a long talk goes into each prompt: the latest messages, up to
+# this many and this many characters, so a long talk doesn't grow the cost of
+# every reply. The newest message always goes in whole.
+LISTEN_HISTORY_LIMIT = 20
+LISTEN_HISTORY_CHARS = 12_000
 
 LISTEN_SYSTEM_PROMPT = """You are Aquila, a warm and steadfast companion who loves God. \
 Right now you're in Refuge, a quiet, private room in the app. People come here in every \
@@ -394,12 +400,15 @@ CARE_CHECK_PROMPT = "Read the conversation and judge only the person's latest me
 
 
 def _listen_messages(history: list[dict]) -> list:
-    """The exchange as chat messages, most recent last, trimmed to the limit."""
-    out = []
-    for m in history[-LISTEN_HISTORY_LIMIT:]:
+    """The exchange as chat messages, most recent last, trimmed to the limits."""
+    out, chars = [], 0
+    for m in reversed(history[-LISTEN_HISTORY_LIMIT:]):
         text = str(m.get("content") or "")
+        chars += len(text)
+        if out and chars > LISTEN_HISTORY_CHARS:
+            break
         out.append(AIMessage(text) if m.get("role") == "aquila" else HumanMessage(text))
-    return out
+    return out[::-1]
 
 
 def unlisted_references(reply: str, verses: list[Verse]) -> list[str]:

@@ -676,6 +676,8 @@
         <li><strong>What you make here:</strong> conversations with Aquila, your journal and reflections, prayers and fasts, notes, highlights and saved verses, reading plans, sermon notes and their photos, churches you add, goals and habits, declarations, and anything you choose to keep from Refuge.</li>
         <li><strong>What Aquila remembers:</strong> short notes about you, taken from conversations, your journal and your prayer list, so she can know you over time. You can see, remove or switch these off in Settings. They are never treated as Scripture.</li>
         <li><strong>Reminders:</strong> if you turn on notifications, the address your browser gives us for sending them.</li>
+        <li><strong>Daily counts:</strong> to keep Adullum free for everyone, we count how many questions, Refuge messages and calls each account has a day, and for guests, a scrambled form of their network address. The counts hold nothing you wrote and are deleted after a week.</li>
+        <li><strong>Repeated questions:</strong> a study question asked with no memory notes behind it is held in our server's memory with its answer for up to a day, without who asked, so the same question asked again is answered at once.</li>
         <li><strong>On your device:</strong> your sign-in, theme and a few preferences are kept in your browser's storage, with a copy of today's home screen so it opens at once. Signing out clears your sign-in and that copy. We don't use tracking cookies.</li>
       </ul>
 
@@ -1186,7 +1188,19 @@ async function ask(query, mode = "study") {
     headers: { "Content-Type": "application/json", ...authHeaders },
     body: JSON.stringify({ query, translation: translation(), session_id: sessionId, mode }),
   });
-  if (!response.ok || !response.body) throw new Error(`Aquila couldn't be reached (${response.status})`);
+  if (!response.ok || !response.body) {
+    // A 429 is a daily limit (app/quota.py): its message is shown as it is.
+    let detail = "";
+    try {
+      detail = (await response.json()).detail;
+    } catch {
+      /* no body */
+    }
+    msg.remove();
+    const err = new Error(typeof detail === "string" && detail ? detail : `Aquila couldn't be reached (${response.status})`);
+    err.gentle = response.status === 429;
+    throw err;
+  }
 
   // A hand-rolled SSE reader: the browser's EventSource can't send a POST
   // body, and /chat/stream needs one.
@@ -1267,7 +1281,8 @@ async function submitQuery(query, { mode = "study" } = {}) {
   try {
     await ask(query, mode);
   } catch (err) {
-    errorEl.textContent = `${err.message}. Check your connection and try again.`;
+    errorEl.classList.toggle("is-gentle", !!err.gentle);
+    errorEl.textContent = err.gentle ? err.message : `${err.message}. Check your connection and try again.`;
   } finally {
     busy = false;
     submitBtn.disabled = false;
@@ -1365,6 +1380,9 @@ let voiceWidget = null;
 let activeSession = null;
 let callTimer = null;
 let connectTimeout = null;
+// How long a call may run, from /me/voice (app/quota.py keeps calls to a few
+// a day, since voice costs the most of anything Aquila does).
+let callMinutes = 10;
 
 // The widget's own transcript lives inside the card this page hides, so this
 // is the only place a caller can read along. Cleared when the next call
@@ -1416,10 +1434,36 @@ function showCallBar() {
   const startedAt = Date.now();
   callTime.textContent = "0:00";
   callBar.hidden = false;
+  countCall();
+  let warned = false;
   callTimer = setInterval(() => {
     const secs = Math.floor((Date.now() - startedAt) / 1000);
     callTime.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    if (!warned && secs >= (callMinutes - 1) * 60) {
+      warned = true;
+      window.Cave.toast("One minute left on this call.", { tone: "info" });
+    }
+    if (secs >= callMinutes * 60) {
+      hangUp();
+      endCallUI();
+      window.Cave.toast(`That's ${callMinutes} minutes, as long as a call runs. You can keep talking by typing.`, { tone: "info" });
+    }
   }, 1000);
+}
+
+// A call counts once it connects, so one that never got through costs
+// nothing. Over the day's calls, it ends at once; if counting fails for any
+// other reason, the call carries on.
+async function countCall() {
+  try {
+    const res = await window.Cave.api("/me/voice/start", { method: "POST" });
+    if (res && res.minutes) callMinutes = res.minutes;
+  } catch (err) {
+    if (err.status !== 429) return;
+    hangUp();
+    endCallUI();
+    window.Cave.toast(err.message, { tone: "info" });
+  }
 }
 
 function endCallUI() {
@@ -1475,6 +1519,18 @@ function loadVoiceScript() {
 }
 
 async function startVoiceWidget() {
+  // Asked first, so someone out of calls today is told so before anything dials.
+  try {
+    const allowance = await window.Cave.api("/me/voice");
+    if (allowance.message) {
+      window.Cave.toast(allowance.message, { tone: "info" });
+      return;
+    }
+    callMinutes = allowance.minutes || callMinutes;
+  } catch (err) {
+    window.Cave.toast(err.message, { tone: "error" });
+    return;
+  }
   await loadVoiceScript();
   if (typeof window.initWebRTCWidget !== "function") {
     window.Cave.toast("The voice service didn't load. Check your connection and reload the page.", { tone: "error" });

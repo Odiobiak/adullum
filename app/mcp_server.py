@@ -7,10 +7,12 @@ the same graph run that powers /chat and /chat/stream also answers MCP tool
 calls, so there's exactly one place Aquila's behavior is defined.
 """
 
+import asyncio
 import re
 
 from mcp.server.mcpserver import MCPServer
 
+from app import quota
 from app.agent.graph import agent
 from app.config import settings
 
@@ -60,6 +62,11 @@ async def ask_aquila(query: str, translation: str | None = None, session_id: str
     # The page offers the voice call only inside Refuge, which promises its
     # talks are never traced, so these runs pass no Langfuse callback, like
     # app/refuge.py's.
+    # A call arrives from Cognigy with no person attached (each call was
+    # counted against its caller when it connected, app/refuge.py), so its
+    # questions count only toward the whole app's daily budget.
+    if not await asyncio.to_thread(quota.spend_shared, "question", "voice"):
+        return {"answer": quota.LIMIT_MESSAGES["budget"], "citations": []}
     resolved_translation = translation or settings.default_translation
     result = await agent.ainvoke({"query": query, "translation": resolved_translation}, config={"callbacks": []})
     citations = [

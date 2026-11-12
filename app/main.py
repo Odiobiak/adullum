@@ -10,19 +10,22 @@ contract.
 """
 
 import asyncio
+import hmac
 import json
 import threading
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from pathlib import Path
+from urllib.parse import parse_qs
 
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Response
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
+from starlette.responses import PlainTextResponse
 
-from app import account, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, notes, one_another, prayers, reading_plans, reflections, refuge, reminders, saved, sermons, support
+from app import account, answer_cache, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, notes, one_another, prayers, quota, reading_plans, reflections, refuge, reminders, saved, sermons, support
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -124,12 +127,14 @@ def health() -> dict:
 async def chat(
     request: ChatRequest,
     background: BackgroundTasks,
+    http: Request,
     user: AuthUser | None = Depends(optional_user),
 ) -> ChatResponse:
     """Non-streaming: waits for the full graph run, returns the final answer + citations.
     Good enough for a first web/CLI client; /chat/stream below is what a voice or
     mobile front-end will actually want.
     """
+    await asyncio.to_thread(quota.spend, "question", quota.subject_of(user, http))
     memories = await _memories_for(user, request.query)
     with trace_attributes(session_id=request.session_id, tags=["chat"], trace_name="chat"):
         result = await agent.ainvoke(_initial_state(request, memories), config=_run_config())
@@ -156,15 +161,51 @@ async def chat(
 
 
 @app.post("/chat/stream")
-async def chat_stream(request: ChatRequest, user: AuthUser | None = Depends(optional_user)) -> EventSourceResponse:
+async def chat_stream(
+    request: ChatRequest, http: Request, user: AuthUser | None = Depends(optional_user)
+) -> EventSourceResponse:
     """Streams graph progress as SSE: a `stage` event per node (the web client
     uses this to light up its little strip of agents — see `stage-strip` in
     web/index.html), then `answer` and `citations` events. Same graph, same
     state — this is the shape a voice front-end (TTS as tokens arrive) or
     mobile client would consume instead of the plain /chat endpoint.
-    """
 
+    A study asked word for word before, with no memories to make it personal,
+    replays the stream kept from last time (app/answer_cache.py) and costs
+    nothing. Anything else counts against the day's limits (app/quota.py),
+    checked before the stream opens so a refusal is an ordinary 429.
+    """
+    subject = quota.subject_of(user, http)
     memories = await _memories_for(user, request.query)
+    cache_key = None
+    if request.mode == "study" and not memories:
+        cache_key = answer_cache.key(request.query, request.translation or settings.default_translation)
+    cached = answer_cache.get(cache_key) if cache_key else None
+    if cached is None:
+        await asyncio.to_thread(quota.spend, "question", subject)
+    else:
+        quota.check_burst(subject)
+
+    async def replay() -> AsyncIterator[dict]:
+        answer, citations, followups = "", [], []
+        for event in cached:
+            yield event
+            if event["event"] == "answer":
+                answer = event["data"]
+            elif event["event"] == "citations":
+                citations = json.loads(event["data"])
+            elif event["event"] == "followups":
+                followups = json.loads(event["data"])
+        _keep_turn(user, request, answer, citations, followups)
+
+    async def record(events: AsyncIterator[dict]) -> AsyncIterator[dict]:
+        """Passes the stream through, keeping a copy of a finished one."""
+        sent = []
+        async for event in events:
+            sent.append(event)
+            yield event
+        if any(e["event"] == "answer" for e in sent) and any(e["event"] == "citations" for e in sent):
+            answer_cache.put(cache_key, sent)
 
     async def event_generator() -> AsyncIterator[dict]:
         retries = 0
@@ -223,18 +264,24 @@ async def chat_stream(request: ChatRequest, user: AuthUser | None = Depends(opti
                         ]
                         yield {"event": "citations", "data": json.dumps(citations)}
 
-        if user and answer:
-            # Everything has been sent; saving and note-taking happen off the
-            # request so the stream closes without waiting on them.
-            task = asyncio.create_task(
-                asyncio.to_thread(
-                    cave.record_turn, user, request.session_id, request.query, answer, citations, followups
-                )
-            )
-            _background.add(task)
-            task.add_done_callback(_background.discard)
+        _keep_turn(user, request, answer, citations, followups)
 
-    return EventSourceResponse(event_generator())
+    if cached is not None:
+        return EventSourceResponse(replay())
+    return EventSourceResponse(record(event_generator()) if cache_key else event_generator())
+
+
+def _keep_turn(user: AuthUser | None, request: ChatRequest, answer: str, citations: list[dict], followups: list[str]) -> None:
+    """Saves a signed-in person's exchange to their cave once everything has
+    been sent. Saving and note-taking happen off the request, so the stream
+    closes without waiting on them."""
+    if not (user and answer):
+        return
+    task = asyncio.create_task(
+        asyncio.to_thread(cave.record_turn, user, request.session_id, request.query, answer, citations, followups)
+    )
+    _background.add(task)
+    task.add_done_callback(_background.discard)
 
 
 @app.post("/plan", response_model=PlanResponse)
@@ -321,9 +368,35 @@ async def plan_pdf(plan_id: str, user: AuthUser | None = Depends(optional_user))
 # be added via MCP_ALLOWED_HOSTS or every request 400s with "Invalid Host header".
 _mcp_hosts = [h.strip() for h in settings.mcp_allowed_hosts.split(",") if h.strip()]
 _mcp_origins = [f"{'http' if h.split(':')[0] in ('127.0.0.1', 'localhost') else 'https'}://{h}" for h in _mcp_hosts]
+
+
+def _mcp_key_ok(scope: dict) -> bool:
+    """Whether a request to open the MCP stream carries settings.mcp_secret,
+    as a Bearer header or a `key` query parameter."""
+    headers = dict(scope.get("headers") or [])
+    sent = headers.get(b"authorization", b"").decode().removeprefix("Bearer ").strip()
+    if not sent:
+        sent = (parse_qs(scope.get("query_string", b"").decode()).get("key") or [""])[0]
+    return bool(sent) and hmac.compare_digest(sent, settings.mcp_secret)
+
+
+def _guard_mcp(inner):
+    """Only Cognigy may open the stream once MCP_SECRET is set. Messages
+    after that are tied to the stream's unguessable session id, so the stream
+    is the one door that needs the key."""
+
+    async def guarded(scope, receive, send):
+        if scope["type"] == "http" and settings.mcp_secret and scope["path"].rstrip("/").endswith("/sse") and not _mcp_key_ok(scope):
+            await PlainTextResponse("Unauthorized", status_code=401)(scope, receive, send)
+            return
+        await inner(scope, receive, send)
+
+    return guarded
+
+
 app.mount(
     "/mcp",
-    mcp.sse_app(transport_security=TransportSecuritySettings(allowed_hosts=_mcp_hosts, allowed_origins=_mcp_origins)),
+    _guard_mcp(mcp.sse_app(transport_security=TransportSecuritySettings(allowed_hosts=_mcp_hosts, allowed_origins=_mcp_origins))),
 )
 
 # Serves web/index.html at "/" and any future static assets alongside it.

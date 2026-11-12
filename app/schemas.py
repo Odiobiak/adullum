@@ -7,7 +7,7 @@ response bodies and lets the agent state stay typed.
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class Verse(BaseModel):
@@ -25,7 +25,8 @@ class Verse(BaseModel):
 class ChatRequest(BaseModel):
     """Body for both POST /chat and POST /chat/stream."""
 
-    query: str
+    # Long enough for a prayer request with its story; a whole pasted book is refused.
+    query: str = Field(min_length=1, max_length=2000)
     translation: str | None = None  # falls back to settings.default_translation if omitted
     session_id: str | None = None  # reserved for chat_sessions/chat_messages once auth exists
     # "pray" is Pray with Aquila on the prayer list (app/agent/nodes.py::pray_with):

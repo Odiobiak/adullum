@@ -21,6 +21,7 @@ the Amens wall's posts never appear there. Every query filters by the
 signed-in user's id in code, same rule as app/cave.py.
 """
 
+import asyncio
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
@@ -29,9 +30,11 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
+from app import quota
 from app.agent.graph import agent
 from app.auth import AuthUser, require_user
 from app.cave import _db_call, _now
+from app.config import settings
 from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import gather, get_supabase
 from app.one_another import _db, carried_summary
@@ -226,6 +229,7 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
     messages = [m.model_dump() for m in body.messages]
     if messages[-1]["role"] != "user":
         raise HTTPException(status_code=422, detail="The last message should be yours.")
+    await asyncio.to_thread(quota.spend, "talk", user.id)
     state = {"mode": "listen", "history": messages, "query": messages[-1]["content"], "translation": body.translation}
     result = await agent.ainvoke(state, config={"callbacks": []})
     verses = [
@@ -233,6 +237,31 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
         for v in result.get("citations", [])
     ]
     return {"reply": result["answer"], "care": bool(result.get("care")), "verses": verses}
+
+
+# ---------------------------------------------------------------------------
+# Talk out loud: the voice call's allowance (app/quota.py)
+# ---------------------------------------------------------------------------
+@router.get("/me/voice")
+def voice_allowance(user: AuthUser = Depends(require_user)) -> dict:
+    """Checked before a call is dialled, so someone out of calls is told
+    so instead of hearing a call connect and drop. Counts nothing."""
+    left = None
+    if settings.quota_voice_calls > 0:
+        left = max(0, settings.quota_voice_calls - quota.used_today("voice", user.id))
+    return {
+        "calls_left": left,
+        "minutes": settings.voice_call_minutes,
+        "message": quota.LIMIT_MESSAGES["voice"] if left == 0 else None,
+    }
+
+
+@router.post("/me/voice/start")
+def voice_started(user: AuthUser = Depends(require_user)) -> dict:
+    """Counts a call once it connects, so one that never got through costs
+    nothing. A 429 here and the page hangs up."""
+    quota.spend("voice", user.id)
+    return {"minutes": settings.voice_call_minutes}
 
 
 def _own_talk(talk_id: str, user: AuthUser) -> dict:

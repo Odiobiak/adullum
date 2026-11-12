@@ -101,5 +101,28 @@ class Settings(BaseSettings):
     # refuses every call, and reminders go out only while the server is awake.
     cron_secret: str = ""
 
+    # Daily limits on what costs money (app/quota.py). Adullum is free and
+    # paid for by people who give, so every answer is counted: per person (a
+    # guest by their network address) and against one budget for the whole
+    # app. A day is a UTC day. Raise any of these from .env, no deploy needed.
+    quota_questions_signed_in: int = 25  # Aquila, Pray with, Declare, plan builder
+    quota_questions_guest: int = 5
+    quota_talks: int = 60  # Refuge talk messages
+    quota_voice_calls: int = 2
+    voice_call_minutes: int = 10  # the page hangs up a call at this length
+    quota_per_minute_signed_in: int = 6
+    quota_per_minute_guest: int = 3
+    # Rough cost of one of each, in US dollars, counted against the budget.
+    # Voice stays 0 until Cognigy's per-minute price is known.
+    daily_budget_usd: float = 3.0  # 0 turns the budget off
+    cost_question_usd: float = 0.003
+    cost_talk_usd: float = 0.002
+    cost_voice_call_usd: float = 0.0
+
+    # Shared with Cognigy so only it can open the MCP server (/mcp/sse), sent
+    # as "Authorization: Bearer <secret>" or "?key=<secret>". Left empty, the
+    # server stays open as before.
+    mcp_secret: str = ""
+
 
 settings = Settings()

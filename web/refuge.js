@@ -537,7 +537,9 @@
         node.scrollIntoView({ behavior: "smooth", block: "nearest" });
         saveKept();
       } catch (err) {
-        wait.replaceWith(el("p", { class: "form-msg bad", text: `${err.message} Your words are still here; try sending again.` }));
+        // A daily limit is said as it is; anything else can be sent again.
+        const note = err.status === 429 ? err.message : `${err.message} Your words are still here; try sending again.`;
+        wait.replaceWith(el("p", { class: `form-msg${err.status === 429 ? "" : " bad"}`, text: note }));
         current.messages.pop();
         box.value = text;
       } finally {

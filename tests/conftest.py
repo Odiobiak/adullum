@@ -13,3 +13,17 @@ import os
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_KEY", "test-service-key")
 os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _fresh_limits(monkeypatch):
+    """Every test starts under its limits, with nothing cached, and never
+    counts against a real database (app/quota.py, app/answer_cache.py)."""
+    from app import answer_cache, quota
+
+    monkeypatch.setattr(quota, "_record", lambda *args, **kwargs: "ok")
+    quota._recent.clear()
+    answer_cache.clear()
+    yield

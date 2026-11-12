@@ -52,7 +52,7 @@ classify_intent --meta--> answer_meta --> END
                               format_citations --> suggest_followups --> END
 ```
 
-`suggest_followups` runs last deliberately: the answer and citations have already
+`suggest_followups` (two questions, `nodes.py::FOLLOWUP_COUNT`) runs last deliberately: the answer and citations have already
 streamed to the client by then, so its extra LLM call costs no perceived latency.
 It is also non-fatal, returning an empty list on failure rather than sinking an
 answer that was otherwise complete and grounded.
@@ -123,7 +123,7 @@ Langfuse SDK v4. The module docstring documents three non-obvious failure modes 
 
 ### The cave: accounts, journal, plans, memory (`app/auth.py`, `app/cave.py`, `app/reading_plans.py`, `app/memory.py`, `web/cave.js`)
 
-Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, `20261105_hearth.sql`, `20261106_plan_titles.sql`, and on through `20261120_admin_desk.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run; until the third, plans shaped with Aquila save without their title and show a generic one.
+Run the files in `supabase/migrations/` once each, in date order, in the Supabase SQL editor (`20261104_my_cave.sql`, `20261105_hearth.sql`, `20261106_plan_titles.sql`, and on through `20261121_usage_limits.sql`). Until the first runs, `/me/*` returns a 503 that says so and chat quietly runs as a guest; until the second, the home screen hides its embers and "Mark as read" explains what to run; until the third, plans shaped with Aquila save without their title and show a generic one.
 - **Auth is brokered by this server.** The browser never holds a Supabase key. `/auth/*` signs people in on a throwaway client from `app/auth.py::_auth_client` (never the shared `get_supabase()` one, which a sign-in would switch to that user's token), using the implicit flow so magic-link tokens land in the URL fragment for `web/cave.js` to pick up. Magic links only return here if the site URL is listed under Supabase Auth > URL Configuration; otherwise Supabase sends them to its Site URL (once left as the default `http://localhost:3000`, which broke every production link). On Render the redirect is https only because `render.yaml` starts uvicorn with `--proxy-headers --forwarded-allow-ips '*'`.
 - **Every `/me` query filters by `user_id` in code**, because the service-role client bypasses RLS. The RLS policies in the migration exist for a future client talking to Supabase directly.
 - **The home screen is one request.** `GET /me/home` (`app/hearth.py`) gathers embers, the last conversation, today's plan reading, the prayer list at a glance (with `prayed_today` and `for_today`, one open request named each day), a fast underway (`fast_underway`), the person's active habits and a goal due within two weeks (`goal_coming_up`) from Pebbles, a glance at the Amens wall, a journal entry to revisit, an answered prayer at least two weeks old to look back on (`prayers.py::answered_to_remember`) and two memories (the screen doesn't show the memories; they live in Settings), each part failing to null on its own. **Every part runs at the same time** through `app/db.py::gather`, since each query is its own round trip to Supabase and run one after another they once took seconds; keep new parts in that `parts` dict rather than calling them in sequence, and use `gather` anywhere a screen needs several independent queries (`/me`, the Amens wall and its home glance, Pebbles already do). Days are the browser's local days (it sends `today`, checked by `app/days.py::parse_today`), so a streak doesn't break at a UTC midnight.
@@ -277,6 +277,18 @@ Adullum stays free with no ads, and nobody's data is sold; giving pays the bills
 - **People are pointed there from wherever they'd see it**: "Support Adullum" in the account menu, a "Keep the fire lit" card at the end of the home screen's side column ("Not now" hides it on that device for 30 days, and supporters never see it), a card in Settings, the "Free, with no ads" half of the welcome page's promise card, and a line on the signed-out page.
 - **Monthly givers are friends of the cave**: `profiles.supporter_since` (`supabase/migrations/20261112_supporters.sql`), set by `scripts/set_supporter.py` until a Stripe webhook does it. `PATCH /me` never accepts it. The checkout link carries the person's id as `client_reference_id` and their email as `prefilled_email`, so that webhook can find the account.
 - **The thank-you is cosmetic only**: an ember on the account chip, "Friend of the cave" in the menu, and the Almond and Cedar themes. Admins (`ADMIN_EMAILS`) count as friends of the cave without giving (`cave.js::isFriend`): they get all of it and are never asked to give. `cave.js::supporterSince` stays the giving date alone, so an admin's thank-you line never names a month they started giving. Never hold back the Bible, Aquila, Refuge, prayers or anything else someone relies on, and never put ads in.
+
+### Daily limits (`app/quota.py`, `app/answer_cache.py`)
+
+Adullum is free and paid for by giving, so whatever costs money is counted. Run `supabase/migrations/20261121_usage_limits.sql` once, after the others; until then nothing is limited.
+- **Three checks, cheapest first**: a per-minute burst limit held in the process, then one `use_quota` call that counts the person's day and adds an estimated cost to the whole app's day (`usage_days`, subject `'*'`), refusing past `DAILY_BUDGET_USD`. A refused request is never counted. Every number is a setting in `app/config.py` (`QUOTA_*`, `COST_*_USD`), changeable from `.env`.
+- **What counts**: a question (`/chat`, `/chat/stream`, `/declare`, `/me/plans/build`), a Refuge talk message, and a voice call (counted by `POST /me/voice/start` once the call connects; `GET /me/voice` is asked before dialling, and the page hangs up at `VOICE_CALL_MINUTES`). A voice call's questions arrive from Cognigy with no person, so `ask_aquila` counts them toward the budget only. Add any new route that calls the model to one of these kinds.
+- **Guests** are counted by a sha256 of their address from `True-Client-IP` or `CF-Connecting-IP`, never the raw address and never the first `X-Forwarded-For` entry, which the caller controls.
+- **It fails open**: a database error lets the request through, so the provider's monthly limit is the backstop.
+- **Limits are said gently**: a 429's `detail` is shown as it is (`err.gentle` in `index.html::ask`, `err.status` from `cave.js::api`), never as an error to retry. Keep the wording in `quota.LIMIT_MESSAGES` kind.
+- **Repeats are free**: a study with no memories replays the stream kept from the first time (`answer_cache`, a day, 256 entries, in memory). A prayer, or anything with memories, is never kept. The Privacy page says both of these; keep it in step.
+- **Refuge sends a trimmed talk**: the latest `LISTEN_HISTORY_LIMIT` messages up to `LISTEN_HISTORY_CHARS`, since the whole talk goes with every reply.
+- **The MCP server takes a key** once `MCP_SECRET` is set (`main.py::_guard_mcp`, as a Bearer header or `?key=`), checked when the stream opens.
 
 ### Deployment
 
