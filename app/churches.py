@@ -3,7 +3,7 @@ list, their sermons, and sermon notes drafted from a link.
 
 Personal, never social. A church belongs to the one person who added it (see
 supabase/migrations/20261114_churches.sql): nobody follows anything, nobody
-sees who else goes where, and Adullum never suggests a church. The tab exists
+sees who else goes where, and Adullam never suggests a church. The tab exists
 for people who want their churches close by.
 
 A church can be added two ways:
@@ -100,7 +100,7 @@ class Gathering(BaseModel):
 class Notice(BaseModel):
     text: str = Field(min_length=1, max_length=300)
     date: str | None = Field(default=None, max_length=20)
-    added: str | None = Field(default=None, max_length=40)  # when Adullum first saw it
+    added: str | None = Field(default=None, max_length=40)  # when Adullam first saw it
 
 
 class Event(BaseModel):
@@ -740,7 +740,7 @@ def sermons_of(church_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> 
     return [{k: v for k, v in s.items() if k != "description"} for s in church_sermons(church)][:20]
 
 
-# Listen, which picks from these sermons and Adullum's catalog by season, is
+# Listen, which picks from these sermons and Adullam's catalog by season, is
 # app/listen.py.
 
 

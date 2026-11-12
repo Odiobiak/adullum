@@ -9,7 +9,7 @@
   const cave = () => window.Cave;
   const el = (...args) => cave().el(...args);
   const toast = (...args) => cave().toast(...args);
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
 
   const FILTERS = [["all", "Everything"], ["verse", "Verses"], ["answer", "Answers"]];
   let filter = "all";

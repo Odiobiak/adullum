@@ -1,11 +1,11 @@
-// Support Adullum (#support): give once, or monthly as a friend of the cave.
+// Support Adullam (#support): give once, or monthly as a friend of the cave.
 //
 // The page is open to everyone, and the rest of the site points people here:
 // the account menu, a card on the home screen, Settings, the welcome page and
 // the signed-out page. The giving itself happens on a checkout page somewhere
 // else (Stripe Payment Links, whose addresses come from GET /support); this
 // file never touches a card. Until the links are set, the page still explains
-// why Adullum asks and says giving opens soon, so no button leads nowhere.
+// why Adullam asks and says giving opens soon, so no button leads nowhere.
 //
 // Friends of the cave get thank-you gifts only: a mark on their account chip
 // and the supporter themes (cave.js::SUPPORTER_THEMES). Nothing anyone relies
@@ -89,7 +89,7 @@
 
     const once = el("section", { class: "card support-option" }, [
       el("h2", { class: "support-option-title", text: "Give once" }),
-      el("p", { class: "muted", text: "A gift of any size, whenever you'd like. It goes straight to keeping Adullum running." }),
+      el("p", { class: "muted", text: "A gift of any size, whenever you'd like. It goes straight to keeping Adullam running." }),
       el("div", { class: "support-option-foot" }, [giveButton(data.once_url, "Give once", "btn btn-ghost")]),
     ]);
 
@@ -120,16 +120,16 @@
     page.replaceChildren(
       el("div", { class: "page-head" }, [
         el("div", {}, [
-          el("h1", { class: "page-title", text: "Support Adullum" }),
+          el("h1", { class: "page-title", text: "Support Adullam" }),
           el("p", {
             class: "page-sub",
-            text: "Adullum is free for everyone. There are no ads, and nobody's data is ever sold. What people give pays for the hosting, the database that holds the Bible and your cave, and Aquila's answers.",
+            text: "Adullam is free for everyone. There are no ads, and nobody's data is ever sold. What people give pays for the hosting, the database that holds the Bible and your cave, and Aquila's answers.",
           }),
         ]),
       ]),
       el("div", { class: "support-options" }, [monthly, once]),
       data.once_url || data.monthly_url
-        ? el("p", { class: "faint support-small", text: "Giving is handled by Stripe, so Adullum never sees your card. Everything here stays free whether you give or not." })
+        ? el("p", { class: "faint support-small", text: "Giving is handled by Stripe, so Adullam never sees your card. Everything here stays free whether you give or not." })
         : el("p", { class: "faint support-small", text: "Giving opens soon. Thank you for wanting to. Everything here stays free whether you give or not." }),
       verse
     );
@@ -166,9 +166,9 @@
   function homeCard() {
     if (window.Cave.isFriend() || snoozed()) return null;
     const node = card("Keep the fire lit", { warm: true }, [
-      el("p", { class: "muted", style: "margin:0;font-size:15px", text: "Adullum is free, with no ads. If it helps you, you can help keep it going." }),
+      el("p", { class: "muted", style: "margin:0;font-size:15px", text: "Adullam is free, with no ads. If it helps you, you can help keep it going." }),
       el("div", { class: "card-actions-row" }, [
-        el("a", { class: "btn btn-ember btn-sm", href: "#support", text: "Support Adullum" }),
+        el("a", { class: "btn btn-ember btn-sm", href: "#support", text: "Support Adullam" }),
         el("button", {
           class: "act", type: "button", text: "Not now",
           onclick: () => {
@@ -192,7 +192,7 @@
     const friend = window.Cave.isFriend();
     box.replaceChildren(
       el("p", { class: "section-sub", text: friend ? sinceLine(since) : "Free, with no ads. Giving keeps it that way." }),
-      el("a", { class: friend ? "btn btn-ghost" : "btn btn-ember", href: "#support", text: friend ? "Give a little more" : "Support Adullum" })
+      el("a", { class: friend ? "btn btn-ghost" : "btn btn-ember", href: "#support", text: friend ? "Give a little more" : "Support Adullam" })
     );
   }
 

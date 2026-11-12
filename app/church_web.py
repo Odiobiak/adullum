@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 # client something different (or nothing at all).
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/126 Safari/537.36 Adullum"
+    "(KHTML, like Gecko) Chrome/126 Safari/537.36 Adullam"
 )
 TIMEOUT_SECONDS = 8
 MAX_REDIRECTS = 4

@@ -63,10 +63,10 @@ EXPORT_TABLES: dict[str, str] = {
     "refuge_reactions": "Amens you said",
     "refuge_kind_words": "Kind words you sent",
     "refuge_reports": "Posts you reported",
-    "user_activity": "The days you used Adullum (for your streak)",
+    "user_activity": "The days you used Adullam (for your streak)",
 }
 
-# Internal columns with no meaning outside Adullum (search vectors).
+# Internal columns with no meaning outside Adullam (search vectors).
 _DROPPED_COLUMNS = {"embedding"}
 _PAGE = 1000
 _MISSING = ("42P01", "PGRST205")  # a table whose migration hasn't run
@@ -122,7 +122,7 @@ def _photo_paths(user_id: str) -> list[str]:
 
 def _readme(user: AuthUser, counts: dict[str, int]) -> str:
     lines = [
-        "Everything you keep in Adullum",
+        "Everything you keep in Adullam",
         f"Exported {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC for {user.email}",
         "",
         "Each .json file is a list of records. Dates are in UTC.",
@@ -159,7 +159,7 @@ def export_account(user: AuthUser = Depends(require_user)) -> Response:
     return Response(
         buffer.getvalue(),
         media_type="application/zip",
-        headers={"Content-Disposition": f"attachment; filename*=UTF-8''Adullum%20export%20{stamp}.zip"},
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''Adullam%20export%20{stamp}.zip"},
     )
 
 

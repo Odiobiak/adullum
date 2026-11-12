@@ -1,6 +1,6 @@
 # When something goes wrong with people's data
 
-What to do if Adullum's data may have been seen, changed or lost by someone who shouldn't have it. People keep prayers, grief and marriages here, so treat a suspected leak as real until you've shown it isn't.
+What to do if Adullam's data may have been seen, changed or lost by someone who shouldn't have it. People keep prayers, grief and marriages here, so treat a suspected leak as real until you've shown it isn't.
 
 Owner: [name, phone]. Backup: [name, phone].
 

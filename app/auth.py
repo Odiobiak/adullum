@@ -202,5 +202,5 @@ def require_admin(authorization: str | None = Header(default=None)) -> AuthUser:
     without admin rights is a 403, so the client can tell the two apart."""
     user = require_user(authorization)
     if not is_admin(user):
-        raise HTTPException(status_code=403, detail="Only the people who look after Adullum can open the admin desk.")
+        raise HTTPException(status_code=403, detail="Only the people who look after Adullam can open the admin desk.")
     return user

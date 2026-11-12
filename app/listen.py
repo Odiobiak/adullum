@@ -3,7 +3,7 @@
 Sermons come from two places:
 - The person's own churches: their YouTube and podcast feeds
   (app/churches.py::church_sermons).
-- Adullum's catalog: a short, hand-chosen list of public sermon podcasts from
+- Adullam's catalog: a short, hand-chosen list of public sermon podcasts from
   across the Christian traditions (CATALOG below), so Listen has something to
   offer before someone adds a church, and more than one church's voice after.
   Each source is an official feed, checked to open and parse. To add one, find

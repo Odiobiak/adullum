@@ -13,7 +13,7 @@
 -- so pressing the bell again changes the same reminder instead of adding
 -- another. `repeat` is set for a weekly gathering ({day, time, zone, before}):
 -- once sent, the reminder moves to the next week instead of being done.
--- `url` is a place inside Adullum ('#church/c/<id>'), opened when the
+-- `url` is a place inside Adullam ('#church/c/<id>'), opened when the
 -- notification is tapped.
 
 create table if not exists push_subscriptions (

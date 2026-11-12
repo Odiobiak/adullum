@@ -62,7 +62,7 @@
   function installHelp() {
     const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "installTitle" }, [
       el("h3", { id: "installTitle", text: "Reminders on iPhone" }),
-      el("p", { class: "sheet-lede", text: "iPhone only sends reminders to apps on the Home Screen. Tap Share, then \"Add to Home Screen\", and open Adullum from there. Then tap the bell again." }),
+      el("p", { class: "sheet-lede", text: "iPhone only sends reminders to apps on the Home Screen. Tap Share, then \"Add to Home Screen\", and open Adullam from there. Then tap the bell again." }),
       el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Got it", onclick: () => close() })),
     ]);
     const close = cave().overlay(sheet);
@@ -77,7 +77,7 @@
       return false;
     }
     if (Notification.permission === "denied") {
-      toast("Notifications are blocked for Adullum. Allow them in this browser's site settings.", { tone: "error" });
+      toast("Notifications are blocked for Adullam. Allow them in this browser's site settings.", { tone: "error" });
       return false;
     }
     const permission = Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
@@ -139,8 +139,11 @@
   }
 
   if ("serviceWorker" in navigator) {
+    // "adullum:open" is the old, misspelt name a service worker installed before
+    // the rename still sends until the browser fetches the new sw.js.
     navigator.serviceWorker.addEventListener("message", (e) => {
-      if (e.data && e.data.type === "adullum:open" && /^#[\w/\-.:]*$/.test(e.data.url || "")) location.hash = e.data.url;
+      const opens = e.data && (e.data.type === "adullam:open" || e.data.type === "adullum:open");
+      if (opens && /^#[\w/\-.:]*$/.test(e.data.url || "")) location.hash = e.data.url;
     });
   }
   document.addEventListener("DOMContentLoaded", () => setTimeout(refresh, 2000));

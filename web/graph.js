@@ -519,11 +519,11 @@
     actions.className = "card-actions";
     panelButton(actions, "Ask Aquila more", () => {
       close();
-      window.AdullumApp && window.AdullumApp.submitQuery(`How do ${a} and ${b} connect?`);
+      window.AdullamApp && window.AdullamApp.submitQuery(`How do ${a} and ${b} connect?`);
     });
     panelButton(actions, `Read ${a}`, () => {
       close();
-      if (window.Reader && window.AdullumApp) window.AdullumApp.go(window.Reader.href(a));
+      if (window.Reader && window.AdullamApp) window.AdullamApp.go(window.Reader.href(a));
     });
     panel.append(actions);
     if (isCrossRef(l)) {
@@ -593,11 +593,11 @@
     }
     btn("Ask Aquila", () => {
       close();
-      window.AdullumApp && window.AdullumApp.submitQuery(`What does ${ref} mean, and how does it connect with the rest of Scripture?`);
+      window.AdullamApp && window.AdullamApp.submitQuery(`What does ${ref} mean, and how does it connect with the rest of Scripture?`);
     });
     btn("Read in context", () => {
       close();
-      if (window.Reader && window.AdullumApp) window.AdullumApp.go(window.Reader.href(ref));
+      if (window.Reader && window.AdullamApp) window.AdullamApp.go(window.Reader.href(ref));
     });
     btn("Save to journal", () => window.Cave && window.Cave.openJournal({ passage_ref: ref, verse_text: d.text }));
 

@@ -1,4 +1,4 @@
-/* Adullum's look: a warm refuge, soft-edged and lit from below.
+/* Adullam's look: a warm refuge, soft-edged and lit from below.
    One typeface for the interface (Inter) and one for Scripture (Source Serif 4),
    so a quoted verse always reads as the text itself rather than as UI.
    Controls are pills, cards are generously rounded, and the main surfaces
@@ -60,7 +60,7 @@
   color-scheme: light;
 }
 /* Lily: clean white for anyone who finds Dawn too warm, with the same ember
-   accent so it still feels like Adullum. */
+   accent so it still feels like Adullam. */
 [data-theme="lily"] {
   --ground: #FFFFFF; --surface: #FFFFFF; --raised: #F3F3F4; --line: #E5E5E8; --line-2: #D2D2D7;
   --text: #1C1C1E; --soft: #3A3A3C; --muted: #5E5E63; --faint: #67676C;
@@ -589,7 +589,7 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .mock-areas li > span { display: grid; min-width: 0; }
 .mock-areas li small { font-weight: 400; }
 /* A reflection's look back: three numbers (the cave's arch marks the ones
-   Adullum counts), answered prayers as stones of help, and the year ahead. */
+   Adullam counts), answered prayers as stones of help, and the year ahead. */
 .mock-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .mock-stats > div { display: grid; gap: 1px; }
 .mock-stats b { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -1892,7 +1892,7 @@ body.still-open { overflow: hidden; }
 }
 
 /* ---------------------------------------------------------------------
-   Support Adullum (web/support.js): the page, the home card, the welcome
+   Support Adullam (web/support.js): the page, the home card, the welcome
    band, and the marks a friend of the cave carries.
    --------------------------------------------------------------------- */
 .support-options { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; margin-top: 8px; max-width: 880px; }

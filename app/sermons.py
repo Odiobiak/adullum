@@ -323,7 +323,7 @@ def decode_image(body: ImageIn) -> bytes:
     if len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(status_code=413, detail="That photo is too large. Try a smaller one.")
     if not data.startswith(_IMAGE_SIGNATURES[body.content_type]):
-        raise HTTPException(status_code=422, detail="That file isn't a photo Adullum can keep. Use a JPEG, PNG or WebP.")
+        raise HTTPException(status_code=422, detail="That file isn't a photo Adullam can keep. Use a JPEG, PNG or WebP.")
     return data
 
 

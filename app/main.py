@@ -57,7 +57,7 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="Adullum", lifespan=_lifespan)
+app = FastAPI(title="Adullam", lifespan=_lifespan)
 
 # Dev-only: lets the static test page in web/index.html (opened via file:// or a
 # throwaway local server, i.e. a different origin than the API) call these

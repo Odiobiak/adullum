@@ -391,7 +391,7 @@
       <article class="card" data-status="setup">
         <div class="card-top"><h3>Supabase Query Tool</h3><span class="chip setup">needs setup</span></div>
         <p class="id">blocked on: an encrypted Connection</p>
-        <p class="desc">A reusable <code class="inline">httpRequest</code>-based tool for reading (or later, writing) Adullum's existing Supabase project — verse lookups, saved plans, session logs.</p>
+        <p class="desc">A reusable <code class="inline">httpRequest</code>-based tool for reading (or later, writing) Adullam's existing Supabase project — verse lookups, saved plans, session logs.</p>
         <details class="steps">
           <summary>▸ how to build it</summary>
           <ol>
@@ -599,14 +599,14 @@ context.callCounts[key] = (context.callCounts[key] || 0) + 1;</pre>
       <p class="tag">07 · ops</p>
       <h3>Health-Check / Status Tool</h3>
       <p class="lede">One callable check confirming every downstream integration is actually reachable — exactly what would have shortened today's Azure OpenAI connection debugging.</p>
-      <p class="why-it-matters">This session's own troubleshooting is the working example: confirming Adullum's <code class="inline">/health</code> endpoint and its <code class="inline">/mcp/sse</code> endpoint both worked, independently of the Cognigy-side LLM connection, is exactly what isolated where the real problem was. A tool like this turns that manual process into one callable check.</p>
+      <p class="why-it-matters">This session's own troubleshooting is the working example: confirming Adullam's <code class="inline">/health</code> endpoint and its <code class="inline">/mcp/sse</code> endpoint both worked, independently of the Cognigy-side LLM connection, is exactly what isolated where the real problem was. A tool like this turns that manual process into one callable check.</p>
       <ol class="tut-steps">
         <li><b>Create the tool</b> <code class="inline">check_integration_health</code>, description: "Checks whether the Bible retrieval service and connected APIs are reachable. Call this only when explicitly asked to check system status — never as part of an ordinary question."</li>
-        <li><b>Add one HTTP Request node per integration worth checking</b> — start with Adullum's own health endpoint: GET <code class="inline">https://adullum.onrender.com/health</code>, storage key <code class="inline">healthAdullum</code>.</li>
+        <li><b>Add one HTTP Request node per integration worth checking</b> — start with Adullam's own health endpoint: GET <code class="inline">https://adullum.onrender.com/health</code>, storage key <code class="inline">healthAdullam</code>.</li>
         <li><b>Add more as they exist</b> — a Supabase reachability check, a future client API's own health endpoint — each its own HTTP node, its own context key.</li>
         <li><b>Add a Code node, "Summarize":</b>
           <pre>const checks = [
-  { name: "Adullum API", ok: context.healthAdullum?.statusCode === 200 || context.healthAdullum?.status === "ok" },
+  { name: "Adullam API", ok: context.healthAdullam?.statusCode === 200 || context.healthAdullam?.status === "ok" },
   // add one line per integration checked above
 ];
 input.result = checks
@@ -674,7 +674,7 @@ context.features = configs[clientId] || configs.default;</pre>
   </section>
 
   <footer>
-    Reference doc: <code>docs/cognigy-xapp-features.md</code> in the Adullum repo. Rebuild or edit this page by asking for it by name — it redeploys to the same link.
+    Reference doc: <code>docs/cognigy-xapp-features.md</code> in the Adullam repo. Rebuild or edit this page by asking for it by name — it redeploys to the same link.
   </footer>
 
 </div>

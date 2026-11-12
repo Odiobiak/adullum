@@ -1,5 +1,5 @@
 [project]
-name = "adullum"
+name = "adullam"
 version = "0.1.0"
 description = "A Bible study RAG agent built with LangGraph and Supabase."
 requires-python = ">=3.11"

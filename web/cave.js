@@ -7,10 +7,12 @@
 // which draws the plans page with renderPlans from here.
 //
 // Loaded before index.html's main script, so it only defines things here and
-// reaches back into that script (window.AdullumApp) at call time. All talk with
+// reaches back into that script (window.AdullamApp) at call time. All talk with
 // Supabase goes through our own API (see app/auth.py): this file holds the
 // person's tokens and nothing else.
 (function () {
+  // Device storage keys keep the old "adullum" spelling on purpose: renaming
+  // them would sign everyone out and forget what each device remembers.
   const STORE_KEY = "adullumSession";
   const THEME_NAMES = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar" };
   // Thank-you themes for friends of the cave, people who give monthly
@@ -45,7 +47,7 @@
   // ---------------------------------------------------------------------
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
 
   function el(tag, attrs = {}, children = []) {
     const node = document.createElement(tag);
@@ -631,7 +633,7 @@
         api("/me", { method: "PATCH", body: { time_zone: zone } }).then(() => { profile.time_zone = zone; }).catch(() => {});
       }
       // web/reader.js listens for this to apply the saved translation.
-      document.dispatchEvent(new CustomEvent("adullum:profile", { detail: profile }));
+      document.dispatchEvent(new CustomEvent("adullam:profile", { detail: profile }));
       // A supporter theme saved on this device stays only for those it's unlocked for.
       if (SUPPORTER_THEMES.has(document.documentElement.dataset.theme) && !isFriend()) setTheme("dawn");
     } catch {
@@ -658,7 +660,7 @@
     return (signedIn() && profile && profile.supporter_since) || null;
   }
   // Whether this person is a friend of the cave: a monthly supporter, or one of
-  // the admins (ADMIN_EMAILS), who look after Adullum and count as friends
+  // the admins (ADMIN_EMAILS), who look after Adullam and count as friends
   // without giving. Friends get the ember on their chip, "Friend of the cave"
   // in the menu and the Almond and Cedar themes, and aren't asked to give.
   // supporterSince() stays the giving date alone, so an admin is never told
@@ -1762,7 +1764,7 @@
     ctx.stroke();
     ctx.font = `600 38px "Inter", system-ui, sans-serif`;
     ctx.fillStyle = token("--text");
-    ctx.fillText("Adullum", 205, H - 150);
+    ctx.fillText("Adullam", 205, H - 150);
 
     const blob = await new Promise((resolve) => c.toBlob(resolve, "image/png"));
     const file = new File([blob], `${ref.replace(/[^\w]+/g, "-")}.png`, { type: "image/png" });
@@ -2172,7 +2174,7 @@
     button.disabled = true;
     toast("Gathering everything. This can take a moment.", { tone: "info" });
     try {
-      await downloadFile("/me/export", `Adullum export ${localToday()}.zip`);
+      await downloadFile("/me/export", `Adullam export ${localToday()}.zip`);
     } catch (err) {
       toast(err.message, { tone: "error" });
     } finally {

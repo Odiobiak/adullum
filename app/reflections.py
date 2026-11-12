@@ -49,7 +49,7 @@ Rating = Literal["hard", "mixed", "steady", "thriving"]
 GoalKind = Literal["habit", "number", "date", "hope"]
 GoalStatus = Literal["reached", "on_the_way", "not_this_time"]
 
-# What Adullum can count for a stretch of time, read from the person's cave.
+# What Adullam can count for a stretch of time, read from the person's cave.
 CaveCount = Literal["entries", "answered", "sermons", "verses", "plans", "days"]
 CAVE_COUNTS: dict[str, str] = {
     "entries": "journal entries",
@@ -246,7 +246,7 @@ def _span_of(start: date, end: date) -> tuple[str, str]:
 
 
 def cave_counts(user_id: str, start: date, end: date, keys=tuple(CAVE_COUNTS)) -> dict[str, int]:
-    """What Adullum can count for a stretch of time. A count whose table isn't
+    """What Adullam can count for a stretch of time. A count whose table isn't
     there yet (a migration not run) is left out rather than failing the rest."""
     db = get_supabase()
     since, until = _span_of(start, end)
@@ -434,7 +434,7 @@ class LayDown(BaseModel):
 
 
 class AimNumber(BaseModel):
-    """A number to aim for. A cave count (`key`) is counted by Adullum; the
+    """A number to aim for. A cave count (`key`) is counted by Adullam; the
     person's own becomes a Pebbles goal when the reflection is kept, so they
     can move it along as they go."""
 
@@ -641,7 +641,7 @@ def start_reflection(body: ReflectionIn, user: AuthUser = Depends(require_user))
 @router.get("/me/reflections/{reflection_id}")
 def open_reflection(reflection_id: uuid.UUID, today: str | None = None, user: AuthUser = Depends(require_user)) -> dict:
     """A reflection as it was left, with what the cave holds for its stretch
-    (every number Adullum can count, passages, answered prayers) and "What you
+    (every number Adullam can count, passages, answered prayers) and "What you
     set out": the plan kept for this stretch last time, beside what happened."""
     row = _with_labels(_own(str(reflection_id), user))
     period = _dates(row)

@@ -1,4 +1,4 @@
-"""Support Adullum: the public giving links, and who counts as a friend of
+"""Support Adullam: the public giving links, and who counts as a friend of
 the cave. No network call; settings are patched per test."""
 
 import pytest

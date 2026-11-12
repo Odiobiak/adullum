@@ -15,7 +15,7 @@
 // through window.Cave at call time.
 (function () {
   const cave = () => window.Cave;
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
   const toast = (...args) => cave().toast(...args);
@@ -919,7 +919,7 @@
       root.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "This link isn't working" }), err.message]));
       return;
     }
-    document.title = `${note.title || "Sermon notes"}, Adullum`;
+    document.title = `${note.title || "Sermon notes"}, Adullam`;
     const refs = note.block_refs || {};
     const blocks = (note.blocks || []).map((b) => {
       const chips = b.type !== "verse" && (refs[b.id] || []).length ? el("div", { class: "ref-chips" }, refs[b.id].map(chip)) : null;
@@ -947,7 +947,7 @@
 
     const main = (note.passages || [])[0];
     root.replaceChildren(el("article", { class: "card sermon-read fade-in" }, [
-      el("p", { class: "kicker ember", text: "Sermon notes, shared from Adullum" }),
+      el("p", { class: "kicker ember", text: "Sermon notes, shared from Adullam" }),
       el("h1", { class: "page-title", text: note.title || "Untitled sermon" }),
       el("p", { class: "muted", text: [note.speaker, note.church, niceDate(note.preached_on)].filter(Boolean).join(" · ") }),
       note.series ? el("p", { class: "faint", style: "font-size:14px", text: `Series: ${note.series}` }) : null,

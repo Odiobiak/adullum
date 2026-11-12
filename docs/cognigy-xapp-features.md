@@ -14,7 +14,7 @@ Every feature carries a status and a "where it gets built" tag, because that dec
 | **BUILT** | live in the Aquila flow today |
 | **PLANNED** | designed here, buildable through `create_tool` + `manage_flow_nodes` with no manual step |
 | **NEEDS GUI** | the logic is buildable through the tooling, but one resource (a Connection, Endpoint setting, Transformer, Handover Provider) only the Cognigy GUI can create |
-| **BACKEND** | needs a change in the Adullum repo (FastAPI/LangGraph) before the Cognigy side can be wired |
+| **BACKEND** | needs a change in the Adullam repo (FastAPI/LangGraph) before the Cognigy side can be wired |
 | **EMBED** | a change to the embed snippet or `web/index.html`, not to Cognigy |
 | **SUGGESTED** | worth having, not yet designed in detail |
 | **DEFERRED** | parked by decision |
@@ -23,7 +23,7 @@ Build mechanisms, in order of preference:
 1. **Tool on the Aquila AI Agent** (`create_tool` → `manage_flow_nodes`). LLM-invoked, lives under the one AI Agent Job. This is what the tooling can build end to end.
 2. **Endpoint setting** in Cognigy GUI: **Deploy → Endpoints → Aquila Webchat**. Most Webchat v3 features live here.
 3. **Embed option** in `initWebchat(configUrl, { settings, ... })`, which overrides the endpoint setting for that page.
-4. **Adullum change**: a new field on `ChatResponse`, a new route in `app/main.py`, or a new MCP tool in `app/mcp_server.py`.
+4. **Adullam change**: a new field on `ChatResponse`, a new route in `app/main.py`, or a new MCP tool in `app/mcp_server.py`.
 
 ## The shape of every xApp tool
 
@@ -90,7 +90,7 @@ Read a whole chapter (or a range) in a scrollable, well-set page instead of a ch
 **Node chain:**
 ```
 tool: read_passage { reference, translation? }
-  -> httpRequest GET {ADULLUM}/passage?ref=John+3&translation=BSB  (new Adullum route)
+  -> httpRequest GET {ADULLAM}/passage?ref=John+3&translation=BSB  (new Adullam route)
   -> code: build HTML (verse numbers as small caps, paragraph breaks, current verse highlighted)
   -> ifThenElse channel
        then: initAppSession -> showXAppHtml (mode: "full", screenTitle: reference, showCloseIcon: true) waitForInput: false
@@ -98,7 +98,7 @@ tool: read_passage { reference, translation? }
 ```
 
 **How to add it:**
-1. Adullum: add `GET /passage` in `app/main.py` that reuses `parse_reference` from `app/retrieval.py` and returns `{reference, translation, verses: [{n, text}]}`. Read-only, no LLM call, so it is cheap and cacheable.
+1. Adullam: add `GET /passage` in `app/main.py` that reuses `parse_reference` from `app/retrieval.py` and returns `{reference, translation, verses: [{n, text}]}`. Read-only, no LLM call, so it is cheap and cacheable.
 2. Cognigy: `create_tool` with `toolType: "http"` pointed at that route (no secret needed if the route stays public and read-only).
 3. `manage_flow_nodes`: the chain above. `waitForInput: false` because reading is not a decision; the conversation continues underneath.
 4. Instruction for the agent job: "When the user asks to read a chapter or see the whole passage, call `read_passage`."
@@ -110,7 +110,7 @@ Show one verse in all four ingested public-domain translations (KJV, WEB, ASV, B
 **Node chain:**
 ```
 tool: compare_translations { reference }
-  -> httpRequest GET {ADULLUM}/passage?ref=...&translation=KJV,WEB,ASV,BSB
+  -> httpRequest GET {ADULLAM}/passage?ref=...&translation=KJV,WEB,ASV,BSB
   -> code: build a 4-column (stacks to 1 on mobile) HTML table, differing words marked
   -> showXAppHtml (mode: "full", screenTitle: "Compare")
 ```
@@ -125,12 +125,12 @@ A thumbs up/down with an optional comment after an answer, written as a Langfuse
 ```
 tool: rate_answer { trace_id }
   -> showXAppAdaptiveCard (two Action.Submit: helpful / not_helpful, Input.Text comment) contextKey "rating"
-  -> httpRequest POST {ADULLUM}/feedback { trace_id, score, comment }
+  -> httpRequest POST {ADULLAM}/feedback { trace_id, score, comment }
   -> Resolve Tool Action ("Thanks, noted")
 ```
 
 **How to add it:**
-1. Adullum: expose the trace id. `app/observability.py` already keeps `last_trace_id` on the per-request handler; add `trace_id: str | None` to `ChatResponse` and to the `ask_aquila` MCP tool's result, then add `POST /feedback` that calls Langfuse `score` with that id. Do not use the ambient trace context (the module docstring explains why).
+1. Adullam: expose the trace id. `app/observability.py` already keeps `last_trace_id` on the per-request handler; add `trace_id: str | None` to `ChatResponse` and to the `ask_aquila` MCP tool's result, then add `POST /feedback` that calls Langfuse `score` with that id. Do not use the ambient trace context (the module docstring explains why).
 2. Cognigy: tool as above. The agent job instruction should say to offer `rate_answer` only after an `ask_aquila` answer, never unprompted.
 3. Alternative with zero xApp work: turn on **Conversation Rating** in the Webchat endpoint (Part 3, #5). That rates the conversation in Cognigy Insights, not the trace in Langfuse. Both can coexist.
 
@@ -164,14 +164,14 @@ This is an enterprise-shaped pattern (a live-updating intake form beside a trans
 
 **The mechanism that makes "fills in while you talk" possible:** `api.setAppState(templateId, data)`, callable from a Code node in the Flow. It pushes a fresh render into an **already-open** xApp session, no blocking, no dedicated node per update. The xApp shell page holds a live WebSocket connection to Cognigy's session manager specifically to receive these pushes, which is what lets an open form page update in place while the conversation keeps going underneath it.
 
-**One correction worth remembering:** Cognigy's built-in xApp Overlay is not a split view. It replaces the whole Webchat widget with one full-screen panel, the same way the Home screen or Chat Options screen work, one screen at a time. Genuine side by side (transcript and form visible together) is not a stock Webchat v3 capability, it has to be built as a two-pane page: one pane holds the chat, the other is an iframe pointed at the xApp session's own URL (`input.apps.url`), kept open for the life of the conversation. Adullum's own `web/index.html` (not just a bare Cognigy embed) is the natural place to build this, since it already has a custom layout rather than only the stock widget.
+**One correction worth remembering:** Cognigy's built-in xApp Overlay is not a split view. It replaces the whole Webchat widget with one full-screen panel, the same way the Home screen or Chat Options screen work, one screen at a time. Genuine side by side (transcript and form visible together) is not a stock Webchat v3 capability, it has to be built as a two-pane page: one pane holds the chat, the other is an iframe pointed at the xApp session's own URL (`input.apps.url`), kept open for the life of the conversation. Adullam's own `web/index.html` (not just a bare Cognigy embed) is the natural place to build this, since it already has a custom layout rather than only the stock widget.
 
 **Node chain:**
 ```
 tool: build_year_plan { start_date?, days?, translation? }
   -> initAppSession
-  -> code: httpRequest POST {ADULLUM}/plan with whatever fields are already known
-     -> Adullum generates the schedule + a one-time written overview, stores it, returns plan_id
+  -> code: httpRequest POST {ADULLAM}/plan with whatever fields are already known
+     -> Adullam generates the schedule + a one-time written overview, stores it, returns plan_id
   -> code: api.setAppState("generic-html", { html: <form pre-filled with known fields> })
      (waitForInput: false, the conversation is not paused)
   -> [ongoing, every turn]: a Code node merges any newly mentioned field into context.planForm,
@@ -179,21 +179,21 @@ tool: build_year_plan { start_date?, days?, translation? }
   -> [any time]: the user can also type directly into the open form and submit;
      that arrives as input.data._cognigy._app.payload on whatever turn comes next,
      merging into the same context.planForm
-  -> once required fields are complete: httpRequest POST {ADULLUM}/plan (final, with all fields)
+  -> once required fields are complete: httpRequest POST {ADULLAM}/plan (final, with all fields)
      -> showXAppHtml/showXAppAdaptiveCard, waitForInput: true. The finished plan card,
-        with a download link to {ADULLUM}/plan/{plan_id}/pdf and an "email me this plan" action
+        with a download link to {ADULLAM}/plan/{plan_id}/pdf and an "email me this plan" action
 ```
 
 **How to build it:**
-1. **Adullum backend, already built:**
+1. **Adullam backend, already built:**
    - `app/plan.py::generate_schedule(start_date, days)`. Pure, deterministic, no LLM call. Splits the 1189 chapters of the 66-book canon across `days` as evenly as possible, straight through in canonical order (Genesis to Revelation). Covered by `tests/test_plan.py`.
    - `app/plan.py::generate_overview(start_date, days, translation)`, the one LLM call the whole plan gets, a two-sentence written introduction, not a per-day call.
    - `app/pdf.py::render_plan_pdf(plan)`, renders the stored plan as a real paginated PDF via `reportlab` (a new dependency, added to `pyproject.toml`). Table cells use `Paragraph` objects so a long reading list wraps instead of clipping.
    - `POST /plan`, `GET /plan/{plan_id}`, `GET /plan/{plan_id}/pdf` in `app/main.py`. The PDF route renders on demand from the stored row rather than storing a file, so the same URL serves both the xApp's download button and the link a `send_email` tool puts in the email.
    - `reading_plans` table in `supabase/schema.sql`. No `user_id`/RLS yet, same as the `verses` table: nothing ties a plan to an identity until Aquila has one (Part 2, Identity and SSO). A plan is only reachable by its own generated id, never listed.
 2. **Cognigy, still to build:** the `build_year_plan` tool and its Code nodes, following the chain above. The field-merge-and-re-render step relies on the agent job's instructions telling the LLM to update the form whenever it learns something, the same tool-calling discipline `verse_of_the_day` and `show_followups` already use, just called silently and repeatedly instead of once.
-3. **Adullum website change:** a two-pane layout in `web/index.html`, chat on one side, an iframe on `input.apps.url` on the other. A plain client-side toggle button hides or shows the iframe pane, since closing the form doesn't need the Flow to know about it, the silent `setAppState` calls into a closed pane are harmless.
-4. **Delivery:** the finished-plan card's download button links straight to `{ADULLUM}/plan/{plan_id}/pdf`. "Email me this plan" is a `send_email` tool whose body includes that same link, no attachment handling needed and no new Adullum route.
+3. **Adullam website change:** a two-pane layout in `web/index.html`, chat on one side, an iframe on `input.apps.url` on the other. A plain client-side toggle button hides or shows the iframe pane, since closing the form doesn't need the Flow to know about it, the silent `setAppState` calls into a closed pane are harmless.
+4. **Delivery:** the finished-plan card's download button links straight to `{ADULLAM}/plan/{plan_id}/pdf`. "Email me this plan" is a `send_email` tool whose body includes that same link, no attachment handling needed and no new Adullam route.
 5. **Voice:** since a call has no screen, reuse Voice-to-Screen Handoff (#6 below): a session PIN texted to the caller, opened on any device, updating live while the call continues.
 
 **Note:** the bidirectional part needs one small rule: track which fields the user touched directly (typed into the form themselves) and never let the agent's silent re-render overwrite one of those. A simple per-field "touched" flag in `context.planForm` is enough. Also worth a small spike before building the full chain: confirm an already-open xApp shell page actually repaints on a second `setAppState` call without a manual reload, the docs describe the transport for this but a two-minute prototype is cheaper than an assumption.
@@ -268,7 +268,7 @@ One Adaptive Card asking permission before anything personal is stored (notes, p
 ## 13. Study Material Upload: DEFERRED
 
 Upload a sermon outline or notes PDF and ask Aquila about it. Two routes:
-- The bundled `document-upload.html` template submits files as base64 (about 5 MB cap). Adullum would need a route to receive and chunk them.
+- The bundled `document-upload.html` template submits files as base64 (about 5 MB cap). Adullam would need a route to receive and chunk them.
 - Webchat **Attachment Upload** needs a File Storage Connection (Azure Blob, S3, or GCS) in the endpoint. Cognigy virus-scans on upload.
 Deferred because it changes the product: Aquila answers from Scripture, and a user document is a second, ungrounded source. Decide that first.
 
@@ -285,7 +285,7 @@ after ask_aquila resolves
 ```
 
 **How to add it:**
-1. Adullum: add an optional `debug` block to `ChatResponse` and the MCP tool result (retrieval path used, ground_check verdict and retry count, trace id). Check what `app/agent/state.py` tracks today; not all of it is exposed.
+1. Adullam: add an optional `debug` block to `ChatResponse` and the MCP tool result (retrieval path used, ground_check verdict and retry count, trace id). Check what `app/agent/state.py` tracks today; not all of it is exposed.
 2. Identity: the role must arrive through the Endpoint Transformer (Part 2, #1) into `input.data`, then be copied into `context.role` once. Never read it from `SDK.submit` payloads.
 3. Test both branches with `talk_to_agent` once the LLM connection is fixed.
 
@@ -301,7 +301,7 @@ tool: show_ops_dashboard (gate behind the same role check as #14)
   -> initAppSession -> showXAppHtml (mode: "full", counters, optional refresh via SDK.submit)
 ```
 
-**Build notes:** needs a read-only aggregation route in Adullum (or direct Langfuse API calls). Decide refresh cadence before wiring a refresh button.
+**Build notes:** needs a read-only aggregation route in Adullam (or direct Langfuse API calls). Decide refresh cadence before wiring a refresh button.
 
 ---
 
@@ -313,7 +313,7 @@ Who is talking to Aquila, in a way the flow can trust.
 
 - **Untrusted but useful:** the embed snippet accepts `userId` and `sessionId` options (see Cognigy's Webchat `embedding.md` on GitHub). Set `userId` from the host page's logged-in user so Contact Profiles and Previous Conversations line up. Anyone can edit their own page, so this is identity for continuity, not for authorisation.
 - **Trusted:** pass a short-lived JWT from the host page (in `data` on the first message, or an embed option), and verify it in the endpoint's **Input Transformer** (GUI: Deploy → Endpoints → Aquila Webchat → Transformer Functions). The transformer sets `userId` and puts verified claims (`role`, `tenant`) on `input.data`. Transformers are GUI-only; the tooling used here cannot author them.
-- Adullum side: nothing until a feature needs the identity (#8, #14 in Part 1).
+- Adullam side: nothing until a feature needs the identity (#8, #14 in Part 1).
 
 ## 2. Role-Based Access: depends on #1
 
@@ -355,7 +355,7 @@ One structured who/what/when row per sensitive action (save note, escalate, dele
 
 ## 8. Rate Limit and Abuse Guard: SUGGESTED
 
-A per-session counter in `context` incremented by each tool's first code node; when it passes a cap, the tool resolves with "let's slow down" instead of calling Adullum. Protects the Render instance and the OpenAI quota from a runaway loop.
+A per-session counter in `context` incremented by each tool's first code node; when it passes a cap, the tool resolves with "let's slow down" instead of calling Adullam. Protects the Render instance and the OpenAI quota from a runaway loop.
 
 ## 9. Locale and Language: NEEDS GUI
 
@@ -366,7 +366,7 @@ A per-session counter in `context` incremented by each tool's first code node; w
 ## 10. Business Hours, Maintenance, Session Expiry: NEEDS GUI / EMBED
 
 - **Business Hours** (Webchat Behavior settings): show a message outside hours. Useful if handover (#3) is staffed.
-- **Maintenance** mode in the embed (`maintenance: { enabled, mode: "hide" | "disable" | "inform", title, text }`, needs `embeddingConfiguration.awaitEndpointConfig: true`). Use it during Adullum deploys that `deploy-watch.yml` flags as failing.
+- **Maintenance** mode in the embed (`maintenance: { enabled, mode: "hide" | "disable" | "inform", title, text }`, needs `embeddingConfiguration.awaitEndpointConfig: true`). Use it during Adullam deploys that `deploy-watch.yml` flags as failing.
 - Endpoint → **Session Management** sets session expiry. Long enough for a slow reading, short enough that `context` (consent, role) does not outlive the person.
 
 ## 11. Analytics and Insights: NEEDS GUI
@@ -375,7 +375,7 @@ A per-session counter in `context` incremented by each tool's first code node; w
 
 ## 12. Proactive Messages: Inject and Notify: NEEDS GUI
 
-Push a message into a running session (`/inject`) or to a user (`/notify`) from outside the flow, e.g. "your reading plan for today". Available on endpoints that support it; check the Inject & Notify section of the endpoint. Needs a caller (a scheduled job in Adullum, or a Render cron) and the endpoint URL token stored as a secret.
+Push a message into a running session (`/inject`) or to a user (`/notify`) from outside the flow, e.g. "your reading plan for today". Available on endpoints that support it; check the Inject & Notify section of the endpoint. Needs a caller (a scheduled job in Adullam, or a Render cron) and the endpoint URL token stored as a secret.
 
 ## 13. Tenant Feature Flags: SUGGESTED
 
@@ -383,7 +383,7 @@ A small per-tenant config (Supabase row or a Lookup node keyed on `input.data.te
 
 ## 14. Health Check Tool: SUGGESTED
 
-One tool that hits Adullum `/health`, the Supabase REST root, and the MCP `/mcp/sse` handshake and reports which are up. Belongs on the Ops Dashboard (Part 1, #15) and on every onboarding checklist.
+One tool that hits Adullam `/health`, the Supabase REST root, and the MCP `/mcp/sse` handshake and reports which are up. Belongs on the Ops Dashboard (Part 1, #15) and on every onboarding checklist.
 
 ## 15. Packaging and Environments: SUGGESTED
 
@@ -397,9 +397,9 @@ For JWT/HMAC-signed calls a Code node cannot do cleanly, or for a custom xApp no
 
 # Part 3. Webchat inclusion: what to turn on in Aquila Webchat
 
-The Adullum page (`web/index.html`) currently runs its own chat client against `/chat/stream`, plus Cognigy's click-to-call widget for voice. xApps only render in a Webchat v3 surface, so to use any of Part 1 on the Adullum site the Cognigy widget has to be embedded there too.
+The Adullam page (`web/index.html`) currently runs its own chat client against `/chat/stream`, plus Cognigy's click-to-call widget for voice. xApps only render in a Webchat v3 surface, so to use any of Part 1 on the Adullam site the Cognigy widget has to be embedded there too.
 
-## 1. Embed Webchat v3 on the Adullum page: EMBED
+## 1. Embed Webchat v3 on the Adullam page: EMBED
 
 1. GUI: Deploy → Endpoints → Aquila Webchat → **Embedding HTML**, copy the snippet.
 2. Pin a version instead of `releases/latest` (e.g. `releases/download/v3.x.y/webchat.js`), so a Webchat release cannot change the page under you.
@@ -494,7 +494,7 @@ Earlier drafts assumed an **Execute Flow** node (call another flow, then return)
 | ID&V | tool, same shape | not started; depends on Part 2, #1 |
 | Auth/Login | tool, sets `context.accessToken`/`context.userId` | not started |
 | Generic API-caller template | `httpRequest` + pre/post-process code nodes, duplicated per integration | not started |
-| Supabase query tool | API-caller template pointed at Adullum's Supabase | **scaffolding only**, blocked on an encrypted Connection (below) |
+| Supabase query tool | API-caller template pointed at Adullam's Supabase | **scaffolding only**, blocked on an encrypted Connection (below) |
 | Salesforce / CXone handover | native handover node + provider | **deferred** (no org); CXone worth a test unit |
 | xApp init/branding | copy-paste convention across tools (same `initAppSession` and overlay values) | by convention, not a component |
 | Error/fallback | already centralised in the AI Agent Job node's `errorHandling` config | nothing to build |
@@ -512,7 +512,7 @@ The `create_tool`/`manage_flow_nodes` API does **not** expose Cognigy's encrypte
 
 ### Known blocker
 
-The Aquila AI Agent's LLM connection (Azure OpenAI `gpt-4.1-mini`, connection `88e50803-f24b-4048-a83f-cc754192f766`) was failing on every turn at the time of writing, confirmed independent of anything built here (tested with the new tools deleted; Adullum's `/chat` and `/mcp/sse` work when hit directly). Until it is fixed, nothing in Parts 1 to 3 can be tested end to end. Check the connection's key validity and quota.
+The Aquila AI Agent's LLM connection (Azure OpenAI `gpt-4.1-mini`, connection `88e50803-f24b-4048-a83f-cc754192f766`) was failing on every turn at the time of writing, confirmed independent of anything built here (tested with the new tools deleted; Adullam's `/chat` and `/mcp/sse` work when hit directly). Until it is fixed, nothing in Parts 1 to 3 can be tested end to end. Check the connection's key validity and quota.
 
 ---
 
@@ -520,9 +520,9 @@ The Aquila AI Agent's LLM connection (Azure OpenAI `gpt-4.1-mini`, connection `8
 
 1. Fix the LLM connection (blocker for all testing).
 2. Webchat inclusion, GUI pass: Part 3 #2, #3, #5, #6, #7, #12, #13, #14, and Part 2 #4. One afternoon, no code.
-3. Embed the widget on the Adullum page (Part 3 #1) and confirm Verse of the Day and Follow-up Picker render in the overlay.
+3. Embed the widget on the Adullam page (Part 3 #1) and confirm Verse of the Day and Follow-up Picker render in the overlay.
 4. Overlay settings and XSS convention across the two built tools (Part 3 #8, Part 2 #5).
-5. Passage Reader route in Adullum, then the tool (Part 1 #3). Translation Comparison rides on it (#4).
+5. Passage Reader route in Adullam, then the tool (Part 1 #3). Translation Comparison rides on it (#4).
 6. Trace id on `ChatResponse`, `/feedback` route, then Answer Feedback (Part 1 #5).
 7. Supabase Connection in the GUI, then Consent card, then Bookmarks and Notes (Part 1 #12, #8).
 8. Identity via Transformer (Part 2 #1), then RBAC rendering and Ops Dashboard (Part 1 #14, #15).

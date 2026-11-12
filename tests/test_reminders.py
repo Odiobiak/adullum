@@ -16,7 +16,7 @@ UTC = timezone.utc
 # ---------------------------------------------------------------------------
 # Links and shapes
 # ---------------------------------------------------------------------------
-def test_a_notification_only_opens_a_page_in_adullum():
+def test_a_notification_only_opens_a_page_in_adullam():
     assert inside_link("#church/c/0b1e-22") == "#church/c/0b1e-22"
     assert inside_link("") is None
     for bad in ("https://example.com", "javascript:alert(1)", "//evil.example", "#church/<script>"):

@@ -3,13 +3,13 @@
 //
 // Personal, never social: a church here is one the person added for
 // themselves (app/churches.py). There's no following, no counts of who else
-// goes, and Adullum never suggests a church.
+// goes, and Adullam never suggests a church.
 //
 // Routes, all inside the one view:
 //   #church             your churches, each with its info icon for notices
 //   #church/sermons     sermon notes (drawn by web/sermons.js); #sermons lands here
 //   #church/listen      sermons for how you feel, from your churches and
-//                       Adullum's catalog (app/listen.py)
+//                       Adullam's catalog (app/listen.py)
 //   #church/add         add a church from a link, or by hand
 //   #church/c/<id>      one church: sermons, times, news, about
 //   #church/live/<id>   a live stream with notes beside it
@@ -182,8 +182,8 @@
     const start = event.time ? `DTSTART${zone ? `;TZID=${zone}` : ""}:${day}T${event.time.replace(":", "")}00` : `DTSTART;VALUE=DATE:${day}`;
     const text = (s) => String(s || "").replace(/[\\;,]/g, (c) => `\\${c}`).replace(/\n/g, "\\n");
     const ics = [
-      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Adullum//Church//EN", "BEGIN:VEVENT",
-      `UID:${day}-${Math.random().toString(36).slice(2)}@adullum`, `DTSTAMP:${stamp}`, start,
+      "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Adullam//Church//EN", "BEGIN:VEVENT",
+      `UID:${day}-${Math.random().toString(36).slice(2)}@adullam`, `DTSTAMP:${stamp}`, start,
       `SUMMARY:${text(event.title)}`, `LOCATION:${text(church.address || church.name)}`, "END:VEVENT", "END:VCALENDAR",
     ].join("\r\n");
     const link = el("a", { href: URL.createObjectURL(new Blob([ics], { type: "text/calendar" })), download: `${event.title.replace(/[^\w ]+/g, "").trim() || "event"}.ics` });
@@ -761,15 +761,15 @@
 
   // ---------------------------------------------------------------------
   // Listen: sermons for how you feel, from the person's churches and from
-  // Adullum's catalog of public sermon podcasts (app/listen.py). The season
+  // Adullam's catalog of public sermon podcasts (app/listen.py). The season
   // and the source are two compact dropdowns on one line, and what Listen
   // is sits behind the info button, so the sermons get the room.
   // ---------------------------------------------------------------------
   const LISTEN_ABOUT = [
-    "Sermons for how you feel, from your churches and from Adullum's catalog of public sermon podcasts across the Christian traditions.",
-    "Adullum sorts each sermon into seasons with AI, so one can sit under more than one, and now and then one won't quite fit.",
+    "Sermons for how you feel, from your churches and from Adullam's catalog of public sermon podcasts across the Christian traditions.",
+    "Adullam sorts each sermon into seasons with AI, so one can sit under more than one, and now and then one won't quite fit.",
   ];
-  const CATALOG_ABOUT = "Chosen by Adullum from public sermon podcasts across the traditions and around the world: Catholic, Orthodox, Anglican, Presbyterian, Baptist and Pentecostal, from the UK, the US and Nigeria. Each is the preacher's or ministry's own feed.";
+  const CATALOG_ABOUT = "Chosen by Adullam from public sermon podcasts across the traditions and around the world: Catholic, Orthodox, Anglican, Presbyterian, Baptist and Pentecostal, from the UK, the US and Nigeria. Each is the preacher's or ministry's own feed.";
   // How many times a list still being sorted is looked at again, and how often.
   const LISTEN_RETRIES = 3;
   const LISTEN_RETRY_MS = 8000;
@@ -789,7 +789,7 @@
         option("mine", "All your churches"),
         ...churches.map((c) => option(`church:${c.id}`, c.name)),
       ]) : null,
-      el("optgroup", { label: "Adullum's catalog" }, [
+      el("optgroup", { label: "Adullam's catalog" }, [
         option("catalog", "The whole catalog"),
         ...catalog.map((c) => option(`catalog:${c.key}`, `${c.name} (${c.tradition})`)),
       ]),
@@ -859,7 +859,7 @@
         wantsMine ? group(both ? "From your churches" : null, null, data.mine, hasChurches
           ? "Nothing for this in your churches' recent sermons yet."
           : el("p", { class: "church-listen-empty" }, ["Add your church to hear its sermons here too. ", el("a", { href: "#church/add", text: "Add a church" })])) : null,
-        wantsCatalog ? group(both ? "From Adullum's catalog" : null, CATALOG_ABOUT, data.catalog, "Nothing for this in the catalog yet.") : null,
+        wantsCatalog ? group(both ? "From Adullam's catalog" : null, CATALOG_ABOUT, data.catalog, "Nothing for this in the catalog yet.") : null,
         data.pending ? el("p", { class: "church-listen-pending", text: "Still sorting some sermons into seasons. More will appear in a moment." }) : null,
       ].filter(Boolean));
     }
@@ -910,7 +910,7 @@
   async function openSermons() {
     if (showing !== "sermons" || !root) {
       sermonsReady = null;
-      window.AdullumApp.go("church/sermons");
+      window.AdullamApp.go("church/sermons");
       for (let i = 0; i < 50 && !sermonsReady; i++) await new Promise((r) => setTimeout(r, 20));
     }
     await sermonsReady;
@@ -932,7 +932,7 @@
     const steps = el("ol", { class: "church-steps", hidden: true }, ["Reading the captions", "Finding the passages", "Pulling out the main points", "Noting what to do this week"].map((t) => el("li", { text: t })));
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "fromLinkTitle" }, [
       el("h3", { id: "fromLinkTitle", text: "Notes from a sermon" }),
-      el("p", { class: "sheet-lede", text: "Paste a link. Adullum drafts the note; you edit it." }),
+      el("p", { class: "sheet-lede", text: "Paste a link. Adullam drafts the note; you edit it." }),
       input,
       mine.length ? pick : null,
       steps,

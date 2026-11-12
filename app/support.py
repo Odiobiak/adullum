@@ -1,6 +1,6 @@
-"""Support Adullum: giving once, or monthly as a "friend of the cave".
+"""Support Adullam: giving once, or monthly as a "friend of the cave".
 
-Adullum stays free, with no ads, and nobody's data is sold. Giving pays for
+Adullam stays free, with no ads, and nobody's data is sold. Giving pays for
 hosting, the database and Aquila's answers. There are two ways to give, both
 links to a checkout page that lives somewhere else (Stripe Payment Links, set
 in `.env` as SUPPORT_ONCE_URL and SUPPORT_MONTHLY_URL):

@@ -1,6 +1,6 @@
 """Daily limits on what costs money: Aquila's answers, Refuge talks and voice calls.
 
-Adullum is free and paid for by people who give, so this keeps one person,
+Adullam is free and paid for by people who give, so this keeps one person,
 or one script, from spending what everyone shares. Three checks, cheapest
 first:
 - a burst limit per minute, held in this process (it only has to stop a
@@ -41,7 +41,7 @@ LIMIT_MESSAGES: dict[str, str] = {
     "question_guest": "That's today's questions as a guest. Sign in to keep going, it's free.",
     "talk": "That's a lot of talking for one day. Aquila will be here again tomorrow, and Write it out is always open.",
     "voice": "That's today's calls. You can keep talking with Aquila by typing, and calling opens again tomorrow.",
-    "budget": "Aquila is resting for the rest of today. Adullum is free, kept going by people who give, and today's share has been used. Please come back tomorrow.",
+    "budget": "Aquila is resting for the rest of today. Adullam is free, kept going by people who give, and today's share has been used. Please come back tomorrow.",
     "burst": "That's a lot at once. Give it a moment and try again.",
 }
 

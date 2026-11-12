@@ -1,4 +1,4 @@
-"""My Cave: the signed-in side of Adullum.
+"""My Cave: the signed-in side of Adullam.
 
 Routes for signing in (/auth/*) and for everything a person keeps here
 (/me/*): their conversations, journal, and Aquila's notes about them. Reading

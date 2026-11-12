@@ -22,7 +22,7 @@
   };
 
   const cave = () => window.Cave;
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
   const toast = (...args) => cave().toast(...args);

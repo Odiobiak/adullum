@@ -1,4 +1,4 @@
-# Adullum
+# Adullam
 
 I built Aquila, a Bible study companion who answers Scripture questions with real
 chapter-and-verse citations, never an invented reference. Ask her a question and

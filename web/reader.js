@@ -40,7 +40,7 @@
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => [...r.querySelectorAll(s)];
   const cave = () => window.Cave;
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
   const el = (...args) => cave().el(...args);
 
   function apiBase() {
@@ -281,7 +281,7 @@
     notes = [];
     highlights = new Map();
     store(POS_KEY, JSON.stringify({ book: data.book, chapter: data.chapter }));
-    document.title = `${data.book} ${data.chapter}, Adullum`;
+    document.title = `${data.book} ${data.chapter}, Adullam`;
     renderChapter();
     if (verse) focusVerse(verse);
     else window.scrollTo({ top: 0 });
@@ -797,7 +797,7 @@
   function showHub() {
     setMode("hub");
     clearSelection();
-    document.title = "The Bible, Adullum";
+    document.title = "The Bible, Adullam";
     window.scrollTo({ top: 0 });
 
     const place = lastPlace();
@@ -857,7 +857,7 @@
     const page = MINE[kind];
     setMode(kind);
     clearSelection();
-    document.title = `${page.title}, Adullum`;
+    document.title = `${page.title}, Adullam`;
     window.scrollTo({ top: 0 });
     $("#readerBack span").textContent = current ? `Back to ${current.book} ${current.chapter}` : "Back to the Bible";
     $("#readerBack").href = current ? `#${hashFor(current.book, current.chapter)}` : "#bible";
@@ -931,7 +931,7 @@
   // ---------------------------------------------------------------------
   // Wiring
   // ---------------------------------------------------------------------
-  document.addEventListener("adullum:profile", (e) => applyPreferred(e.detail && e.detail.preferred_translation));
+  document.addEventListener("adullam:profile", (e) => applyPreferred(e.detail && e.detail.preferred_translation));
 
   document.addEventListener("DOMContentLoaded", () => {
     loadTranslations();

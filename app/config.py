@@ -80,7 +80,7 @@ class Settings(BaseSettings):
 
     # Giving, shown on the Support page (#support) and everywhere that links to
     # it. Both are Stripe Payment Links (or any checkout page). Left empty, the
-    # page still explains why Adullum asks, and says giving opens soon, so the
+    # page still explains why Adullam asks, and says giving opens soon, so the
     # buttons never lead nowhere. See app/support.py.
     support_once_url: str = ""
     support_monthly_url: str = ""
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     # refuses every call, and reminders go out only while the server is awake.
     cron_secret: str = ""
 
-    # Daily limits on what costs money (app/quota.py). Adullum is free and
+    # Daily limits on what costs money (app/quota.py). Adullam is free and
     # paid for by people who give, so every answer is counted: per person (a
     # guest by their network address) and against one budget for the whole
     # app. A day is a UTC day. Raise any of these from .env, no deploy needed.

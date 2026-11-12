@@ -114,7 +114,7 @@ def main() -> None:
     out = args.out or Path(__file__).resolve().parent.parent / "data" / f"{args.translation.lower()}.json"
     url = SOURCES[args.translation]
     print(f"Downloading {args.translation} from {url}")
-    request = urllib.request.Request(url, headers={"User-Agent": "adullum-fetch-translation"})
+    request = urllib.request.Request(url, headers={"User-Agent": "adullam-fetch-translation"})
     with urllib.request.urlopen(request, timeout=120) as resp:
         source = json.load(resp)
 

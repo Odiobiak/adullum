@@ -113,7 +113,7 @@ class ReminderIn(BaseModel):
 
     @field_validator("url")
     @classmethod
-    def inside_adullum(cls, url: str | None) -> str | None:
+    def inside_adullam(cls, url: str | None) -> str | None:
         return inside_link(url)
 
 
@@ -121,13 +121,13 @@ class ReminderIn(BaseModel):
 # Pure helpers (unit tested in tests/test_reminders.py)
 # ---------------------------------------------------------------------------
 def inside_link(url: str | None) -> str | None:
-    """A notification only ever opens a place inside Adullum ("#church/c/..."),
+    """A notification only ever opens a place inside Adullam ("#church/c/..."),
     never another site."""
     url = (url or "").strip()
     if not url:
         return None
     if not re.match(r"^#[\w/\-.:]*$", url):
-        raise ValueError("A reminder can only open a page in Adullum.")
+        raise ValueError("A reminder can only open a page in Adullam.")
     return url
 
 
@@ -285,7 +285,7 @@ def remove_device(body: DeviceOut, user: AuthUser = Depends(require_user)) -> di
 def test_device(user: AuthUser = Depends(require_user)) -> dict:
     if not push.configured():
         raise HTTPException(status_code=503, detail="Notifications aren't set up on this server yet.")
-    reached = _db(lambda: push.notify_user(user.id, {"title": "Notifications are on", "body": "This is how Adullum will remind you.", "url": "#church", "tag": "test"}))
+    reached = _db(lambda: push.notify_user(user.id, {"title": "Notifications are on", "body": "This is how Adullam will remind you.", "url": "#church", "tag": "test"}))
     return {"reached": reached}
 
 

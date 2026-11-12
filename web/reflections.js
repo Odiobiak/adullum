@@ -22,7 +22,7 @@
 // call time. Reached as window.Reflections.
 (function () {
   const cave = () => window.Cave;
-  const app = () => window.AdullumApp;
+  const app = () => window.AdullamApp;
   const el = (...args) => cave().el(...args);
   const api = (...args) => cave().api(...args);
   const toast = (...args) => cave().toast(...args);
@@ -47,7 +47,7 @@
   // The halfway check-ins someone has put away, by reflection id, on this device.
   const CHECK_IN_KEY = "adullumCheckInsPutAway";
 
-  // What Adullum counts for the person (from their cave, or from Pebbles)
+  // What Adullam counts for the person (from their cave, or from Pebbles)
   // carries the cave's own arch; a reflection itself, a sun on the horizon.
   const CAVE_MARK = '<svg class="refl-mark" viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" aria-hidden="true"><path d="M4 28C4 15 9 5 16 5s12 10 12 23M12.5 28c0-4.5 1.6-7.5 3.5-7.5s3.5 3 3.5 7.5"/></svg>';
   const HORIZON = '<svg class="refl-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 18h18M6.5 18a5.5 5.5 0 0 1 11 0M12 5v3M5.6 9.1l1.8 1.8M18.4 9.1l-1.8 1.8"/></svg>';
@@ -825,7 +825,7 @@
       ...r.look_back.numbers.filter((n) => !n.key && n.label.trim() && !numbers.some((x) => !x.key && sameName(x.label, n.label))).map((n) => ({ key: null, label: n.label.trim(), last: n.value })),
     ];
     return el("section", { class: "refl-group refl-aims" }, [
-      blockTitle("Numbers to aim for", "Set a number to reach. Those marked with the cave Adullum counts for you. Your own go to Pebbles when you keep this, so you can move them along as you go."),
+      blockTitle("Numbers to aim for", "Set a number to reach. Those marked with the cave Adullam counts for you. Your own go to Pebbles when you keep this, so you can move them along as you go."),
       el("div", { class: "refl-tiles" }, [...tiles, add]),
       offers.length ? el("div", { class: "refl-chips" }, offers.map((o) => el("button", {
         class: "chip-btn", type: "button", text: `+ ${o.label}`,

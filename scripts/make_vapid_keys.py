@@ -1,4 +1,4 @@
-"""Make the key pair that signs Adullum's push notifications.
+"""Make the key pair that signs Adullam's push notifications.
 
 Run once:  python scripts/make_vapid_keys.py
 Then put the two printed lines in .env (and in Render's environment). Keep the

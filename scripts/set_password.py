@@ -1,4 +1,4 @@
-"""Set (or reset) the password on an Adullum account, from the terminal.
+"""Set (or reset) the password on an Adullam account, from the terminal.
 
 For when someone can't get a sign-in email, or signed up with a magic link
 and never had a password. It asks for the new password without echoing it,
@@ -39,7 +39,7 @@ def find_user_id(client, email: str) -> str | None:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Set the password on an Adullum account.")
+    parser = argparse.ArgumentParser(description="Set the password on an Adullam account.")
     parser.add_argument("email", help="the account's email address")
     email = parser.parse_args().email.strip()
 

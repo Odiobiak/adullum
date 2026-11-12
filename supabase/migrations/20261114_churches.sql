@@ -7,7 +7,7 @@
 -- list, not a shared directory entry. Two people who both go to the same
 -- church each have their own row, so nothing here is ever public, nobody can
 -- see who else has a church, and a church is never shown to anyone who
--- didn't add it. That is deliberate: Adullum is personal first.
+-- didn't add it. That is deliberate: Adullam is personal first.
 --
 -- `gatherings` is [{label, day (0 = Sunday), time "HH:MM"}] in the church's
 -- own time zone; the browser shows each in the person's time too.

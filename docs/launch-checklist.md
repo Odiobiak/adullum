@@ -5,13 +5,13 @@ Tick a box by changing `[ ]` to `[x]`.
 ## 1. Must fix first
 
 - [ ] Custom SMTP in Supabase (Auth > SMTP, e.g. Resend or Postmark). The built-in mailer sends only a few magic links an hour.
-- [ ] Render off the free plan (`render.yaml` says `plan: free`). A sleeping server makes the first visitor wait 30 to 60 seconds.
+- [x] Render off the free plan (`render.yaml` says `plan: free`). A sleeping server makes the first visitor wait 30 to 60 seconds.
 - [ ] Voice: move off the Cognigy trial endpoint (`web/index.html`, `VOICE_CONFIG_URL`), or confirm its limits and expiry.
 - [ ] Privacy and Terms: fill every [bracketed] part (operator name, retention, backup window, age, jurisdiction).
 - [ ] `hello@adullum.app` is a real inbox that reaches me.
 - [ ] Link previews: add `og:title`, `og:description`, `og:image` (1200x630) and `og:url` to `web/index.html`.
 - [ ] Spending: hard monthly limit set with the model provider.
-- [ ] Daily limits live: run `supabase/migrations/20261121_usage_limits.sql`, then ask as a guest 6 times and see the gentle "Sign in" message.
+- [x] Daily limits live: run `supabase/migrations/20261121_usage_limits.sql`, then ask as a guest 6 times and see the gentle "Sign in" message.
 - [ ] `MCP_SECRET` set on Render and added to Cognigy's MCP node (as `Authorization: Bearer ...` or `?key=...` on the URL); a voice call still answers.
 - [ ] Guest counting checked on Render: two phones on different networks each get their own 5 questions (confirms the real address header arrives).
 - [ ] Cognigy's per-minute price known and set as `COST_VOICE_CALL_USD`; a maximum session length set in Cognigy too.
@@ -19,11 +19,11 @@ Tick a box by changing `[ ]` to `[x]`.
 - [ ] Render secrets set: VAPID keys, `VAPID_SUBJECT`, `CRON_SECRET`, Langfuse, support links.
 - [ ] GitHub repo secrets set: `DEPLOY_URL`, `CRON_SECRET`.
 - [ ] Supabase Auth redirect URLs include the final domain.
-- [ ] change name to adullam
+- [x] change name to adullam
 
 ## 2. AI provider
 
-- [ ] OpenAI account topped up (embeddings and moderation need it even if chat moves elsewhere).
+- [x] OpenAI account topped up (embeddings and moderation need it even if chat moves elsewhere).
 - [ ] Chat model and provider configurable from `.env` (one shared factory instead of `ChatOpenAI(...)` in each file).
 - [ ] Test set of ~30 real questions (study, Refuge, Declare, plans, meta) run against each candidate model.
 - [ ] Chosen model passes: no invented verses, ground check works, structured outputs parse, no em dashes, care check catches distress.
@@ -58,7 +58,7 @@ Tick a box by changing `[ ]` to `[x]`.
 ## 6. Beta tester basics
 
 - [ ] "Send feedback" link in the account menu (mailto or a form is enough).
-- [ ] Welcome message for testers: what Adullum is, three things to try, how to report a bug.
+- [ ] Welcome message for testers: what Adullam is, three things to try, how to report a bug.
 - [ ] Error monitoring on (Sentry or similar), or at least a habit of checking Render logs.
 - [ ] Full run on a real iPhone (Safari and Home Screen app) and Android: sign up, magic link, Aquila, Refuge, Amens, Prayers, Declare, Bible, Church.
 - [ ] Dark themes and the largest text size checked for readability.
@@ -68,4 +68,4 @@ Tick a box by changing `[ ]` to `[x]`.
 ## 7. Social account
 
 - [ ] Same handle everywhere, app icon as the picture, link in bio.
-- [ ] Posts ready: what Adullum is, a screen recording of a grounded answer, Amens, the story of the name (1 Samuel 22).
+- [ ] Posts ready: what Adullam is, a screen recording of a grounded answer, Amens, the story of the name (1 Samuel 22).

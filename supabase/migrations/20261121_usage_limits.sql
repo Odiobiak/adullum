@@ -1,4 +1,4 @@
--- Daily limits (app/quota.py). Adullum is free and paid for by people who
+-- Daily limits (app/quota.py). Adullam is free and paid for by people who
 -- give, so every answer that costs money is counted: per person (a user id,
 -- or "guest:<scrambled address>") and, as estimated spend, for the whole app
 -- (subject '*', kind 'spend', in tenths of a cent). Rows hold counts only,

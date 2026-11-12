@@ -200,23 +200,23 @@
 
     { id:"p1-3", part:"part1", num:3, title:"Passage Reader", status:["backend","planned"],
       lede:"Read a whole chapter in a scrollable page instead of a chat bubble — the answer’s “The passage” section quotes a few verses; this opens the surrounding chapter.",
-      body:'<pre>tool: read_passage { reference, translation? }\n  -> httpRequest GET {ADULLUM}/passage?ref=John+3&translation=BSB   (new Adullum route)\n  -> code: build HTML (verse numbers as small caps, paragraph breaks, current verse highlighted)\n  -> ifThenElse channel\n       then: initAppSession -> showXAppHtml (mode: "full", screenTitle: reference, showCloseIcon: true) waitForInput: false\n       else: say the first 3 verses and offer to continue</pre>'+
+      body:'<pre>tool: read_passage { reference, translation? }\n  -> httpRequest GET {ADULLAM}/passage?ref=John+3&translation=BSB   (new Adullam route)\n  -> code: build HTML (verse numbers as small caps, paragraph breaks, current verse highlighted)\n  -> ifThenElse channel\n       then: initAppSession -> showXAppHtml (mode: "full", screenTitle: reference, showCloseIcon: true) waitForInput: false\n       else: say the first 3 verses and offer to continue</pre>'+
         '<ol class="steps">'+
-        '<li>Adullum: add <code class="inline">GET /passage</code> in <code class="inline">app/main.py</code>, reusing <code class="inline">parse_reference</code> from <code class="inline">app/retrieval.py</code>, returning <code class="inline">{reference, translation, verses: [{n, text}]}</code>. Read-only, no LLM call — cheap and cacheable.</li>'+
+        '<li>Adullam: add <code class="inline">GET /passage</code> in <code class="inline">app/main.py</code>, reusing <code class="inline">parse_reference</code> from <code class="inline">app/retrieval.py</code>, returning <code class="inline">{reference, translation, verses: [{n, text}]}</code>. Read-only, no LLM call — cheap and cacheable.</li>'+
         '<li>Cognigy: <code class="inline">create_tool</code> with <code class="inline">toolType: "http"</code> pointed at that route — no secret needed if the route stays public and read-only.</li>'+
         '<li>Wire the node chain above. <code class="inline">waitForInput: false</code> because reading isn’t a decision — the conversation continues underneath.</li>'+
         '<li>Agent instruction: “When the user asks to read a chapter or see the whole passage, call <code class="inline">read_passage</code>.”</li></ol>' },
 
     { id:"p1-4", part:"part1", num:4, title:"Translation Comparison", status:["backend","planned"],
       lede:"One verse in all four ingested public-domain translations (KJV, WEB, ASV, BSB) side by side — the feature only a multi-translation corpus can offer.",
-      body:'<pre>tool: compare_translations { reference }\n  -> httpRequest GET {ADULLUM}/passage?ref=...&translation=KJV,WEB,ASV,BSB\n  -> code: build a 4-column (stacks to 1 on mobile) HTML table, differing words marked\n  -> showXAppHtml (mode: "full", screenTitle: "Compare")</pre>'+
+      body:'<pre>tool: compare_translations { reference }\n  -> httpRequest GET {ADULLAM}/passage?ref=...&translation=KJV,WEB,ASV,BSB\n  -> code: build a 4-column (stacks to 1 on mobile) HTML table, differing words marked\n  -> showXAppHtml (mode: "full", screenTitle: "Compare")</pre>'+
         '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>How to add it:</b> depends on #3’s route accepting a comma-separated translation list. Check <code class="inline">supabase/schema.sql</code> for whether the <code class="inline">verses</code> table carries a <code class="inline">translation</code> column to filter on (the ingest script takes <code class="inline">--translation</code>, so it should). Voice fallback: read the verse in two translations and stop.</p>' },
 
     { id:"p1-5", part:"part1", num:5, title:"Answer Feedback to Langfuse", status:["backend","planned"],
       lede:"Thumbs up/down with an optional comment, written as a Langfuse score on the exact trace that produced the answer.",
-      body:'<pre>tool: rate_answer { trace_id }\n  -> showXAppAdaptiveCard (two Action.Submit: helpful / not_helpful, Input.Text comment) contextKey "rating"\n  -> httpRequest POST {ADULLUM}/feedback { trace_id, score, comment }\n  -> Resolve Tool Action ("Thanks, noted")</pre>'+
+      body:'<pre>tool: rate_answer { trace_id }\n  -> showXAppAdaptiveCard (two Action.Submit: helpful / not_helpful, Input.Text comment) contextKey "rating"\n  -> httpRequest POST {ADULLAM}/feedback { trace_id, score, comment }\n  -> Resolve Tool Action ("Thanks, noted")</pre>'+
         '<ol class="steps">'+
-        '<li>Adullum: expose the trace id. <code class="inline">app/observability.py</code> already keeps <code class="inline">last_trace_id</code> on the per-request handler — add <code class="inline">trace_id: str | None</code> to <code class="inline">ChatResponse</code> and the <code class="inline">ask_aquila</code> MCP result, then add <code class="inline">POST /feedback</code> calling Langfuse’s <code class="inline">score</code> with that id. Don’t use the ambient trace context — the module docstring explains why.</li>'+
+        '<li>Adullam: expose the trace id. <code class="inline">app/observability.py</code> already keeps <code class="inline">last_trace_id</code> on the per-request handler — add <code class="inline">trace_id: str | None</code> to <code class="inline">ChatResponse</code> and the <code class="inline">ask_aquila</code> MCP result, then add <code class="inline">POST /feedback</code> calling Langfuse’s <code class="inline">score</code> with that id. Don’t use the ambient trace context — the module docstring explains why.</li>'+
         '<li>Cognigy: tool as above. Agent instruction: offer <code class="inline">rate_answer</code> only after an <code class="inline">ask_aquila</code> answer, never unprompted.</li>'+
         '<li>Zero-xApp alternative: turn on <b>Conversation Rating</b> in the Webchat endpoint (Part 3 #5) — rates the conversation in Cognigy Insights, not the trace in Langfuse. Both can coexist.</li></ol>' },
 
@@ -271,21 +271,21 @@
 
     { id:"p1-13", part:"part1", num:13, title:"Study Material Upload", status:["deferred"],
       lede:"Upload a sermon outline or notes PDF and ask Aquila about it.",
-      body:'<p style="font-size:0.95rem;">Two routes: the bundled <code class="inline">document-upload.html</code> template (base64, ~5&nbsp;MB cap — Adullum would need a route to receive and chunk them), or Webchat <b>Attachment Upload</b> (needs a File Storage Connection — Azure Blob, S3, or GCS; Cognigy virus-scans on upload).</p>'+
+      body:'<p style="font-size:0.95rem;">Two routes: the bundled <code class="inline">document-upload.html</code> template (base64, ~5&nbsp;MB cap — Adullam would need a route to receive and chunk them), or Webchat <b>Attachment Upload</b> (needs a File Storage Connection — Azure Blob, S3, or GCS; Cognigy virus-scans on upload).</p>'+
         '<div class="callout gotcha">Deferred because it changes the product: Aquila answers from Scripture, and a user document is a second, ungrounded source. Decide that first.</div>' },
 
     { id:"p1-14", part:"part1", num:14, title:"RBAC-Driven Rendering", status:["backend","setup"],
       lede:"Same <code class=\"inline\">ask_aquila</code> answer, richer rendering for a “study leader” role (retrieval path, <code class=\"inline\">ground_check</code> verdict, trace id) than for everyone else.",
       body:'<pre>after ask_aquila resolves\n  -> ifThenElse on context.role (from a trusted claim, NEVER from client-submitted xApp data)\n       then (leader): initAppSession -> showXAppHtml (answer + debug panel)\n       else: plain say, no xApp</pre>'+
         '<ol class="steps">'+
-        '<li>Adullum: add an optional <code class="inline">debug</code> block to <code class="inline">ChatResponse</code> and the MCP tool result (retrieval path used, <code class="inline">ground_check</code> verdict and retry count, trace id). Check what <code class="inline">app/agent/state.py</code> tracks today — not all of it is exposed.</li>'+
+        '<li>Adullam: add an optional <code class="inline">debug</code> block to <code class="inline">ChatResponse</code> and the MCP tool result (retrieval path used, <code class="inline">ground_check</code> verdict and retry count, trace id). Check what <code class="inline">app/agent/state.py</code> tracks today — not all of it is exposed.</li>'+
         '<li>Identity: the role must arrive through the Endpoint Transformer (Part 2 #1) into <code class="inline">input.data</code>, then be copied into <code class="inline">context.role</code> once. Never read it from <code class="inline">SDK.submit</code> payloads.</li>'+
         '<li>Test both branches with <code class="inline">talk_to_agent</code> once the LLM connection is fixed.</li></ol>' },
 
     { id:"p1-15", part:"part1", num:15, title:"Live Ops Dashboard", status:["backend","planned"],
       lede:"Internal view of ingestion and groundedness health as an xApp.",
       body:'<pre>tool: show_ops_dashboard (gate behind the same role check as #14)\n  -> httpRequest(s): translation/verse counts (Supabase), retry rate / groundedness (Langfuse API)\n  -> code: shape JSON\n  -> initAppSession -> showXAppHtml (mode: "full", counters, optional refresh via SDK.submit)</pre>'+
-        '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>Build notes:</b> needs a read-only aggregation route in Adullum (or direct Langfuse API calls). Decide refresh cadence before wiring a refresh button.</p>' },
+        '<p style="margin-top:0.8rem;font-size:0.92rem;"><b>Build notes:</b> needs a read-only aggregation route in Adullam (or direct Langfuse API calls). Decide refresh cadence before wiring a refresh button.</p>' },
 
     // ---------------- PART 2 ----------------
     { id:"p2-1", part:"part2", num:1, title:"Identity and SSO", status:["embed","setup"],
@@ -293,7 +293,7 @@
       body:'<ul class="notes">'+
         '<li><b>Untrusted but useful:</b> the embed snippet accepts <code class="inline">userId</code> and <code class="inline">sessionId</code> options (Cognigy Webchat’s <code class="inline">embedding.md</code>). Set <code class="inline">userId</code> from the host page’s logged-in user so Contact Profiles and Previous Conversations line up. Anyone can edit their own page, so this is identity for continuity, not authorisation.</li>'+
         '<li><b>Trusted:</b> pass a short-lived JWT from the host page (in <code class="inline">data</code> on the first message, or an embed option), and verify it in the endpoint’s <b>Input Transformer</b> (<b>Deploy → Endpoints → Aquila Webchat → Transformer Functions</b>). The transformer sets <code class="inline">userId</code> and puts verified claims (<code class="inline">role</code>, <code class="inline">tenant</code>) on <code class="inline">input.data</code>. Transformers are GUI-only.</li>'+
-        '<li>Adullum side: nothing until a feature needs the identity (#8/#14 in Part 1).</li></ul>' },
+        '<li>Adullam side: nothing until a feature needs the identity (#8/#14 in Part 1).</li></ul>' },
 
     { id:"p2-2", part:"part2", num:2, title:"Role-Based Access", status:["planned"],
       lede:"Depends on #1.",
@@ -334,7 +334,7 @@
       body:'<p style="font-size:0.95rem;">Cheapest version: a code node that appends to <code class="inline">analyticsdata</code>, visible in Insights. Durable version: a Supabase <code class="inline">audit_log</code> table via the Supabase Query Tool.</p>' },
 
     { id:"p2-8", part:"part2", num:8, title:"Rate Limit and Abuse Guard", status:["suggested"],
-      lede:"A per-session counter in <code class=\"inline\">context</code>, incremented by each tool’s first code node; past a cap, the tool resolves with “let’s slow down” instead of calling Adullum.",
+      lede:"A per-session counter in <code class=\"inline\">context</code>, incremented by each tool’s first code node; past a cap, the tool resolves with “let’s slow down” instead of calling Adullam.",
       body:'<p style="font-size:0.95rem;">Protects the Render instance and the OpenAI quota from a runaway loop.</p>' },
 
     { id:"p2-9", part:"part2", num:9, title:"Locale and Language", status:["setup"],
@@ -349,7 +349,7 @@
       lede:"Endpoint- and embed-level scheduling and expiry controls.",
       body:'<ul class="notes">'+
         '<li><b>Business Hours</b> (Webchat Behavior settings): show a message outside hours — useful once handover (#3) is staffed.</li>'+
-        '<li><b>Maintenance</b> mode in the embed (<code class="inline">maintenance: { enabled, mode: "hide"|"disable"|"inform", title, text }</code>, needs <code class="inline">embeddingConfiguration.awaitEndpointConfig: true</code>). Use it during Adullum deploys that <code class="inline">deploy-watch.yml</code> flags as failing.</li>'+
+        '<li><b>Maintenance</b> mode in the embed (<code class="inline">maintenance: { enabled, mode: "hide"|"disable"|"inform", title, text }</code>, needs <code class="inline">embeddingConfiguration.awaitEndpointConfig: true</code>). Use it during Adullam deploys that <code class="inline">deploy-watch.yml</code> flags as failing.</li>'+
         '<li>Endpoint → <b>Session Management</b> sets session expiry — long enough for a slow reading, short enough that <code class="inline">context</code> (consent, role) doesn’t outlive the person.</li></ul>' },
 
     { id:"p2-11", part:"part2", num:11, title:"Analytics and Insights", status:["setup"],
@@ -358,14 +358,14 @@
 
     { id:"p2-12", part:"part2", num:12, title:"Proactive Messages: Inject and Notify", status:["setup"],
       lede:"Push a message into a running session (<code class=\"inline\">/inject</code>) or to a user (<code class=\"inline\">/notify</code>) from outside the flow — e.g. “your reading plan for today.”",
-      body:'<p style="font-size:0.95rem;">Available on endpoints that support it; check the Inject &amp; Notify section of the endpoint. Needs a caller (a scheduled job in Adullum, or a Render cron) and the endpoint URL token stored as a secret.</p>' },
+      body:'<p style="font-size:0.95rem;">Available on endpoints that support it; check the Inject &amp; Notify section of the endpoint. Needs a caller (a scheduled job in Adullam, or a Render cron) and the endpoint URL token stored as a secret.</p>' },
 
     { id:"p2-13", part:"part2", num:13, title:"Tenant Feature Flags", status:["suggested"],
       lede:"A small per-tenant config that toggles which tools are active, so one agent can serve several groups or churches with different feature sets.",
       body:'<p style="font-size:0.95rem;">A Supabase row, or a Lookup node keyed on <code class="inline">input.data.tenant</code> from #1.</p>' },
 
     { id:"p2-14", part:"part2", num:14, title:"Health Check Tool", status:["suggested"],
-      lede:"One tool that hits Adullum <code class=\"inline\">/health</code>, the Supabase REST root, and the MCP <code class=\"inline\">/mcp/sse</code> handshake, and reports which are up.",
+      lede:"One tool that hits Adullam <code class=\"inline\">/health</code>, the Supabase REST root, and the MCP <code class=\"inline\">/mcp/sse</code> handshake, and reports which are up.",
       body:'<p style="font-size:0.95rem;">Belongs on the Ops Dashboard (Part 1 #15) and on every onboarding checklist.</p>' },
 
     { id:"p2-15", part:"part2", num:15, title:"Packaging and Environments", status:["suggested"],
@@ -377,8 +377,8 @@
       body:'<p style="font-size:0.95rem;">The docs have an Extension SDK template for exactly that. Installed once, reused everywhere.</p>' },
 
     // ---------------- PART 3 ----------------
-    { id:"p3-1", part:"part3", num:1, title:"Embed Webchat v3 on the Adullum Page", status:["embed"],
-      lede:"xApps only render in a Webchat v3 surface, so using anything in Part 1 on the Adullum site means embedding that widget there too.",
+    { id:"p3-1", part:"part3", num:1, title:"Embed Webchat v3 on the Adullam Page", status:["embed"],
+      lede:"xApps only render in a Webchat v3 surface, so using anything in Part 1 on the Adullam site means embedding that widget there too.",
       body:'<ol class="steps">'+
         '<li>GUI: <b>Deploy → Endpoints → Aquila Webchat → Embedding HTML</b>, copy the snippet.</li>'+
         '<li>Pin a version instead of <code class="inline">releases/latest</code> (e.g. <code class="inline">releases/download/v3.x.y/webchat.js</code>), so a Webchat release can’t change the page under you.</li>'+
@@ -450,7 +450,7 @@
         '<div class="spec-row"><div class="k">ID&amp;V</div><div class="v">tool, same shape as bootstrap_session — not started, depends on Part 2 #1.</div></div>'+
         '<div class="spec-row"><div class="k">Auth/Login</div><div class="v">tool, sets <code class="inline">context.accessToken</code>/<code class="inline">context.userId</code> — not started.</div></div>'+
         '<div class="spec-row"><div class="k">Generic API-caller template</div><div class="v"><code class="inline">httpRequest</code> + pre/post-process code, duplicated per integration — full walkthrough in Component Registry #01.</div></div>'+
-        '<div class="spec-row"><div class="k">Supabase query tool</div><div class="v">API-caller template pointed at Adullum’s Supabase — scaffolding only, blocked on an encrypted Connection.</div></div>'+
+        '<div class="spec-row"><div class="k">Supabase query tool</div><div class="v">API-caller template pointed at Adullam’s Supabase — scaffolding only, blocked on an encrypted Connection.</div></div>'+
         '<div class="spec-row"><div class="k">Salesforce / CXone handover</div><div class="v">native handover node + provider — deferred (no org); CXone worth a test unit.</div></div>'+
         '<div class="spec-row"><div class="k">xApp init/branding</div><div class="v">copy-paste convention across tools — not a real component without a call-and-return node.</div></div>'+
         '<div class="spec-row"><div class="k">Error/fallback</div><div class="v">already centralised in the AI Agent Job node’s <code class="inline">errorHandling</code> config — nothing to build.</div></div>'+
@@ -470,13 +470,13 @@
 
     { id:"p4-4", part:"part4", num:4, title:"Known Blocker: LLM Connection", status:["backend"],
       lede:"The Aquila AI Agent’s LLM connection (Azure OpenAI <code class=\"inline\">gpt-4.1-mini</code>, connection <code class=\"inline\">88e50803-f24b-4048-a83f-cc754192f766</code>) was failing on every turn at time of writing.",
-      body:'<p style="font-size:0.95rem;">Confirmed independent of anything built here — tested with the new tools deleted; Adullum’s <code class="inline">/chat</code> and <code class="inline">/mcp/sse</code> work when hit directly. Until it’s fixed, nothing in Parts 1–3 can be tested end to end.</p>' }
+      body:'<p style="font-size:0.95rem;">Confirmed independent of anything built here — tested with the new tools deleted; Adullam’s <code class="inline">/chat</code> and <code class="inline">/mcp/sse</code> work when hit directly. Until it’s fixed, nothing in Parts 1–3 can be tested end to end.</p>' }
   ];
 
   var BUILD_ORDER = [
     { text:"Fix the LLM connection", link:null },
     { text:"Webchat inclusion, GUI pass", link:"p3-2" },
-    { text:"Embed the widget on the Adullum page", link:"p3-1" },
+    { text:"Embed the widget on the Adullam page", link:"p3-1" },
     { text:"Overlay settings + XSS convention on both built tools", link:"p3-8" },
     { text:"Passage Reader, then Translation Comparison", link:"p1-3" },
     { text:"Trace id + /feedback route, then Answer Feedback", link:"p1-5" },
