@@ -1572,11 +1572,13 @@
   // How many kind words came back to one of the person's own posts.
   const kindWordCount = (post) => post.kind_word_count ?? post.kind_words.reduce((n, w) => n + (w.count || 1), 0);
 
-  async function kindWordsSheet(post, onSent) {
+  // `onClose` hears the sheet close, sent or not.
+  async function kindWordsSheet(post, onSent, onClose) {
     let choices;
     try {
       choices = await api(`/me/refuge/kind-words?kind=${shownKind(post)}&translation=${encodeURIComponent(translation())}`);
     } catch (err) {
+      if (onClose) onClose();
       return toast(err.message, { tone: "error" });
     }
     const msg = cave().formMessage();
@@ -1591,7 +1593,7 @@
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), send]),
     ]);
-    const close = cave().overlay(form);
+    const close = cave().overlay(form, { onClose });
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
       const picked = form.querySelector("input[name=kindWord]:checked");
@@ -1599,9 +1601,9 @@
       send.disabled = true;
       try {
         await api(`/me/refuge/posts/${post.id}/kind-words`, { method: "POST", body: { choice: picked.value } });
+        onSent();
         close();
         toast("Sent. You may never know what it meant to them.");
-        onSent();
       } catch (err) {
         msg.say(err.message, true);
         send.disabled = false;
@@ -1654,188 +1656,182 @@
     });
   }
 
-  // A post with its actions. `onChange` hears about an amen or kind words,
-  // so the bubble it was opened from can show them too.
-  function wallCard(post, rerender, onChange) {
-    const spec = kindSpec(post);
-    const r = REACTIONS[shownKind(post)];
-    const people = el("span");
-    const tally = el("p", { class: "amen-people", "aria-live": "polite" });
-    const react = el("button", { class: "amen-btn", type: "button" });
+  // ---------------------------------------------------------------------
+  // The wall, in three views (app/one_another.py::wall):
+  //   To pray for: what others have shared that this person hasn't answered
+  //     yet, a card each. Praying or rejoicing turns the card to Amen, and a
+  //     moment later it moves to Prayed, so the wall only ever holds what's
+  //     still to carry.
+  //   Prayed: what they've stood with that's still up, newest amen first.
+  //     It leaves the wall without being lost.
+  //   Yours: what they've shared, with what came back.
+  // ---------------------------------------------------------------------
+  const WALL_VIEWS = [["carry", "To pray for"], ["carried", "Prayed"], ["mine", "Yours"]];
+  let wallView = "carry"; // survives the room redrawing
+  const CARRY_PAUSE_MS = 2400; // how long a card shows its Amen before it moves to Prayed
+  const KIND_LABEL = { burden: "Prayer request", rejoice: "Good news", answered: "Answered prayer" };
+
+  const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // "3 hours ago", then a date after a week.
+  function sinceText(iso) {
+    const mins = Math.floor((Date.now() - Date.parse(iso)) / 60000);
+    if (mins < 1) return "Just now";
+    if (mins < 60) return `${plural(mins, "minute", "minutes")} ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${plural(hours, "hour", "hours")} ago`;
+    const days = Math.floor(hours / 24);
+    return days < 7 ? `${plural(days, "day", "days")} ago` : shortDate(iso);
+  }
+
+  function kindTag(post) {
+    return el("span", { class: `amen-kind amen-kind-${shownKind(post)}` }, [
+      el("span", { class: "amen-kind-icon", html: REACTIONS[shownKind(post)].icon }),
+      KIND_LABEL[post.answered ? "answered" : post.kind],
+    ]);
+  }
+
+  // A card leaving: it folds shut, then `then` runs. Reduced motion skips the fold.
+  function foldAway(node, then) {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      node.remove();
+      then();
+    };
+    if (calm()) return finish();
+    node.style.height = `${node.offsetHeight}px`;
+    void node.offsetHeight; // start the fold from the card's real height
+    node.classList.add("is-leaving");
+    node.style.height = "0px";
+    node.addEventListener("transitionend", (e) => e.propertyName === "height" && finish());
+    setTimeout(finish, 700);
+  }
+
+  // Kind words, as a small button that remembers they were sent.
+  function kindWordsButton(post, { onOpen, onSent, onClose } = {}) {
+    const button = el("button", { class: "amen-words", type: "button" });
     const paint = () => {
-      const n = post.reactions || 0;
-      tally.replaceChildren(amenFaces(n), people);
-      people.textContent = post.reacted ? r.withYou(n) : r.others(n);
-      react.classList.toggle("is-done", !!post.reacted);
-      react.disabled = !!post.reacted;
-      react.title = post.reacted ? "" : r.hint;
-      react.innerHTML = post.reacted ? `${ICON.check}<span>Amen</span>` : `${r.icon}<span>${r.action}</span>`;
+      button.disabled = !!post.sent_kind_word;
+      button.classList.toggle("is-done", !!post.sent_kind_word);
+      button.innerHTML = post.sent_kind_word ? `${ICON.check}<span>Kind words sent</span>` : `${ICON.talk}<span>Kind words</span>`;
     };
     paint();
+    button.onclick = () => {
+      if (onOpen) onOpen();
+      kindWordsSheet(post, () => {
+        post.sent_kind_word = true;
+        paint();
+        if (onSent) onSent();
+      }, onClose);
+    };
+    return button;
+  }
+
+  // One post still to pray for. `wall` hears when it's carried or reported.
+  function carryCard(post, wall) {
+    const r = REACTIONS[shownKind(post)];
+    const people = el("p", { class: "amen-people", "aria-live": "polite" });
+    const paintPeople = () => {
+      const n = post.reactions || 0;
+      people.replaceChildren(amenFaces(n), el("span", { text: post.reacted ? r.withYou(n) : r.others(n) }));
+    };
+    paintPeople();
+
+    let timer = null;
+    let choosing = false; // the kind words sheet is open
+    const card = el("article", { class: `amen-card amen-card-${shownKind(post)} fade-in` });
+    const moveOn = () => {
+      clearTimeout(timer);
+      if (post.reacted && !choosing) timer = setTimeout(() => foldAway(card, () => wall.carried(post)), CARRY_PAUSE_MS);
+    };
+    const react = el("button", { class: "amen-btn", type: "button", title: r.hint, html: `${r.icon}<span>${r.action}</span>` });
     react.onclick = async () => {
       react.disabled = true;
       try {
         const res = await api(`/me/refuge/posts/${post.id}/react`, { method: "POST" });
-        post.reacted = true;
-        post.reactions = res.reactions;
-        paint();
-        react.classList.add("is-saying"); // the one-off glow as it turns to Amen
-        if (onChange) onChange("amen");
+        Object.assign(post, { reacted: true, reactions: res.reactions, amened_at: new Date().toISOString() });
+        paintPeople();
+        react.classList.add("is-done", "is-saying");
+        react.innerHTML = `${ICON.check}<span>Amen</span>`;
+        card.classList.add("is-carried");
+        moveOn();
       } catch (err) {
         react.disabled = false;
         toast(err.message, { tone: "error" });
       }
     };
-    const words = el("button", { class: `act${post.sent_kind_word ? " is-done" : ""}`, type: "button", disabled: post.sent_kind_word, text: post.sent_kind_word ? "Kind words sent" : "Send kind words" });
-    words.onclick = () => kindWordsSheet(post, () => {
-      words.classList.add("is-done");
-      words.disabled = true;
-      words.textContent = "Kind words sent";
-      post.sent_kind_word = true;
-      if (onChange) onChange("words");
+    const words = kindWordsButton(post, {
+      onOpen: () => { choosing = true; clearTimeout(timer); },
+      onClose: () => { choosing = false; moveOn(); },
     });
-    return el("article", { class: `burden burden-${shownKind(post)} fade-in` }, [
-      el("p", { class: "burden-who", text: spec.who }),
-      el("p", { class: "burden-text", text: post.body }),
+    const report = cave().moreMenu("More", [{
+      label: "Report", danger: true,
+      onClick: () => reportSheet(post, () => foldAway(card, () => wall.reported(post))),
+    }]);
+
+    card.append(...[
+      el("div", { class: "amen-card-head" }, [kindTag(post), el("span", { class: "amen-when", text: sinceText(post.created_at) }), report]),
+      el("p", { class: "amen-card-text", text: post.body }),
       post.answered && post.answer_note ? el("p", { class: "answered-note" }, [el("strong", { text: "How: " }), post.answer_note]) : null,
-      tally,
-      el("div", { class: "burden-actions" }, [
-        react, words,
-        el("button", { class: "report", type: "button", text: "Report", onclick: () => reportSheet(post, rerender) }),
-      ]),
-    ]);
+      el("div", { class: "amen-card-foot" }, [people, el("div", { class: "amen-card-actions" }, [words, react])]),
+    ].filter(Boolean));
+    return card;
   }
 
-  // On the wall, each post is a bubble. Its size follows the post's length,
-  // it drifts on its own rhythm (staggered by `index`), and tapping it opens
-  // the whole post with its actions. Saying amen makes the bubble pulse.
-  function bubbleSize(text) {
-    return text.length <= 70 ? "s" : text.length <= 170 ? "m" : "l";
-  }
-
-  function bubble(post, index, rerender) {
-    const spec = kindSpec(post);
-    const count = el("span", { class: "bubble-count" });
-    const node = el("button", {
-      class: `bubble bubble-${shownKind(post)} bubble-${bubbleSize(post.body)}${post.answered ? " is-answered" : ""}`,
-      type: "button",
-      style: `--drift-delay:${-((index * 1.7) % 7).toFixed(1)}s;--drift-time:${6 + (index % 4)}s`,
-      "aria-label": `${spec.who}: ${post.body}`,
-    }, [
-      el("span", { class: "bubble-who", text: spec.choose }),
-      el("span", { class: "bubble-text", text: post.body }),
-      count,
-    ]);
+  // One post already prayed for: quieter, with a tick. A tap shows all of it.
+  function carriedRow(post) {
     const r = REACTIONS[shownKind(post)];
-    const paint = () => {
-      const n = post.reactions || 0;
-      count.innerHTML = `${post.reacted ? ICON.check : r.icon}<span></span>`;
-      count.lastChild.textContent = post.reacted ? (n > 1 ? `Amen · ${r.short(n)}` : "Amen") : (n ? r.short(n) : r.verb);
-      node.classList.toggle("is-amened", !!post.reacted);
-    };
-    paint();
-    node.onclick = () => openBubble(post, rerender, (what) => {
-      paint();
-      if (what !== "amen") return;
-      node.classList.remove("is-popping");
-      void node.offsetWidth; // restart the pulse if it ran before
-      node.classList.add("is-popping");
-    });
-    return node;
+    const text = el("p", { class: "amen-done-text", text: post.body });
+    const row = el("article", { class: `amen-done amen-done-${shownKind(post)} fade-in` }, [
+      el("span", { class: "amen-done-mark", html: ICON.check }),
+      el("div", { class: "amen-done-body" }, [
+        el("p", { class: "amen-done-meta" }, [
+          KIND_LABEL[post.answered ? "answered" : post.kind],
+          post.amened_at ? ` · ${shownKind(post) === "burden" ? "you prayed" : "you rejoiced"} ${sinceText(post.amened_at).toLowerCase()}` : "",
+        ]),
+        text,
+        el("p", { class: "amen-done-people" }, [amenFaces(post.reactions || 0), el("span", { text: r.withYou(post.reactions || 1) })]),
+      ]),
+      post.sent_kind_word ? null : kindWordsButton(post),
+    ]);
+    text.addEventListener("click", () => text.classList.toggle("is-open"));
+    return row;
   }
 
-  function openBubble(post, rerender, onChange) {
-    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": kindSpec(post).who }, [
-      // A report takes the post off the wall, so the wall is drawn again.
-      wallCard(post, () => { close(); rerender(); }, onChange),
-      el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
-    ]));
+  // One of the person's own posts: where it stands and what came back.
+  // Tapping it opens the whole post (mineCard) with what they can do.
+  function mineRow(post, rerender) {
+    const r = REACTIONS[post.kind];
+    const n = post.reactions || 0;
+    const words = kindWordCount(post);
+    const [statusText, statusClass] = post.answered ? ["Answered", "answered"]
+      : post.status === "shared" ? [post.days_left > 0 ? `On the wall · ${plural(post.days_left, "day", "days")} left` : "On the wall · last day", "shared"]
+      : post.status === "waiting" ? ["Waiting for approval", "waiting"]
+      : post.status === "ended" ? ["Off the wall", "ended"]
+      : ["Not shared", "ended"];
+    const cameBack = post.status === "shared" || post.status === "ended";
+    return el("button", { class: `amen-mine amen-mine-${post.kind}`, type: "button", onclick: () => openMine(post, rerender) }, [
+      el("span", { class: "amen-mine-top" }, [
+        el("span", { class: `amen-status is-${statusClass}`, text: statusText }),
+        el("span", { class: "amen-when", text: shortDate(post.created_at) }),
+      ]),
+      el("span", { class: "amen-mine-text", text: post.body }),
+      cameBack ? el("span", { class: `amen-mine-back${n || words ? " has-amens" : ""}` }, [
+        el("span", { class: "amen-mine-stat", html: `${r.icon}<span>${n ? r.forMine(n) : "No amens yet"}</span>` }),
+        words ? el("span", { class: "amen-mine-stat", html: `${ICON.talk}<span>${plural(words, "kind word", "kind words")}</span>` }) : null,
+      ]) : null,
+    ]);
   }
-
-  // What this person has shared, as small bubbles in one row that scrolls
-  // sideways, so it never pushes the wall down the page. Each shows what came
-  // back once it's on the wall (or that it wasn't shared), and tapping it
-  // opens the whole post, the kind words and "Take it down". Posts still
-  // waiting for approval sit apart, in waitingZone.
-  const MINE_BUBBLE_STATUS = { waiting: "Waiting", ended: "Off the wall", not_shared: "Not shared" };
 
   // One of this person's own posts, opened in a sheet.
   function openMine(post, rerender) {
-    const close = cave().overlay(el("div", { class: "sheet bubble-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].mineWho }, [
+    const close = cave().overlay(el("div", { class: "sheet amen-sheet", role: "dialog", "aria-modal": "true", "aria-label": POST_KINDS[post.kind].mineWho }, [
       // Taking it down redraws the room, so the sheet goes first.
       mineCard(post, () => { close(); rerender(); }),
       el("div", { class: "sheet-actions" }, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Close", onclick: () => close() })),
     ]));
-  }
-
-  // Posts waiting for a person to approve them, just under the share box.
-  // Folded, it's one slim line, like a notification ("2 waiting for
-  // approval", with a dot per post in its colour), so it never pushes the
-  // wall down however many are waiting. Opened, it's a compact list: a dot
-  // for the kind, the words, and when. Tapping a post opens it, where it can
-  // still be taken down. Whether it's open survives the room redrawing.
-  let waitingOpen = false;
-
-  function waitingZone(posts, rerender) {
-    const n = posts.length;
-    const zone = el("details", { class: "waiting fade-in" }, [
-      el("summary", { class: "waiting-bar" }, [
-        el("span", { class: "waiting-icon", html: ICON.clock }),
-        el("span", { class: "waiting-label" }, [
-          el("strong", { text: String(n) }),
-          ` ${n === 1 ? "post" : "posts"} waiting for approval`,
-        ]),
-        el("span", { class: "waiting-dots", "aria-hidden": "true" },
-          posts.slice(0, 5).map((post) => el("span", { class: `waiting-dot waiting-dot-${post.kind}` }))),
-        el("span", { class: "waiting-chevron", "aria-hidden": "true", html: ICON.forward }),
-      ]),
-      el("div", { class: "waiting-body" }, [
-        el("p", { class: "waiting-note", text: "The automatic check wasn't sure about these, so a person looks first, usually within a day. Then they move to \"What you've shared\"." }),
-        el("ul", { class: "waiting-list" }, posts.map((post) => el("li", {}, el("button", {
-          class: "waiting-item", type: "button", "aria-label": `${POST_KINDS[post.kind].choose}, waiting for approval: ${post.body}`,
-          onclick: () => openMine(post, rerender),
-        }, [
-          el("span", { class: `waiting-dot waiting-dot-${post.kind}`, title: POST_KINDS[post.kind].choose }),
-          el("span", { class: "waiting-text", text: post.body }),
-          el("span", { class: "waiting-when", text: shortDate(post.created_at) }),
-        ])))),
-      ]),
-    ]);
-    zone.open = waitingOpen;
-    zone.addEventListener("toggle", () => { waitingOpen = zone.open; });
-    return zone;
-  }
-
-  function mineBubble(post, index, rerender) {
-    const r = REACTIONS[post.kind];
-    const n = post.reactions || 0;
-    const words = kindWordCount(post);
-    // Its amens show whether it's on the wall or has left it.
-    const shared = post.status === "shared" || post.status === "ended";
-    // On the wall it reads like the wall's own bubbles; before that, its status.
-    const who = post.answered ? POST_KINDS.answered.choose : post.status === "shared" ? POST_KINDS[post.kind].choose : MINE_BUBBLE_STATUS[post.status];
-    const count = el("span", { class: "bubble-count" });
-    if (shared) {
-      count.innerHTML = `${r.icon}<span></span>${words ? `${ICON.talk}<span></span>` : ""}`;
-      const [amens, kind] = count.querySelectorAll("span");
-      amens.textContent = n ? String(n) : "None yet";
-      if (kind) kind.textContent = String(words);
-    }
-    const label = shared
-      ? `${r.forMine(n)}${words ? `, ${plural(words, "kind word", "kind words")}` : ""}. ${post.body}`
-      : `${who}. ${post.body}`;
-    const node = el("button", {
-      class: `bubble bubble-mine bubble-${post.kind} is-${post.status.replace("_", "-")}${n ? " has-amens" : ""}`,
-      type: "button",
-      style: `--drift-delay:${-((index * 1.3) % 6).toFixed(1)}s;--drift-time:${7 + (index % 3)}s`,
-      "aria-label": label,
-    }, [
-      el("span", { class: "bubble-who", text: who }),
-      el("span", { class: "bubble-text", text: post.body }),
-      shared ? count : null,
-    ]);
-    node.onclick = () => openMine(post, rerender);
-    return node;
   }
 
   // How long one of the writer's own posts has on the wall.
@@ -2041,10 +2037,10 @@
   const HOW_AMENS_WORKS = [
     ["Share anonymously", "Choose \"Pray for me\" for something you're carrying, or \"Rejoice with me\" for good news. Share as much or as little as you like. Names and places are up to you, but links and contact details can't be posted."],
     ["Checked as it goes up", "Every post is checked as it's shared. Most go on the wall straight away; anything the check isn't sure of waits for a person to look at it first. A report sends a post to a person to look at, and usually takes it down while they do. Nobody, not even the people who check, is shown who wrote it."],
-    ["Everyone gets prayed for", "There are no followers. Each person's wall shows posts they haven't prayed for first, starting with those fewest people have seen, so every request gets carried, not just the newest."],
+    ["Everyone gets prayed for", "There are no followers. Your wall holds only what you haven't prayed for yet, starting with posts the fewest people have, so every request gets carried, not just the newest. Once you pray or rejoice, the post moves to Prayed, where you can come back to it."],
     ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
     ["How long it stays", HOW_LONG],
-    ["See what came back", "Your posts sit under \"What you've shared\" with how many prayed or rejoiced, and any kind words. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
+    ["See what came back", "Your posts sit under Yours with how many prayed or rejoiced, and any kind words. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
     ["If you're not safe", "If what you write sounds like you might be in danger, it isn't posted. You're shown people you can talk to right away instead."],
   ];
 
@@ -2091,6 +2087,15 @@
     ]);
   }
 
+  // An empty view, said kindly.
+  function wallEmpty(icon, title, text) {
+    return el("div", { class: "amen-empty fade-in" }, [
+      el("span", { class: "amen-empty-icon", html: icon }),
+      el("strong", { text: title }),
+      el("span", { text }),
+    ]);
+  }
+
   async function amensRoom() {
     let data;
     try {
@@ -2099,60 +2104,127 @@
       return failed(err);
     }
     const rerender = () => amensRoom();
-    // The wall comes a page at a time (app/one_another.py::wall). "Show more"
-    // adds the next page's bubbles, skipping any already showing, since
-    // amens said meanwhile can move a post between pages.
-    const bubbles = el("div", { class: "bubble-wall" }, data.posts.map((p, i) => bubble(p, i, rerender)));
-    const shown = new Set(data.posts.map((p) => p.id));
-    let page = 0;
-    const more = data.has_more ? el("button", {
-      class: "btn btn-ghost btn-sm wall-more", type: "button", text: "Show more",
-      onclick: async () => {
-        more.disabled = true;
-        try {
-          const next = await api(`/me/refuge/wall?translation=${encodeURIComponent(translation())}&page=${page + 1}`);
-          page = next.page;
-          const fresh = next.posts.filter((p) => !shown.has(p.id));
-          fresh.forEach((p) => shown.add(p.id));
-          const at = bubbles.children.length;
-          bubbles.append(...fresh.map((p, i) => bubble(p, at + i, rerender)));
-          if (next.has_more) more.disabled = false;
-          else more.remove();
-        } catch (err) {
-          more.disabled = false;
-          toast(err.message, { tone: "error" });
-        }
+    const counts = { carry: data.counts.to_carry, carried: data.counts.carried, mine: data.mine.length };
+
+    // How much of the wall this person has stood with, as one line and a bar.
+    const pulse = el("section", { class: "amens-pulse", "aria-live": "polite" });
+    const paintPulse = () => {
+      const total = counts.carry + counts.carried;
+      pulse.hidden = !total;
+      if (!total) return;
+      const done = !counts.carry;
+      pulse.classList.toggle("is-done", done);
+      pulse.replaceChildren(
+        el("span", { class: "amens-pulse-icon", html: done ? ICON.check : ICON.together }),
+        el("span", { class: "amens-pulse-text" }, [
+          el("strong", { text: done ? "You're all caught up" : `${counts.carry} still to pray for` }),
+          el("span", { text: done ? `You've stood with all ${total} on the wall.` : `You've stood with ${counts.carried} of ${total} on the wall.` }),
+        ]),
+        el("span", { class: "amens-pulse-bar", "aria-hidden": "true" }, el("span", { style: `width:${Math.round((100 * counts.carried) / total)}%` })),
+      );
+    };
+
+    // The three views and their tabs, each tab with its count.
+    const panels = {}, tabCounts = {};
+    const tabs = el("div", { class: "seg amens-tabs", role: "tablist", "aria-label": "The wall" });
+    const select = (key) => {
+      wallView = key;
+      tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === key)));
+      Object.entries(panels).forEach(([k, panel]) => { panel.hidden = k !== key; });
+    };
+    for (const [key, label] of WALL_VIEWS) {
+      tabCounts[key] = el("span", { class: "amens-tab-count" });
+      tabs.append(el("button", { type: "button", role: "tab", "data-view": key, "aria-controls": `amens-${key}`, onclick: () => select(key) }, [label, tabCounts[key]]));
+      panels[key] = el("section", { class: "amens-panel", id: `amens-${key}`, role: "tabpanel" });
+    }
+    const paintCounts = () => {
+      for (const [key, n] of Object.entries(counts)) tabCounts[key].textContent = n ? String(n) : "";
+      paintPulse();
+    };
+
+    // To pray for. "Show more" asks for what follows the cards still here,
+    // skipping any it already holds.
+    const stream = el("div", { class: "amen-stream" });
+    const shown = new Set();
+    const carryEmpty = () => (counts.carried
+      ? wallEmpty(ICON.check, "You're all caught up", "You've prayed for everyone on the wall. New requests will appear here.")
+      : wallEmpty(ICON.together, "The wall is quiet", "Nothing to pray for right now. When someone shares, it will appear here."));
+    const more = el("button", { class: "btn btn-ghost btn-sm wall-more", type: "button", text: "Show more", hidden: !data.has_more });
+    // Once every card here is prayed for, the next ones come by themselves,
+    // or the view says it's all caught up.
+    const settle = () => {
+      if (stream.querySelector(".amen-card")) return;
+      if (more.hidden) stream.replaceChildren(carryEmpty());
+      else if (!more.disabled) more.click();
+    };
+    const wall = {
+      carried(post) {
+        counts.carry = Math.max(0, counts.carry - 1);
+        counts.carried += 1;
+        const empty = carriedList.querySelector(".amen-empty");
+        if (empty) empty.remove();
+        carriedList.prepend(carriedRow(post));
+        paintCounts();
+        settle();
       },
-    }) : null;
-    // Waiting posts get their own zone; the rest are what's been through review.
-    const waiting = data.mine.filter((p) => p.status === "waiting");
-    const reviewed = data.mine.filter((p) => p.status !== "waiting");
+      reported() {
+        counts.carry = Math.max(0, counts.carry - 1);
+        paintCounts();
+        settle();
+      },
+    };
+    const addCards = (posts) => {
+      const fresh = posts.filter((p) => !shown.has(p.id));
+      fresh.forEach((p) => shown.add(p.id));
+      stream.append(...fresh.map((p) => carryCard(p, wall)));
+    };
+    addCards(data.posts);
+    more.onclick = async () => {
+      more.disabled = true;
+      try {
+        const held = stream.querySelectorAll(".amen-card:not(.is-carried)").length;
+        const next = await api(`/me/refuge/wall?translation=${encodeURIComponent(translation())}&skip=${held}`);
+        addCards(next.posts);
+        more.hidden = !next.has_more;
+        settle();
+      } catch (err) {
+        toast(err.message, { tone: "error" });
+      } finally {
+        more.disabled = false;
+      }
+    };
+    settle();
+    panels.carry.append(stream, more);
+
+    // Prayed.
+    const carriedList = el("div", { class: "amen-done-list" }, data.carried.length
+      ? data.carried.map(carriedRow)
+      : [wallEmpty(ICON.pray, "Nothing here yet", "When you pray for someone or rejoice with them, their post moves here, so you can come back to it.")]);
+    panels.carried.append(carriedList);
+
+    // Yours.
+    panels.mine.append(...[
+      data.mine.length
+        ? el("div", { class: "amen-mine-list" }, data.mine.map((p) => mineRow(p, rerender)))
+        : wallEmpty(ICON.pen, "Nothing shared yet", "Share a burden or good news above. It goes up without your name."),
+      typeof data.digest === "boolean" ? digestSwitch(data.digest) : null,
+    ].filter(Boolean));
+
+    paintCounts();
+    select(wallView);
     show(room("Amens", {
         text: [
-          "Share a burden or a joy without your name. Others can pray or rejoice with you, and send a few kind words.",
-          "Prayer requests stay two weeks (you can keep them up longer), good news a week.",
+          "Carry each other. Pray for what others are carrying and rejoice in what God is doing, without anyone's name.",
+          "Once you pray or rejoice, the post moves to Prayed.",
         ],
         more: howAmensWorks,
         moreLabel: "How Amens works",
       },
-      shareBox(rerender),
+      shareBox(() => { wallView = "mine"; rerender(); }),
       keepUpNudge(data.mine, rerender),
-      waiting.length ? waitingZone(waiting, rerender) : null,
-      reviewed.length ? el("section", { class: "wall-section" }, [
-        el("p", { class: "kicker", text: "What you've shared" }),
-        el("div", { class: "mine-row" }, reviewed.map((p, i) => mineBubble(p, i, rerender))),
-        typeof data.digest === "boolean" ? digestSwitch(data.digest) : null,
-      ]) : null,
-      el("section", { class: "wall-section" }, [
-        el("p", { class: "kicker", text: "On the wall" }),
-        ...(data.posts.length
-          ? [
-              bubbles,
-              more,
-              el("p", { class: "bubble-hint", text: "Tap a bubble to read it, pray or rejoice with them, or send a few kind words." }),
-            ]
-          : [el("p", { class: "muted", text: "Nothing on the wall right now. When someone shares, it'll appear here for you to carry with them." })]),
-      ])
+      pulse,
+      tabs,
+      ...Object.values(panels),
     ));
   }
 

@@ -33,10 +33,12 @@ with a line on how. Then it leaves the wall for everyone else. The writer's
 own copy, with every amen and kind word, never goes. `expires_at` holds when.
 
 How the wall reaches people (supabase/migrations/20261116_amens_at_scale.sql):
-there are no followers and no feeds. Each person's wall is `amens_wall`: posts
-by others from the last month, the ones they haven't said amen to first, then
-those with the fewest amens, in a shuffle of their own, a page at a time, so
-prayer spreads across every request instead of piling onto the newest. Counts
+there are no followers and no feeds. Each person's wall is `amens_to_carry`
+(supabase/migrations/20261122_amens_wall_views.sql): posts by others still up
+that they haven't said amen to, those with the fewest amens first, in a
+shuffle of their own, a page at a time, so prayer spreads across every
+request instead of piling onto the newest. Saying amen moves a post to
+`amens_carried`, their "Prayed" list, so it leaves the wall without being lost. Counts
 live on the post (`amen_count`, kept by a trigger), amens per day in
 `refuge_amen_days`, and the home notice counts what's gone up since someone
 last opened the wall (`refuge_wall_visits`). Once a day, in their evening, a
@@ -91,6 +93,7 @@ KEEP_UP_WINDOW_DAYS = 4  # offered once a request is this close to leaving (or h
 MAX_DAYS_UP = 60        # a request never stays longer than this in all
 ANSWERED_DAYS = 5       # an answered prayer stays this much longer, as good news
 WALL_PAGE = 24  # posts per page of someone's wall
+CARRIED_SHOWN = 40  # the most recent posts listed under "Prayed"
 NEW_DAYS = 7    # the home notice counts what's new since the last look, or this week
 
 # The daily digest: at most one every DIGEST_GAP, counting what came back
@@ -102,6 +105,11 @@ DIGEST_HOURS = range(18, 22)  # 6pm to 9:59pm where they are
 # The wall's later parts read tables and functions from a later migration.
 AMENS_HINT = (
     "Amens needs a database update. Run supabase/migrations/20261116_amens_at_scale.sql "
+    "in the Supabase SQL editor."
+)
+# The wall's three views (To pray for, Prayed, Yours) read functions added later.
+WALL_VIEWS_HINT = (
+    "The Amens wall needs a database update. Run supabase/migrations/20261122_amens_wall_views.sql "
     "in the Supabase SQL editor."
 )
 
@@ -295,9 +303,9 @@ class ReportIn(BaseModel):
 # ---------------------------------------------------------------------------
 # Helpers that read the wall
 # ---------------------------------------------------------------------------
-def _rpc(name: str, params: dict):
+def _rpc(name: str, params: dict, hint: str = AMENS_HINT):
     """Calls one of the wall's database functions (see the migration above)."""
-    return _db_call(lambda: get_supabase().rpc(name, params).execute().data, AMENS_HINT)
+    return _db_call(lambda: get_supabase().rpc(name, params).execute().data, hint)
 
 
 def _ago(**delta) -> str:
@@ -391,25 +399,53 @@ def lifetime(post: dict, now: datetime) -> dict:
 WRITER_STATUS = {"pending": "waiting", "reported": "waiting", "held": "waiting", "approved": "shared", "removed": "not_shared"}
 
 
-def _wall_post(row: dict) -> dict:
+def _wall_post(row: dict, reacted: bool) -> dict:
     """A post as the wall sends it: never who wrote it."""
     return {
         "id": row["id"], "kind": row["kind"], "body": row["body"], "created_at": row["created_at"],
-        "reactions": row.get("amen_count") or 0, "reacted": bool(row.get("reacted")), "sent_kind_word": bool(row.get("sent_kind_word")),
+        "reactions": row.get("amen_count") or 0, "reacted": reacted, "sent_kind_word": bool(row.get("sent_kind_word")),
         # An answered prayer reads as good news, with the writer's line on how.
         "answered": bool(row.get("answered_at")), "answer_note": row.get("answer_note"),
+        "amened_at": row.get("amened_at"),
     }
 
 
 @router.get("/me/refuge/wall")
-def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=200), user: AuthUser = Depends(require_user)) -> dict:
-    """One page of this person's wall (see `amens_wall` for the order), and on
-    the first page everything they've shared, with what came back to them,
-    and whether their evening digest is on."""
-    db = get_supabase()
+def wall(
+    translation: str | None = None,
+    page: int = Query(default=0, ge=0, le=200),
+    skip: int | None = Query(default=None, ge=0, le=5000),
+    user: AuthUser = Depends(require_user),
+) -> dict:
+    """The wall in three views (web/refuge.js::amensRoom).
 
-    def page_of_wall():
-        return _rpc("amens_wall", {"viewer": user.id, "since": _ago(days=MAX_DAYS_UP), "max_posts": WALL_PAGE + 1, "skip": page * WALL_PAGE})
+    `posts` is one page of what this person still has to pray for, in the
+    fair order of `amens_to_carry`. Saying amen moves a post out of it and
+    into `carried`, the posts they've prayed for that are still up, newest
+    amen first, so it leaves the wall without being lost. `counts` sizes both.
+    The first page also brings `mine`, everything they've shared with what
+    came back, and whether their evening digest is on.
+
+    "Show more" sends `skip`, the posts still unprayed for that it already
+    holds: praying moves posts out of this view, so a page number would
+    skip past some.
+    """
+    db = get_supabase()
+    first = page == 0 and skip is None
+    offset = skip if skip is not None else page * WALL_PAGE
+    since = _ago(days=MAX_DAYS_UP)
+
+    def page_to_carry():
+        params = {"viewer": user.id, "since": since, "max_posts": WALL_PAGE + 1, "skip": offset}
+        return _rpc("amens_to_carry", params, WALL_VIEWS_HINT)
+
+    def carried():
+        return _rpc("amens_carried", {"viewer": user.id, "since": since, "max_posts": CARRIED_SHOWN}, WALL_VIEWS_HINT)
+
+    def counts():
+        rows = _rpc("amens_wall_counts", {"viewer": user.id, "since": since}, WALL_VIEWS_HINT)
+        row = rows[0] if isinstance(rows, list) and rows else {}
+        return {"to_carry": row.get("to_carry") or 0, "carried": row.get("carried") or 0}
 
     def shared():
         mine = _db(lambda: (
@@ -429,15 +465,17 @@ def wall(translation: str | None = None, page: int = Query(default=0, ge=0, le=2
         # The wall is open now: what's new on the home notice counts from here.
         db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
 
-    if page:
-        rows = page_of_wall()
+    if not first:
+        rows = page_to_carry()
     else:
-        # The first page brings everything at once: four round trips side by side.
-        rows, (mine, tally), digest, _ = gather(page_of_wall, shared, digest_on, opened_now)
-    out = {"posts": [_wall_post(r) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
-    if page:
+        # The first page brings everything at once, side by side.
+        rows, done, sizes, (mine, tally), digest, _ = gather(page_to_carry, carried, counts, shared, digest_on, opened_now)
+    out = {"posts": [_wall_post(r, reacted=False) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
+    if not first:
         return out
 
+    out["carried"] = [_wall_post(r, reacted=True) for r in done]
+    out["counts"] = sizes
     now = datetime.now(timezone.utc)
     for p in mine:
         p["reactions"] = p.pop("amen_count", 0) or 0

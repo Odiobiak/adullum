@@ -270,18 +270,34 @@ class TestWallRoutes:
         monkeypatch.setattr(one_another, "moderate", lambda text: pytest.fail("shouldn't reach moderation"))
         assert self.share("one more").status_code == 429
 
-    def test_the_wall_is_this_persons_fair_page_and_never_says_who_wrote(self, monkeypatch):
-        page = [{"id": f"p{i}", "kind": "burden", "body": "x", "created_at": "now", "amen_count": i, "reacted": False, "sent_kind_word": False}
+    def test_the_wall_is_what_this_person_still_has_to_pray_for(self, monkeypatch):
+        page = [{"id": f"p{i}", "kind": "burden", "body": "x", "created_at": "now", "amen_count": i, "sent_kind_word": False}
                 for i in range(one_another.WALL_PAGE + 1)]
-        db = use_db(monkeypatch, FakeDb(rows={"rpc:amens_wall": page}))
+        db = use_db(monkeypatch, FakeDb(rows={"rpc:amens_to_carry": page}))
         body = client.get("/me/refuge/wall?page=1", headers=HEADERS).json()
-        params = db.rpc_params("amens_wall")[0]
+        params = db.rpc_params("amens_to_carry")[0]
         assert params["viewer"] == USER.id and params["skip"] == one_another.WALL_PAGE
         assert len(body["posts"]) == one_another.WALL_PAGE and body["has_more"] is True
         assert body["posts"][3]["reactions"] == 3
+        assert not any(p["reacted"] for p in body["posts"])
         assert all("user_id" not in p for p in body["posts"])
         # Later pages carry only the wall, not the person's own posts.
+        assert "mine" not in body and "carried" not in body
+
+    def test_show_more_counts_from_the_cards_still_unprayed_for(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb())
+        body = client.get("/me/refuge/wall?skip=7", headers=HEADERS).json()
+        assert db.rpc_params("amens_to_carry")[0]["skip"] == 7
         assert "mine" not in body
+
+    def test_what_they_prayed_for_moves_to_prayed_with_both_counted(self, monkeypatch):
+        prayed = [{"id": "p9", "kind": "burden", "body": "x", "created_at": "now", "amen_count": 4, "sent_kind_word": True, "amened_at": "later"}]
+        db = use_db(monkeypatch, FakeDb(rows={"rpc:amens_carried": prayed, "rpc:amens_wall_counts": [{"to_carry": 3, "carried": 1}]}))
+        body = client.get("/me/refuge/wall", headers=HEADERS).json()
+        assert body["counts"] == {"to_carry": 3, "carried": 1}
+        assert body["carried"][0]["reacted"] is True and body["carried"][0]["amened_at"] == "later"
+        assert all("user_id" not in p for p in body["carried"])
+        assert db.rpc_params("amens_carried")[0]["viewer"] == USER.id
 
     def test_opening_the_wall_marks_when_they_last_looked(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb())
@@ -672,7 +688,7 @@ class TestAmensGlance:
         assert not db.filtered("refuge_posts", "user_id", USER.id)
         # The wall's sorted query is the slowest one there is, and the home
         # waits on its slowest part, so the glance never runs it.
-        assert not db.rpc_params("amens_wall")
+        assert not db.rpc_params("amens_wall") and not db.rpc_params("amens_to_carry")
 
 
 # ---------------------------------------------------------------------------

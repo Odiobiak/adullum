@@ -211,11 +211,14 @@
 
   // Shows `content` in a dimmed overlay that closes on Escape or an outside
   // click. Returns the function that closes it.
-  function overlay(content) {
+  // `onClose` hears the sheet close, however it was closed.
+  function overlay(content, { onClose } = {}) {
     const wrap = el("div", { class: "sheet-overlay" }, content);
     const close = () => {
+      if (!wrap.isConnected) return;
       wrap.remove();
       document.removeEventListener("keydown", onKey);
+      if (onClose) onClose();
     };
     const onKey = (e) => e.key === "Escape" && close();
     wrap.addEventListener("click", (e) => e.target === wrap && close());

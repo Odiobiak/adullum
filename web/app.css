@@ -48,7 +48,7 @@
   --glow: #FBE1C6; --glow-strong: #F6CFA6; --well: #F6EEE2; --hover: #F1E6D6; --card-warm: #FFF3E6; --divider: #EADFCF;
   --danger: #B3261E; --shadow: rgba(80, 50, 20, 0.16); --ember-glow: rgba(181, 84, 28, 0.32); --ring: rgba(181, 84, 28, 0.18);
   --art-dim: #D6B48C;
-  --shine: rgba(255, 255, 255, 0.9); /* the glossy highlight on an Amens bubble */
+  --shine: rgba(255, 255, 255, 0.9);
   /* Verse highlights: a fill behind the words, and a stronger edge for dots and card borders. */
   --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
   --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
@@ -451,23 +451,51 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 /* The welcome page's five highlights (index.html): Amens leading across the
    row, then Pray with Aquila, Declare, sermon notes and church, each a headline, one sentence and a small made-up
    example. Two by two on a wide screen; a row that swipes on a phone. */
-.spots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+/* The four highlights under Aquila: Amens across the page, the cave as a
+   phone open on Refuge, then sermon notes and Declare side by side. */
+.key-features { display: grid; gap: 12px; margin-top: 14px; }
+.spots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 /* Amens leads the highlights: its own warmer card, the headline larger, a
    few plain facts, and the wall as people see it (a request, good news and a
    kind word back). */
-.spot.is-amens { grid-row: span 2; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; align-content: start; padding: 28px; border-color: var(--ember-line); background: radial-gradient(110% 90% at 0% 0%, var(--glow-strong) 0%, var(--card-warm) 45%, var(--surface) 100%); box-shadow: 0 26px 54px -34px var(--ember-glow); }
+.spot.is-amens { grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); grid-template-rows: none; column-gap: 32px; align-items: center; padding: 28px; border-color: var(--ember-line); background: radial-gradient(110% 90% at 0% 0%, var(--glow-strong) 0%, var(--card-warm) 45%, var(--surface) 100%); box-shadow: 0 26px 54px -34px var(--ember-glow); }
 .spot.is-amens .amens-copy { grid-column: 1; }
 .spot.is-amens h3 { font-size: clamp(24px, 2.4vw, 28px); margin-bottom: 8px; }
 .spot.is-amens .amens-copy > p:not(.spot-kicker) { margin: 0; color: var(--soft); font-size: 15px; line-height: 1.5; }
 .amens-facts { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 8px; }
 .amens-facts li { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 500; color: var(--text); }
 .amens-facts svg { flex: none; width: 26px; height: 26px; padding: 5px; border-radius: 50%; background: var(--surface); color: var(--ember); box-shadow: 0 0 0 1px var(--ember-line); }
-.spot.is-amens .spot-demo { grid-column: 1; grid-row: auto; margin-top: 20px; align-self: start; }
+.spot.is-amens .spot-demo { grid-column: 2; grid-row: 1; margin-top: 0; align-self: center; }
 .amens-wall { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: stretch; }
 .amens-wall .mock-word { grid-column: 1 / -1; }
 .amens-post { align-content: start; }
 .amens-post.is-joy .mock-label { color: var(--sage) !important; }
 .amens-post.is-joy .mock-btn { background: var(--sage-bg); color: var(--sage); }
+/* The cave: what it holds on one side, and on the other a phone open on
+   Refuge, rising from the card's foot. Its rooms borrow Refuge's own tile
+   look (.tile-icon, .tile-name, .tile-badge), so the two never drift. */
+.cave-feature { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 0.85fr); column-gap: 40px; align-items: end; padding: 32px 36px 0; border: 1px solid var(--ember-line); border-radius: var(--radius); overflow: hidden; background: radial-gradient(70% 90% at 85% 100%, var(--glow-strong) 0%, transparent 70%), radial-gradient(100% 110% at 0% 0%, var(--glow) 0%, var(--card-warm) 50%, var(--surface) 100%); box-shadow: 0 26px 54px -34px var(--ember-glow); }
+.cave-copy { align-self: center; padding-bottom: 32px; }
+.cave-copy h3 { margin: 0 0 8px; font-size: clamp(24px, 2.4vw, 28px); line-height: 1.2; letter-spacing: -0.015em; }
+.cave-copy > p:not(.spot-kicker) { margin: 0; max-width: 460px; color: var(--soft); font-size: 15px; line-height: 1.5; }
+.cave-copy .btn { margin-top: 20px; }
+.cave-phone { justify-self: center; width: min(100%, 340px); display: grid; gap: 12px; padding: 16px 14px 20px; border: 8px solid var(--line-2); border-bottom: 0; border-radius: 38px 38px 0 0; background: var(--ground); box-shadow: 0 -10px 50px -20px var(--ember-glow); }
+.phone-head { display: flex; align-items: center; gap: 8px; margin: 2px 4px 0; font-size: 16px; font-weight: 600; }
+.phone-head svg { width: 20px; height: 20px; color: var(--ember); }
+.phone-tabs { display: grid; grid-template-columns: repeat(3, 1fr); padding: 3px; border-radius: var(--pill); background: var(--well); font-size: 12.5px; font-weight: 600; color: var(--muted); text-align: center; }
+.phone-tabs span { padding: 6px 0; border-radius: var(--pill); }
+.phone-tabs .is-on { background: var(--surface); color: var(--text); box-shadow: 0 2px 8px -4px var(--shadow); }
+.phone-private { display: flex; align-items: center; gap: 6px; margin: 0 4px; font-size: 12px; font-weight: 500; color: var(--muted); }
+.phone-private svg, .phone-help svg { width: 13px; height: 13px; color: var(--sage); flex: none; }
+.phone-rooms { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.phone-tile { position: relative; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; min-height: 84px; padding: 11px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.phone-tile.is-wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; border-color: var(--ember-line); background: radial-gradient(140% 160% at 0% 0%, var(--glow) 0%, var(--card-warm) 70%); }
+.phone-tile .tile-icon { width: 30px; height: 30px; }
+.phone-tile .tile-icon svg { width: 16px; height: 16px; }
+.phone-tile.is-wide .tile-icon { background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen); }
+.phone-tile .tile-name { font-size: 13px; }
+.phone-tile .tile-badge { top: 10px; right: 10px; }
+.phone-help { justify-self: start; display: inline-flex; align-items: center; gap: 6px; margin: 0; padding: 5px 11px; border-radius: var(--pill); border: 1px solid var(--line); font-size: 12px; font-weight: 500; color: var(--soft); }
 .spot { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); grid-template-rows: auto auto 1fr; column-gap: 18px; padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: radial-gradient(120% 100% at 0% 0%, var(--glow) 0%, var(--surface) 60%); box-shadow: 0 18px 40px -32px var(--shadow); }
 .spot > :not(.spot-demo) { grid-column: 1; }
 .spot-kicker { display: inline-flex; align-items: center; gap: 7px; margin: 0 0 10px; font-size: 13px; font-weight: 600; color: var(--ember); }
@@ -1349,7 +1377,7 @@ button.habit-check:active { transform: scale(0.92); }
 
 /* Be still */
 /* Be still (web/refuge.js::stillRoom): the choices, then a full-screen
-   session. The light is a lit sphere like the Amens bubbles, glowing in the
+   session. The light is a lit sphere, glowing in the
    theme's ember, and grows and shrinks with the breath over the exact
    seconds of each part, set from the script as a transition duration. */
 .still { display: grid; gap: 16px; justify-items: center; text-align: center; padding: 8px 0 40px; }
@@ -1532,70 +1560,105 @@ body.still-open { overflow: hidden; }
 .how-steps li::before { content: counter(how); grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--ember-bg); color: var(--ember-hi); font-size: 13px; font-weight: 700; }
 .how-steps strong { font-size: 15px; font-weight: 600; }
 .how-steps span { font-size: 14px; color: var(--muted); }
-/* The wall as bubbles (web/refuge.js::bubble): each post a small sphere lit
-   from the top left, ember for a burden and sage for good news, sized by the
-   post's length and drifting on its own rhythm. Drift moves `translate` and
-   hover and the amen pulse move `scale`, so they never fight over transform. */
-.bubble-wall { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 14px 18px; padding: 8px 0 16px; }
-.bubble-hint { text-align: center; font-size: 13px; color: var(--faint); }
-.bubble {
-  --size: 196px;
-  position: relative; width: var(--size); height: var(--size); max-width: 100%; flex: none;
-  border: 0; border-radius: 50%; padding: 0 calc(var(--size) * 0.16);
-  display: grid; align-content: center; justify-items: center; gap: 6px; text-align: center; color: var(--text); cursor: pointer;
-  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--card-warm) 34%, var(--ember-bg) 68%, var(--ember-line) 100%);
-  box-shadow: inset -10px -14px 26px -8px color-mix(in srgb, var(--ember) 22%, transparent), inset 8px 10px 18px -10px var(--shine), 0 18px 34px -20px var(--shadow);
-  animation: bubble-drift var(--drift-time, 7s) ease-in-out var(--drift-delay, 0s) infinite;
-  transition: scale 0.25s ease;
-}
-.bubble::before { content: ""; position: absolute; top: 5%; left: 13%; width: 30%; height: 15%; border-radius: 50%; background: radial-gradient(ellipse at center, var(--shine) 0%, transparent 70%); transform: rotate(-24deg); pointer-events: none; }
-.bubble-rejoice {
-  background: radial-gradient(circle at 32% 26%, var(--surface) 0%, var(--sage-bg) 52%, var(--sage-line) 100%);
-  box-shadow: inset -10px -14px 26px -8px color-mix(in srgb, var(--sage) 24%, transparent), inset 8px 10px 18px -10px var(--shine), 0 18px 34px -20px var(--shadow);
-}
-.bubble-s { --size: 164px; }
-.bubble-l { --size: 232px; }
-.bubble:hover, .bubble:focus-visible { scale: 1.05; z-index: 1; }
-.bubble:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; }
-.bubble-who { font-size: 11.5px; font-weight: 700; color: var(--ember-hi); }
-.bubble-rejoice .bubble-who { color: var(--sage); }
-.bubble-text { font-size: 13.5px; line-height: 1.4; color: var(--soft); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 5; line-clamp: 5; overflow: hidden; }
-.bubble-s .bubble-text { -webkit-line-clamp: 4; line-clamp: 4; }
-.bubble-l .bubble-text { -webkit-line-clamp: 6; line-clamp: 6; font-size: 14px; }
-.bubble-count { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 600; color: var(--muted); }
-.bubble-count svg { width: 13px; height: 13px; flex: none; }
-.bubble.is-amened .bubble-count { color: var(--sage); }
-.bubble.is-popping { animation: bubble-pop 0.6s ease, bubble-drift var(--drift-time, 7s) ease-in-out var(--drift-delay, 0s) infinite; }
-@keyframes bubble-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
-@keyframes bubble-pop { 0% { scale: 1; } 35% { scale: 1.14; } 65% { scale: 0.97; } 100% { scale: 1; } }
-.bubble-sheet .burden { padding: 0; border: 0; background: none; animation: none; }
-/* What you've shared (refuge.js::mineBubble): the same bubbles, smaller, in
-   one row that scrolls sideways. The auto margins centre a short row without
-   hiding the start of a long one, as plain `justify-content: center` would. */
-/* Scrolls sideways only. Left to itself the browser would let it scroll up and
-   down too, by the few pixels a drifting or popping bubble pokes out, and a
-   vertical swipe on a phone would then move the row instead of the page.
-   The padding leaves room for that drift and pop, so nothing is clipped. */
-.mine-row { display: flex; gap: 12px; overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding: 18px 4px 22px; scrollbar-width: none; }
-.mine-row::-webkit-scrollbar { display: none; }
-.mine-row > :first-child { margin-left: auto; }
-.mine-row > :last-child { margin-right: auto; }
-.bubble.bubble-mine { --size: 136px; padding: 0 calc(var(--size) * 0.14); gap: 4px; scroll-snap-align: center; }
-.bubble-mine .bubble-who { font-size: 10.5px; }
-.bubble.bubble-mine .bubble-text { font-size: 12.5px; -webkit-line-clamp: 3; line-clamp: 3; }
-.bubble-mine .bubble-count { gap: 3px; font-size: 11.5px; }
-.bubble-mine .bubble-count span + svg { margin-left: 6px; }
-.bubble-mine.has-amens .bubble-count { color: var(--sage); }
-/* Not on the wall yet, or not at all: a quieter bubble with a dashed edge. */
-.bubble-mine.is-waiting, .bubble-mine.is-not-shared { background: var(--surface); box-shadow: inset 0 0 0 1.5px var(--line); outline: 1.5px dashed var(--ember-line); outline-offset: -6px; animation: none; }
-.bubble-mine.is-waiting::before, .bubble-mine.is-not-shared::before { display: none; }
-.bubble-mine.is-waiting .bubble-who, .bubble-mine.is-not-shared .bubble-who { color: var(--muted); }
-.bubble-mine.is-waiting:focus-visible, .bubble-mine.is-not-shared:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; }
-@media (max-width: 520px) {
-  .bubble { --size: 168px; }
-  .bubble-s { --size: 146px; }
-  .bubble-l { --size: 196px; }
-  .bubble-text { font-size: 13px; }
+/* The Amens wall (web/refuge.js::amensRoom). A line and a bar for how much
+   of the wall this person has stood with, three tabs (To pray for, Prayed,
+   Yours), and cards: ember for a prayer request, sage for good news. */
+.amens-pulse { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 14px; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--ember-line); background: radial-gradient(120% 160% at 0% 0%, var(--glow) 0%, var(--card-warm) 60%, var(--surface) 100%); }
+.amens-pulse[hidden] { display: none; }
+.amens-pulse.is-done { border-color: var(--sage-line); background: radial-gradient(120% 160% at 0% 0%, var(--sage-bg) 0%, var(--surface) 75%); }
+.amens-pulse-icon { grid-row: span 2; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen), 0 8px 20px -10px var(--ember-glow); }
+.amens-pulse.is-done .amens-pulse-icon { background: var(--sage); color: var(--surface); box-shadow: none; }
+.amens-pulse-icon svg { width: 21px; height: 21px; }
+.amens-pulse-text { display: grid; gap: 1px; min-width: 0; }
+.amens-pulse-text strong { font-size: 16px; font-weight: 600; }
+.amens-pulse-text span { font-size: 13.5px; color: var(--muted); }
+.amens-pulse-bar { height: 6px; border-radius: var(--pill); background: var(--well); overflow: hidden; }
+.amens-pulse-bar span { display: block; height: 100%; border-radius: inherit; background: var(--ember-grad); transition: width 0.5s ease; }
+.amens-pulse.is-done .amens-pulse-bar span { background: var(--sage); }
+.amens-tabs { margin: 0; }
+.amens-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.amens-tab-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 11.5px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; }
+.amens-tab-count:empty { display: none; }
+.amens-panel { display: grid; gap: 12px; }
+.amens-panel[hidden] { display: none; }
+
+/* To pray for: one card per post, read like a letter, its ask at the foot. */
+.amen-stream { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: start; }
+.amen-stream .amen-empty { grid-column: 1 / -1; }
+.amen-card { position: relative; display: grid; gap: 12px; padding: 18px 18px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: radial-gradient(130% 90% at 0% 0%, var(--glow) 0%, var(--surface) 55%); box-shadow: 0 14px 34px -28px var(--shadow); overflow: hidden; transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, height 0.4s ease, opacity 0.3s ease, padding 0.4s ease; }
+.amen-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ember-grad); }
+.amen-card-rejoice { background: radial-gradient(130% 90% at 0% 0%, var(--sage-bg) 0%, var(--surface) 55%); }
+.amen-card-rejoice::before { background: var(--sage); }
+.amen-card.is-carried { border-color: var(--sage-line); box-shadow: 0 0 0 3px var(--sage-bg), 0 14px 34px -26px var(--shadow); }
+.amen-card.is-leaving { opacity: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
+.amen-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.amen-kind { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.amen-kind-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); }
+.amen-kind-icon svg { width: 13px; height: 13px; }
+.amen-kind-rejoice { background: var(--sage-bg); color: var(--sage); }
+.amen-when { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
+.amen-card-head .more { margin-left: auto; }
+.amen-card-text { margin: 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
+.amen-card .answered-note { margin: 0; }
+.amen-card-foot { display: grid; gap: 10px; }
+.amen-card-foot .amen-people { font-size: 13.5px; }
+.amen-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.amen-card-rejoice .amen-btn:not(.is-done) { background: var(--sage); color: var(--surface); box-shadow: 0 8px 22px -12px var(--sage); }
+.amen-words { display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-btn-sm); padding: 0 12px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--soft); font: 500 13.5px/1 var(--body); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
+.amen-words svg { width: 15px; height: 15px; flex: none; }
+.amen-words:hover:not(:disabled) { border-color: var(--ember-line); color: var(--text); }
+.amen-words.is-done { border-color: transparent; background: none; color: var(--sage); cursor: default; }
+
+/* Prayed: quieter rows with a tick; a tap on the words shows all of them. */
+.amen-done-list { display: grid; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
+.amen-done-list .amen-empty { border: 0; border-radius: 0; }
+.amen-done { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 14px 16px; }
+.amen-done + .amen-done { border-top: 1px solid var(--divider); }
+.amen-done-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--sage-bg); color: var(--sage); }
+.amen-done-mark svg { width: 15px; height: 15px; }
+.amen-done-body { display: grid; gap: 4px; min-width: 0; }
+.amen-done-meta { margin: 0; font-size: 12.5px; color: var(--faint); }
+.amen-done-text { margin: 0; font-size: 15px; line-height: 1.5; color: var(--soft); cursor: pointer; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.amen-done-text.is-open { display: block; white-space: pre-wrap; }
+.amen-done-people { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; font-size: 13px; color: var(--sage); }
+.amen-done-people .amen-face { width: 18px; height: 18px; }
+.amen-done .amen-words { align-self: center; }
+
+/* Yours: each post with where it stands and what came back. */
+.amen-mine-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
+.amen-mine { display: grid; gap: 8px; align-content: start; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.amen-mine:hover { border-color: var(--ember-line); transform: translateY(-1px); box-shadow: 0 12px 26px -20px var(--ember-glow); }
+.amen-mine:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.amen-mine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.amen-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.amen-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.amen-status.is-shared { color: var(--ember-hi); }
+.amen-status.is-shared::before { background: var(--ember); box-shadow: 0 0 0 3px var(--ember-bg); }
+.amen-status.is-answered { color: var(--sage); }
+.amen-status.is-answered::before { background: var(--sage); }
+.amen-status.is-waiting::before { background: var(--ember-line); animation: waiting-pulse 2.4s ease-in-out infinite; }
+.amen-mine-text { font-size: 15px; line-height: 1.5; color: var(--soft); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.amen-mine-back { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.amen-mine-back.has-amens { color: var(--sage); font-weight: 500; }
+.amen-mine-stat { display: inline-flex; align-items: center; gap: 5px; }
+.amen-mine-stat svg { width: 14px; height: 14px; flex: none; }
+.amen-sheet .burden { padding: 0; border: 0; background: none; animation: none; }
+
+/* An empty view: an icon, a line, and what will happen. */
+.amen-empty { display: grid; justify-items: center; gap: 4px; padding: 30px 20px; border-radius: var(--radius); border: 1px dashed var(--line-2); text-align: center; }
+.amen-empty-icon { display: grid; place-items: center; width: 44px; height: 44px; margin-bottom: 6px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.amen-empty-icon svg { width: 22px; height: 22px; }
+.amen-empty strong { font-size: 16px; font-weight: 600; }
+.amen-empty span:last-child { max-width: 360px; font-size: 14px; color: var(--muted); }
+@keyframes waiting-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--ring); } 50% { box-shadow: 0 0 0 4px var(--ring); } }
+@media (prefers-reduced-motion: reduce) { .amen-status.is-waiting::before { animation: none; } .amens-pulse-bar span { transition: none; } }
+@media (max-width: 560px) {
+  .amen-card { padding: 16px 14px 14px; }
+  .amen-card-text { font-size: 16px; }
+  .amen-card-actions { justify-content: stretch; }
+  .amen-card-actions .amen-btn { flex: 1; justify-content: center; }
+  .amen-done { grid-template-columns: auto minmax(0, 1fr); }
+  .amen-done .amen-words { grid-column: 2; justify-self: start; }
 }
 .choice-list { display: grid; gap: 8px; margin: 6px 0 16px; }
 .choice { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: 14px; border: 1px solid var(--line); cursor: pointer; font-size: 15px; }
@@ -1931,41 +1994,6 @@ body.still-open { overflow: hidden; }
   .support-options { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Amens posts waiting for approval (web/refuge.js::waitingZone): their own
-   zone under the share box, dashed like something not yet settled, with a
-   slow pulse on the clock while a person reads them. */
-/* Posts waiting for approval (web/refuge.js::waitingZone): folded, one slim
-   pill like a notification; opened, a compact list inside the same rounded box. */
-.waiting { min-width: 0; border: 1px solid var(--ember-line); border-radius: calc(var(--h-btn) / 2 + 4px); background: color-mix(in srgb, var(--card-warm) 70%, var(--surface)); transition: border-radius 0.2s ease; }
-.waiting[open] { border-radius: var(--radius); }
-.waiting-bar { display: flex; align-items: center; gap: 10px; min-height: var(--h-btn); padding: 4px 12px 4px 5px; cursor: pointer; list-style: none; font-size: 14px; color: var(--soft); border-radius: inherit; }
-.waiting-bar::-webkit-details-marker { display: none; }
-.waiting-bar:hover { color: var(--text); }
-.waiting-bar:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.waiting-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); animation: waiting-pulse 2.4s ease-in-out infinite; }
-.waiting-icon svg { width: 16px; height: 16px; display: block; }
-.waiting-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.waiting-label strong { color: var(--ember-hi); font-weight: 700; font-variant-numeric: tabular-nums; }
-.waiting-dots { flex: none; display: inline-flex; }
-.waiting-dots .waiting-dot + .waiting-dot { margin-left: -3px; }
-.waiting-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px var(--surface); }
-.waiting-dot-burden { background: var(--ember); }
-.waiting-dot-rejoice { background: var(--sage); }
-.waiting-chevron { flex: none; display: grid; place-items: center; color: var(--faint); transition: transform 0.2s ease; }
-.waiting-chevron svg { width: 16px; height: 16px; display: block; }
-.waiting[open] .waiting-chevron { transform: rotate(90deg); }
-.waiting-body { display: grid; gap: 8px; padding: 0 8px 8px; animation: rise 0.2s ease both; }
-.waiting-note { margin: 0 6px; font-size: 12.5px; color: var(--muted); }
-.waiting-list { list-style: none; margin: 0; padding: 0; display: grid; border-radius: var(--radius-sm); background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
-.waiting-list > li { min-width: 0; }
-.waiting-list > li + li { border-top: 1px solid var(--divider); }
-.waiting-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--h-chip); padding: 7px 12px; border: 0; background: none; color: var(--text); text-align: left; font-size: 14px; transition: background-color 0.15s ease; }
-.waiting-item:hover { background: var(--hover); }
-.waiting-item .waiting-dot { box-shadow: none; width: 8px; height: 8px; }
-.waiting-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.waiting-when { flex: none; font-size: 12px; color: var(--faint); }
-@keyframes waiting-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--ring); } 50% { box-shadow: 0 0 0 5px var(--ring); } }
-@media (prefers-reduced-motion: reduce) { .waiting-icon { animation: none; } .waiting-body { animation: none; } }
 
 /* A post's status reads in sentence case, like every other label. */
 .burden.is-mine .badge { text-transform: none; }
@@ -2601,12 +2629,20 @@ body.aloud-open { overflow: hidden; }
    that swipes, each card most of the width so the next one peeks in. */
 @media (max-width: 980px) {
   .spots { grid-template-columns: minmax(0, 1fr); }
-  .spot.is-amens { grid-row: auto; }
+  .spot.is-amens { grid-template-columns: minmax(0, 1fr); }
+  .spot.is-amens .spot-demo { grid-column: 1; grid-row: auto; margin-top: 20px; }
+}
+/* The cave on a tablet or phone: its words, then the phone beneath them. */
+@media (max-width: 820px) {
+  .cave-feature { grid-template-columns: minmax(0, 1fr); padding: 22px 20px 0; }
+  .cave-copy { padding-bottom: 24px; }
+  .cave-phone { width: min(100%, 320px); }
 }
 @media (max-width: 720px) {
-  .spots { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 14px -16px 0; padding: 0 16px 6px; scroll-padding: 0 16px; }
+  .spots { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; margin: 0 -16px; padding: 0 16px 6px; scroll-padding: 0 16px; }
   .spots::-webkit-scrollbar { display: none; }
-  .spot { flex: 0 0 86%; scroll-snap-align: start; grid-template-columns: minmax(0, 1fr); grid-template-rows: none; padding: 18px; }
+  .spots .spot { flex: 0 0 86%; scroll-snap-align: start; }
+  .spot { grid-template-columns: minmax(0, 1fr); grid-template-rows: none; padding: 18px; }
   .spot.is-amens { padding: 18px; }
   .spot.is-amens h3 { font-size: 20px; }
   .spot.is-amens .spot-demo { margin-top: 14px; }
