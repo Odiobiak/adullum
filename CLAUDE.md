@@ -23,6 +23,8 @@ pytest                                                    # run the test suite (
 
 Config lives in `.env`, read once into `app/config.py::settings`. `tests/conftest.py` sets dummy Supabase/OpenAI credentials so the suite runs without a real `.env` (in CI, in particular); the suite itself only covers pure logic (`app/retrieval.py`'s parsers, `app/schemas.py`, the graph's routing functions) and the API contract with the compiled `agent` mocked out in `tests/test_api.py`. Nothing in it makes a real LLM or Supabase call. `.github/workflows/test.yml` runs it on every push and PR.
 
+Every shape the model fills through `with_structured_output` must send OpenAI no `default`: its strict mode refuses the whole call, and since the tests fake the model, only production shows it (it once made every declaration a 500). Inherit `app/schemas.py::ModelDraft`, which keeps Python defaults out of the schema, or give the fields none. `test_declare.py::TestSchemas` and `test_churches.py::test_drafts_send_the_model_no_defaults` check this.
+
 ## Always
 When writing code, always write code like a good human software engineer. Always use the best coding practice and naming convention. Make sure the code is very well documenteted, readable and easy to follow. Design for less wordings and less space usage.
 

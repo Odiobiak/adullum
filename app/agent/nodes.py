@@ -662,7 +662,9 @@ class DeclareDraft(BaseModel):
     title: str
     opening: str
     lines: list[DeclareLine]
-    prayer: str = Field(default="", description="The prayer prayed after the declarations, four to six sentences, with no reference in it.")
+    # Required, with no default: OpenAI's strict structured output refuses a
+    # schema that carries one, and every declaration would fail.
+    prayer: str = Field(description="The prayer prayed after the declarations, four to six sentences, with no reference in it.")
 
 
 def suggest_declare_refs(situation: str, config: RunnableConfig | None = None, avoid: list[str] | None = None) -> list[str]:

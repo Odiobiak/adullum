@@ -7,7 +7,25 @@ response bodies and lets the agent state stay typed.
 from datetime import date
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
+
+
+def _without_defaults(schema: dict) -> None:
+    for prop in schema.get("properties", {}).values():
+        prop.pop("default", None)
+
+
+class ModelDraft(BaseModel):
+    """A shape the model fills in through structured output.
+
+    OpenAI's strict structured output refuses a schema carrying a `default`,
+    and a refused schema fails the whole call. Fields here may still have
+    defaults for code that builds a draft by hand (a fallback, a test); they're
+    only left out of the schema sent to the model, which fills every field.
+    Nested shapes inherit this too, or their defaults slip through.
+    """
+
+    model_config = ConfigDict(json_schema_extra=lambda schema, _cls: _without_defaults(schema))
 
 
 class Verse(BaseModel):

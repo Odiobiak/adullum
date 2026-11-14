@@ -2,6 +2,7 @@
 church draft, notices, the week after a sermon, and sermon notes drafted from
 a link. Nothing here touches the network, the database or a model."""
 
+import json
 import threading
 import time
 from datetime import date
@@ -251,6 +252,17 @@ def test_a_whole_chapter_is_learned_from_its_first_verse():
 # ---------------------------------------------------------------------------
 # Sermon notes from a link
 # ---------------------------------------------------------------------------
+def test_drafts_send_the_model_no_defaults():
+    """OpenAI's strict structured output refuses a schema with a default in
+    it, which made reading a church or a sermon fail every time."""
+    from openai.lib._pydantic import to_strict_json_schema
+
+    for model in (ChurchDraft, SermonDraft):
+        assert '"default"' not in json.dumps(to_strict_json_schema(model)), model.__name__
+    # Code can still build one by hand and leave fields out.
+    assert ChurchDraft(name="Hope St").city == "" and SermonDraft(title="x").quote.text == ""
+
+
 def test_note_from_draft_keeps_only_real_passages_and_the_preachers_words():
     draft = SermonDraft(
         title="Strength for the weary",

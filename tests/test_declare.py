@@ -3,6 +3,8 @@ given, that an unsafe situation gets helplines instead of words, and that the
 kept ones stay inside one person's cave. The model and Supabase are faked;
 nothing here makes a real network call."""
 
+import json
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -99,6 +101,17 @@ class TestUsableLines:
         assert declare.clean_prayer("Father,  I bring you my exam.\nKeep me steady.") == "Father, I bring you my exam. Keep me steady."
 
 
+class TestSchemas:
+    def test_declare_formats_carry_no_defaults_openai_would_refuse(self):
+        """OpenAI's strict structured output refuses a schema with a default
+        in it, which once turned every declaration into a 500."""
+        from openai.lib._pydantic import to_strict_json_schema
+        from app.agent.nodes import DeclareIdeas
+
+        for model in (DeclareDraft, DeclareLine, DeclareIdeas):
+            assert '"default"' not in json.dumps(to_strict_json_schema(model)), model.__name__
+
+
 class TestOtherWords:
     def test_a_used_passage_is_left_out_with_any_that_overlap_it(self):
         passages = {**PASSAGES, "Numbers 6:26": [verse("Numbers", 6, 26)], "Psalm 23:1": [verse("Psalm", 23, 1)]}
@@ -116,7 +129,7 @@ class TestOtherWords:
 
         def write(situation, name, passages, extra="", config=None):
             asked["given"] = sorted(passages)
-            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say=f"Line {i}.", ref=k) for i, k in enumerate(passages)])
+            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say=f"Line {i}.", ref=k) for i, k in enumerate(passages)], prayer="")
 
         monkeypatch.setattr(declare, "write_declaration", write)
         body = client.post("/declare", json={"situation": "An exam", "avoid": ["2 tim 1:7", "Numbers 6:24-26"]}, headers=HEADERS).json()
@@ -130,7 +143,7 @@ class TestOtherWords:
 
         def write(situation, name, passages, extra="", config=None):
             extras.append(extra)
-            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="a", ref="2 Timothy 1:7"), DeclareLine(say="b", ref="Numbers 6:24-26")])
+            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="a", ref="2 Timothy 1:7"), DeclareLine(say="b", ref="Numbers 6:24-26")], prayer="")
 
         monkeypatch.setattr(declare, "write_declaration", write)
         body = client.post("/declare", json={"situation": "An exam", "avoid": ["2 Timothy 1:7"]}, headers=HEADERS).json()
@@ -159,10 +172,10 @@ class TestDeclareRoute:
 
     def test_writes_again_once_when_too_few_lines_survive(self, monkeypatch):
         drafts = iter([
-            DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")]),
+            DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")], prayer=""),
             DeclareDraft(title="t", opening="o", lines=[
                 DeclareLine(say="a", ref="2 Timothy 1:7"), DeclareLine(say="b", ref="Numbers 6:24-26"),
-            ]),
+            ], prayer=""),
         ])
         extras = []
 
@@ -176,7 +189,7 @@ class TestDeclareRoute:
         assert extras[0] == "" and "only the listed passages" in extras[1]
 
     def test_no_usable_lines_is_an_honest_error(self, monkeypatch):
-        bad = DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")])
+        bad = DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="x", ref="John 3:16")], prayer="")
         monkeypatch.setattr(declare, "write_declaration", lambda *a, **k: bad)
         res = client.post("/declare", json={"situation": "An exam"}, headers=HEADERS)
         assert res.status_code == 502

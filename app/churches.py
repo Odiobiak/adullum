@@ -58,6 +58,7 @@ from app.auth import AuthUser, require_user
 from app.cave import _db_call, _now
 from app.config import settings
 from app.days import parse_today
+from app.schemas import ModelDraft
 from app.db import get_supabase
 from app.sermons import canonical_or_raw, clean_blocks, note_passages, present, references_in
 
@@ -198,20 +199,21 @@ class WeekIn(BaseModel):
 
 
 # What the model returns when reading a church's site. Everything optional:
-# a field the pages don't state stays empty rather than guessed.
-class _DraftGathering(BaseModel):
+# a field the pages don't state stays empty rather than guessed. The defaults
+# are for code only; ModelDraft keeps them out of what the model is sent.
+class _DraftGathering(ModelDraft):
     label: str = Field(description="What it is, short: 'Sunday service', 'Bible study', 'Prayer meeting'.")
     day: str = Field(description="Day of the week in English, e.g. 'Sunday'.")
     time: str = Field(description="Start time, 24-hour HH:MM.")
 
 
-class _DraftEvent(BaseModel):
+class _DraftEvent(ModelDraft):
     title: str
     date: str = Field(description="YYYY-MM-DD. Leave the event out if its date isn't stated.")
     time: str | None = Field(default=None, description="24-hour HH:MM, if stated.")
 
 
-class ChurchDraft(BaseModel):
+class ChurchDraft(ModelDraft):
     name: str = Field(default="", description="The church's name as it calls itself.")
     city: str = Field(default="", description="City, as on the site.")
     time_zone: str = Field(default="", description="IANA time zone for that city, e.g. 'Africa/Lagos', 'America/New_York'. Empty if the city is unknown.")
@@ -618,17 +620,17 @@ def tag_moods(items: list[dict]) -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 # Drafting a sermon note from a link
 # ---------------------------------------------------------------------------
-class _Point(BaseModel):
+class _Point(ModelDraft):
     at_seconds: float | None = Field(default=None, description="Where in the video the point is made, if the transcript shows it.")
     text: str
 
 
-class _Quote(BaseModel):
+class _Quote(ModelDraft):
     text: str = ""
     who: str = ""
 
 
-class SermonDraft(BaseModel):
+class SermonDraft(ModelDraft):
     title: str = ""
     speaker: str = Field(default="", description="The preacher, if named.")
     main_passage: str = Field(default="", description="The main Bible passage preached, as a reference like 'Isaiah 40:28-31'.")
