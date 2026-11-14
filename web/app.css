@@ -704,11 +704,15 @@ a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--e
 /* ---------- Ask Aquila ---------- */
 .ask-layout { display: flex; min-height: calc(100vh - 61px); }
 .rail { flex: 0 0 264px; min-width: 0; border-right: 1px solid var(--divider); padding: 16px 12px 16px 20px; position: sticky; top: 61px; height: calc(100vh - 61px); overflow-y: auto; background: var(--well); }
-.rail .btn { width: 100%; margin-bottom: 16px; }
-.rail-label { font-size: 13px; font-weight: 600; color: var(--faint); padding: 0 10px; margin: 0 0 6px; }
+.rail-new { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: var(--h-btn); margin-bottom: 18px; border: 1px solid var(--ember-line); border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font: 600 14px/1 var(--body); cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease; }
+.rail-new:hover { border-color: var(--ember); }
+.rail-new:active { transform: scale(0.98); }
+.rail-new svg, .ask-toolbar .btn svg { width: 16px; height: 16px; }
+.rail-label { font-size: 12px; font-weight: 600; color: var(--faint); padding: 0 12px; margin: 14px 0 4px; }
+.rail-label:first-child { margin-top: 0; }
 .rail-item { display: block; width: 100%; text-align: left; padding: 9px 12px; border-radius: 12px; color: var(--soft); background: none; border: 0; margin-bottom: 2px; font-size: 14px; }
 .rail-item:hover { background: var(--hover); }
-.rail-item[aria-current="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--line); }
+.rail-item[aria-current="true"] { background: var(--surface); color: var(--text); box-shadow: 0 0 0 1px var(--line), inset 3px 0 0 var(--ember); }
 .rail-item small { display: block; color: var(--faint); font-size: 12px; }
 .rail-item span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ask-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -719,10 +723,19 @@ a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--e
 .ask-toolbar .btn-quiet { margin-left: -12px; }
 .thread { flex: 1; padding-top: 28px; padding-bottom: 24px; }
 .thread-inner { max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 28px; }
-.ask-empty { padding: 40px 0 8px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
-.ask-empty .page-title { margin-top: 4px; }
-.ask-empty .topics { margin-top: 8px; }
-.msg-me { align-self: flex-end; max-width: 85%; background: var(--raised); border: 1px solid var(--line); border-radius: 20px 20px 6px 20px; padding: 12px 17px; font-size: 16px; white-space: pre-wrap; animation: rise 0.25s ease both; }
+.ask-empty { min-height: calc(100vh - 340px); padding: 24px 0 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; }
+.ask-empty .title-info { justify-content: center; }
+.ask-empty .page-title { margin: 6px 0 4px; }
+.ask-empty-mark { width: 56px; height: 56px; box-shadow: 0 0 0 8px var(--ember-bg), 0 18px 40px -12px var(--ember-glow); }
+.starter-cards { width: 100%; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 10px; text-align: left; }
+.starter-card { display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto 1fr; column-gap: 12px; row-gap: 2px; align-items: start; padding: 14px 16px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: radial-gradient(120% 140% at 0% 0%, var(--glow) 0%, var(--surface) 55%); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.starter-card:hover { border-color: var(--ember-line); transform: translateY(-1px); box-shadow: 0 14px 30px -22px var(--ember-glow); }
+.starter-card:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.starter-icon { grid-row: span 2; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.starter-icon svg { width: 17px; height: 17px; }
+.starter-card strong { font-size: 14.5px; font-weight: 600; }
+.starter-card > span:last-child { font-size: 13.5px; line-height: 1.4; color: var(--muted); }
+.msg-me { align-self: flex-end; max-width: 85%; background: var(--card-warm); border: 1px solid var(--ember-line); border-radius: 20px 20px 6px 20px; padding: 12px 17px; font-size: 16px; white-space: pre-wrap; animation: rise 0.25s ease both; }
 .msg-aquila { animation: rise 0.25s ease both; }
 .msg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 14px; font-weight: 600; }
 /* Progress shows one line: the step underway, or the last one finished. */
@@ -750,21 +763,31 @@ a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--e
 .answer-actions .act.is-done { border-color: transparent; background: transparent; color: var(--sage); }
 .answer-actions .act.is-playing { color: var(--ember); }
 .answer-actions .act-icon { min-width: var(--h-chip); justify-content: center; }
-.followups { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--divider); }
+.followups { display: grid; gap: 8px; margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--divider); }
 .followups:empty { display: none; }
-.followups .kicker { margin-bottom: 4px; }
-.followup { display: flex; align-items: baseline; gap: 10px; width: 100%; background: none; border: 0; color: var(--text); font-size: 15px; padding: 5px 0; text-align: left; }
-.followup::before { content: "\2192"; color: var(--ember); flex: none; }
-.followup:hover { color: var(--ember-hi); }
+.followups .kicker { margin: 0; }
+.followup { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 15px; text-align: left; cursor: pointer; transition: border-color 0.15s ease, background-color 0.15s ease; }
+.followup::after { content: "\2192"; color: var(--ember); flex: none; transition: transform 0.15s ease; }
+.followup:hover { border-color: var(--ember-line); background: var(--card-warm); }
+.followup:hover::after { transform: translateX(3px); }
 .thinking { display: inline-flex; gap: 5px; padding: 6px 0; }
 .thinking span { width: 6px; height: 6px; border-radius: 50%; background: var(--faint); animation: pulse 1.1s ease-in-out infinite; }
 .thinking span:nth-child(2) { animation-delay: 0.15s; }
 .thinking span:nth-child(3) { animation-delay: 0.3s; }
 .composer { position: sticky; bottom: 0; z-index: 5; padding-top: 12px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--ground) 70%, transparent); }
-.composer .ask-box { max-width: 720px; margin: 0 auto; align-items: flex-end; border-radius: 24px; padding: 4px 4px 4px 18px; }
+.composer .ask-box { max-width: 720px; margin: 0 auto; align-items: flex-end; border-radius: 26px; padding: 6px 6px 6px 20px; box-shadow: 0 18px 44px -26px var(--shadow), 0 1px 0 var(--line); }
+.composer .ask-box textarea { padding: 10px 0; }
+.composer-send { flex: none; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: 0 6px 16px -6px var(--ember-glow); cursor: pointer; transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease, transform 0.12s ease; }
+.composer-send svg { width: 19px; height: 19px; }
+.composer-send:active { transform: scale(0.94); }
+.composer .ask-box:has(textarea:placeholder-shown) .composer-send:not(.loading) { background: var(--raised); color: var(--faint); box-shadow: none; }
 .composer .error { max-width: 720px; margin: 8px auto 0; }
 .composer-note { max-width: 720px; margin: 8px auto 0; font-size: 12px; color: var(--faint); text-align: center; }
 #submit.loading .send-label { display: none; }
+@media (max-width: 560px) {
+  .starter-cards { grid-template-columns: minmax(0, 1fr); }
+  .ask-empty { min-height: 0; padding-top: 12px; }
+}
 #submit .spinner { display: none; width: 16px; height: 16px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin 0.7s linear infinite; }
 #submit.loading .spinner { display: inline-block; }
 
@@ -1068,13 +1091,12 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .cave-section .row-between .moods { margin: 0; }
 
 /* ---------- Prayers (web/prayers.js) ---------- */
-/* The list fills the tab; This week and Fasting sit in a column beside it,
-   kept in view as the list scrolls. On a phone they follow the list. */
-.prayers-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
-.prayers-layout > .practice-stack { position: sticky; top: 77px; } /* clear of the 61px top bar */
+/* This week and Fasting across the top, side by side when there's room,
+   then the list. */
+.prayers-layout { display: grid; gap: 20px; align-items: start; }
 .prayer-main { display: grid; gap: 0; min-width: 0; }
-.practice-stack { display: grid; gap: 12px; }
-.practice-stack > .practice-link { justify-self: start; }
+.practice-stack { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; align-items: start; }
+.prayers-layout > .practice-link { justify-self: start; }
 
 /* One row per prayer: a tick, its words on one line and how long it's been
    carried. Opened, the words show whole with the verse, the declaration and
@@ -1130,9 +1152,18 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .text-act.is-quiet { color: var(--muted); font-weight: 500; }
 .text-act.is-quiet:hover { color: var(--sage); }
 
-/* This week of prayer and fasting, in the side column. */
+/* This week of prayer and fasting. Each folds to its title and a summary
+   line; the toggle reuses the prayer row's chevron. */
 .practice-card { display: grid; gap: 12px; align-content: start; padding: 16px; }
-.practice-card .card-head { margin: 0; align-items: center; }
+.practice-card .card-head { margin: 0; align-items: center; flex-wrap: nowrap; }
+.practice-toggle { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: 6px; min-height: var(--h-icon); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+.practice-toggle:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; border-radius: 6px; }
+.practice-summary { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.practice-card.is-open .practice-summary { visibility: hidden; } /* the open card says it in full */
+.practice-card.is-open .prayer-row-chevron { transform: rotate(180deg); }
+.practice-body { display: grid; gap: 12px; animation: rise 0.2s ease both; }
+.practice-body[hidden] { display: none; }
+.practice-body > .practice-link { justify-self: start; }
 .practice-aside { font-size: 13px; }
 .practice-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .practice-foot .faint { font-size: 12.5px; flex: 1 1 120px; }
@@ -1149,10 +1180,6 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .fast-intention { font-size: 14px; color: var(--soft); line-height: 1.5; white-space: pre-wrap; }
 /* "Prayer list" and its info button share a line with the filter. */
 .prayer-list-bar .title-info { margin: 0; }
-@media (max-width: 900px) {
-  .prayers-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
-  .prayers-layout > .practice-stack { position: static; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
-}
 @media (max-width: 560px) {
   .prayer-row-head { padding: 13px 10px 13px 12px; gap: 10px; }
   .prayer-row-body { padding: 0 12px 13px 48px; }
@@ -1306,6 +1333,28 @@ body.in-refuge [data-view="cave"] .page-head:hover, body.in-refuge [data-view="c
 .lament-step .hint { color: var(--faint); font-size: 14px; margin-top: -4px; }
 .release-row { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; align-items: center; }
 .release-row .faint { margin-right: auto; font-size: 14px; }
+/* Write it out: the shapes, then A nudge and Focus at the end of the row. */
+.write-tools { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.write-tools-end { display: flex; gap: 6px; }
+.write-nudge { margin: 0 0 -6px; font-size: 16px; font-style: italic; color: var(--muted); }
+/* Focus: the writing room fills the screen, above the bars and below sheets
+   and toasts, so "Make it a goal" and its messages still show. */
+body.write-focus .write-room { position: fixed; inset: 0; z-index: 55; overflow-y: auto; background: var(--ground); padding: max(20px, env(safe-area-inset-top)) max(20px, calc((100vw - 760px) / 2)) max(24px, env(safe-area-inset-bottom)); animation: appear 0.2s ease both; }
+body.write-focus .write-room .back, body.write-focus .write-room .room-head { display: none; }
+body.write-focus .write-room .refuge-page { min-height: 60vh; border-color: transparent; background: transparent; box-shadow: none; padding-inline: 0; }
+body.write-focus .write-room .refuge-page.refuge-page-sm { min-height: 18vh; }
+/* Talk with Aquila: a quiet Listen under each reply, and a message that can be sent again. */
+.listen-btn { display: inline-grid; place-items: center; width: var(--h-icon); height: var(--h-icon); margin-top: 2px; border: 0; border-radius: 50%; background: transparent; color: var(--faint); cursor: pointer; }
+.listen-btn svg { width: 17px; height: 17px; }
+.listen-btn:hover, .listen-btn[aria-pressed="true"] { color: var(--ember); background: var(--ember-bg); }
+.talk-error { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.soft-composer .iconbtn:disabled { opacity: 0.45; cursor: default; }
+/* Pebbles: a step added right on the card. */
+.step-add { width: 100%; margin-top: 4px; padding: 6px 0 6px 27px; border: 0; border-bottom: 1px dashed var(--line-2); background: transparent; color: var(--text); font-size: 16px; }
+.step-add:focus { outline: none; border-bottom-color: var(--ember); }
+.step-add::placeholder { color: var(--faint); }
+/* Be still: the last seven days as dots above the count. */
+.still-week { display: grid; justify-items: center; gap: 8px; }
 .releasing { min-height: 260px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); padding: 22px 24px; font-size: 17px; line-height: 1.75; overflow: hidden; }
 .releasing span { display: inline-block; white-space: pre; animation: drift 2.6s ease-in forwards; }
 @keyframes drift { 0% { opacity: 1; transform: none; filter: none; } 100% { opacity: 0; transform: translateY(-90px) scale(0.92); filter: blur(6px); color: var(--ember); } }
@@ -2658,7 +2707,9 @@ button.refl-status-pill { cursor: pointer; }
 .declare-kept-list { display: grid; gap: 8px; }
 .declare-kept-item { display: flex; justify-content: space-between; gap: 12px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-decoration: none; font-size: 15px; }
 .declare-kept-item:hover { border-color: var(--ember-line); color: var(--text); }
-.declare-kept-item span { font-size: 13px; white-space: nowrap; }
+.declare-kept-item > span.faint { font-size: 13px; white-space: nowrap; }
+.declare-kept-main { display: grid; gap: 2px; min-width: 0; }
+.declare-kept-main small { font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .declare-speak { margin: 0 0 16px; gap: 8px; }
 .declare-speak svg { width: 18px; height: 18px; }
@@ -2672,6 +2723,17 @@ button.refl-status-pill { cursor: pointer; }
 .declare-ref { justify-self: start; font-size: 13px; font-weight: 600; color: var(--ember); text-decoration: none; }
 .declare-ref:hover { color: var(--ember-hi); text-decoration: underline; }
 .declare-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin: 16px 0 10px; }
+.declare-actions .btn svg { width: 15px; height: 15px; }
+/* Make it yours: each line's words open to edit, its verse still under it. */
+.declare-editing .field-wrap { display: grid; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.declare-editing .field { margin: 0; }
+.declare-edit-title { font-size: 17px; font-weight: 600; }
+.declare-edit-say { resize: none; overflow: hidden; font-size: 17px; font-weight: 600; line-height: 1.4; }
+.declare-edit-row { display: flex; gap: 8px; align-items: flex-start; }
+.declare-edit-row .field { flex: 1; }
+.declare-drop { flex: none; color: var(--muted); }
+.declare-drop:disabled { opacity: 0.35; cursor: default; }
+.declare-editing .declare-actions { justify-content: flex-end; margin: 0; }
 
 /* Speak it aloud: over everything, one line at a time. */
 body.aloud-open { overflow: hidden; }
@@ -2692,6 +2754,12 @@ body.aloud-open { overflow: hidden; }
 .aloud-buttons { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; }
 .aloud-buttons .iconbtn { width: 48px; height: 48px; color: var(--soft); }
 .aloud-next { min-height: 48px; font-size: 16px; }
+.aloud-foot[hidden] { display: none; }
+.aloud-stage { cursor: pointer; touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+/* After Amen: a closing word, then say it again or close. */
+.aloud-end { display: grid; gap: 14px; text-align: center; cursor: default; }
+.aloud-end-line { margin: 0; font-size: 17px; color: var(--soft); }
+.aloud-end .aloud-buttons { grid-template-columns: 1fr 1fr; margin-top: 12px; }
 @media (prefers-reduced-motion: reduce) { .aloud, .aloud-dots span { animation: none; transition: none; } }
 
 /* The cave header menu's choices with an info button beside them. */

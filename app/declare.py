@@ -236,15 +236,25 @@ def get_declaration(declaration_id: uuid.UUID, translation: str | None = None, u
     return {**row, "lines": with_text(row["lines"], passages), "translation": translation}
 
 
+def kept_lines(lines: list[KeptLine]) -> list[dict]:
+    """Lines as they're stored: words and a canonical reference, never verse
+    text. A line whose reference isn't a verse, or whose words name one of
+    their own (the person may have reworded it), is refused."""
+    out = []
+    for line in lines:
+        key = canonical_ref(line.ref)
+        if not key:
+            raise HTTPException(status_code=422, detail="One of these lines doesn't point at a verse.")
+        if find_references(line.say):
+            raise HTTPException(status_code=422, detail="Leave references out of the words. Each line's verse is shown under it.")
+        out.append({"say": tidy(line.say), "ref": key})
+    return out
+
+
 @router.post("/me/declarations")
 def keep_declaration(body: KeepIn, user: AuthUser = Depends(require_user)) -> dict:
     """Keeps a declaration: on its own, with a prayer, or as a new prayer."""
-    lines = []
-    for line in body.lines:
-        key = canonical_ref(line.ref)
-        if not key or find_references(line.say):
-            raise HTTPException(status_code=422, detail="One of these lines doesn't point at a verse.")
-        lines.append({"say": tidy(line.say), "ref": key})
+    lines = kept_lines(body.lines)
 
     db = get_supabase()
     prayer_id = str(body.prayer_id) if body.prayer_id else None
@@ -264,6 +274,39 @@ def keep_declaration(body: KeepIn, user: AuthUser = Depends(require_user)) -> di
         db.table("declarations").delete().eq("prayer_id", prayer_id).eq("user_id", user.id).execute()
     kept = _db(lambda: db.table("declarations").insert({**row, "prayer_id": prayer_id}).execute().data[0])
     return {"id": kept["id"], "prayer_id": prayer_id}
+
+
+class EditIn(BaseModel):
+    """What the person can change in a kept declaration: its name and words.
+    The passages stay the ones it was given, though a line can be dropped."""
+    title: str | None = Field(default=None, min_length=1, max_length=80)
+    opening: str | None = Field(default=None, min_length=1, max_length=300)
+    lines: list[KeptLine] | None = Field(default=None, min_length=1, max_length=MAX_LINES)
+
+
+@router.patch("/me/declarations/{declaration_id}")
+def edit_declaration(declaration_id: uuid.UUID, body: EditIn, user: AuthUser = Depends(require_user)) -> dict:
+    """Saves the person's own wording of a kept declaration."""
+    rows = _db(lambda: get_supabase().table("declarations").select("id, lines")
+               .eq("id", str(declaration_id)).eq("user_id", user.id).limit(1).execute().data)
+    if not rows:
+        raise HTTPException(status_code=404, detail="Declaration not found")
+    changes: dict = {}
+    if body.title is not None:
+        changes["title"] = tidy(body.title)
+    if body.opening is not None:
+        changes["opening"] = clean_opening(body.opening)
+    if body.lines is not None:
+        lines = kept_lines(body.lines)
+        # Rewording, or dropping a line, keeps to the passages it was given.
+        given = {line["ref"] for line in rows[0]["lines"]}
+        if any(line["ref"] not in given for line in lines):
+            raise HTTPException(status_code=422, detail="A line can be reworded or removed, but its verse stays the one it was given.")
+        changes["lines"] = lines
+    if changes:
+        _db(lambda: get_supabase().table("declarations").update(changes)
+            .eq("id", str(declaration_id)).eq("user_id", user.id).execute())
+    return {"ok": True, **changes}
 
 
 @router.delete("/me/declarations/{declaration_id}")

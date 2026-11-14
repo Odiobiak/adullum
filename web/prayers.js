@@ -150,6 +150,42 @@
     return el("div", { class: "card-head" }, [cave().titleInfo(el("h2", { class: "kicker", text: label }), about), aside]);
   }
 
+  // This week and Fasting sit above the list, and each folds to its title and
+  // one line (`summary`) so the list stays near the top. Cards start open;
+  // which ones the person folded is remembered on this device.
+  const FOLDED_KEY = "adullamPracticeFolded";
+  function folded() {
+    try { return JSON.parse(localStorage.getItem(FOLDED_KEY)) || {}; } catch { return {}; }
+  }
+  function rememberFold(key, isFolded) {
+    const all = folded();
+    if (isFolded) all[key] = true;
+    else delete all[key];
+    try { localStorage.setItem(FOLDED_KEY, JSON.stringify(all)); } catch { /* private window */ }
+  }
+
+  function foldCard({ key, label, about, summary, className = "", children }) {
+    const open = !folded()[key];
+    const bodyId = `practice-${key}`;
+    const toggle = el("button", { class: "practice-toggle", type: "button", "aria-expanded": String(open), "aria-controls": bodyId }, [
+      el("span", { class: "practice-summary", text: summary }),
+      el("span", { class: "prayer-row-chevron", html: ICON.chevron }),
+    ]);
+    const body = el("div", { class: "practice-body", id: bodyId, hidden: !open }, children.filter(Boolean));
+    const card = el("section", { class: `card practice-card ${className}${open ? " is-open" : ""} fade-in` }, [
+      headWithInfo(label, about, toggle),
+      body,
+    ]);
+    toggle.addEventListener("click", () => {
+      const now = body.hidden;
+      body.hidden = !now;
+      card.classList.toggle("is-open", now);
+      toggle.setAttribute("aria-expanded", String(now));
+      rememberFold(key, !now);
+    });
+    return card;
+  }
+
   function weekCard(week, onChange) {
     const days = week.days_this_week;
     const prayed = week.prayed_today;
@@ -168,14 +204,17 @@
         }
       },
     });
-    return el("section", { class: "card practice-card fade-in" }, [
-      headWithInfo("This week", "A day lights up whenever you pray. Marking a prayer on your list as prayed counts too."),
-      cave().weekDots(week.week, { label: "Days you prayed this week" }),
-      el("div", { class: "practice-foot" }, [
-        el("span", { class: "faint practice-aside", text: days ? `Prayed ${plural(days, "day", "days")}` : "A new week" }),
-        button,
-      ]),
-    ]);
+    const tally = days ? `Prayed ${plural(days, "day", "days")}` : "A new week";
+    return foldCard({
+      key: "week",
+      label: "This week",
+      about: "A day lights up whenever you pray. Marking a prayer on your list as prayed counts too.",
+      summary: prayed ? `${tally} · today too` : tally,
+      children: [
+        cave().weekDots(week.week, { label: "Days you prayed this week" }),
+        el("div", { class: "practice-foot" }, [el("span", { class: "faint practice-aside", text: tally }), button]),
+      ],
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -369,10 +408,15 @@
         el("div", { class: "practice-foot" }, [pray, finish]),
       ].filter(Boolean));
     });
-    return el("section", { class: "card practice-card is-fasting fade-in" }, [
-      headWithInfo("Fasting", "Only you can see this. Days are counted, never kept as a streak, and finishing early is still finishing.", pastFastsLink(fasts, onChange)),
-      ...rows,
-    ]);
+    const [first] = fasts.active;
+    return foldCard({
+      key: "fasting",
+      label: "Fasting",
+      about: "Only you can see this. Days are counted, never kept as a streak, and finishing early is still finishing.",
+      summary: fasts.active.length > 1 ? `${fasts.active.length} fasts underway` : `Day ${first.progress.day} of ${first.progress.of}`,
+      className: "is-fasting",
+      children: [...rows, pastFastsLink(fasts, onChange)],
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -508,8 +552,8 @@
   // ---------------------------------------------------------------------
   // The tab
   // ---------------------------------------------------------------------
-  // The list, with This week and Fasting beside it on a wide screen (under
-  // it on a phone).
+  // This week and Fasting across the top (side by side when there's room),
+  // then the list.
   async function renderTab(panel) {
     const rerender = () => renderTab(panel);
     const today = cave().localToday();
@@ -527,9 +571,9 @@
       : el("div", { class: "practice-stack" }, [
           week.error ? null : weekCard(week, rerender),
           fasts.error || !fasts.active.length ? null : fastCard(fasts, rerender),
-          // With no fast underway, finished ones are still a tap away.
-          !fasts.error && !fasts.active.length ? pastFastsLink(fasts, rerender) : null,
         ].filter(Boolean));
+    // With no fast underway, finished ones are still a tap away, at the foot of the tab.
+    const pastFasts = !fasts.error && !fasts.active.length ? pastFastsLink(fasts, rerender) : null;
     const prayedFor = (week && week.by_prayer) || {};
     const declared = Object.fromEntries(declarations.filter((d) => d.prayer_id).map((d) => [d.prayer_id, d]));
 
@@ -566,7 +610,7 @@
           : el("p", { class: "muted", text: empty }),
       ]);
     }
-    panel.replaceChildren(el("div", { class: "prayers-layout" }, [main, practice]));
+    panel.replaceChildren(el("div", { class: "prayers-layout" }, [practice, main, pastFasts].filter(Boolean)));
   }
 
   // For the tab's New menu: start a fast, then `onSaved` (which redraws the tab).

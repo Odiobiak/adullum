@@ -1522,6 +1522,23 @@
   }
 
   let railTimer = null;
+  // Conversations grouped as Today, Yesterday, This week and Earlier, counted
+  // the same way as each one's own label (`when`), so the two always agree.
+  // Empty groups are left out; each keeps the list's order.
+  function byWhen(rows) {
+    const label = (s) => {
+      const days = Math.floor((Date.now() - new Date(s.updated_at || s.created_at).getTime()) / 864e5);
+      return days < 1 ? "Today" : days === 1 ? "Yesterday" : days < 7 ? "This week" : "Earlier";
+    };
+    const groups = new Map();
+    for (const s of rows) {
+      const key = label(s);
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(s);
+    }
+    return [...groups];
+  }
+
   function refreshRail() {
     if (!signedIn()) return;
     clearTimeout(railTimer);
@@ -1534,7 +1551,10 @@
         const rows = await api("/me/sessions");
         list.replaceChildren(
           ...(rows.length
-            ? rows.slice(0, 30).map((s) => conversationButton(s, () => openSession(s.id)))
+            ? byWhen(rows.slice(0, 30)).flatMap(([label, group]) => [
+                el("p", { class: "rail-label", text: label }),
+                ...group.map((s) => conversationButton(s, () => openSession(s.id))),
+              ])
             : [el("p", { class: "faint", style: "padding:4px 10px;font-size:14px", text: "Your conversations will appear here." })])
         );
       } catch {
@@ -1823,15 +1843,16 @@
   // #bible/saved, #bible/plans).
   // ---------------------------------------------------------------------
   // Hash routes that open a tab directly, and the header button each tab shows.
+  // A bare #cave (the Cave tab in the nav) always opens Refuge.
   // #amens opens Refuge already inside the Amens room.
   // #reflection/<id> opens a reflection inside the Journal tab (web/reflections.js).
-  const CAVE_ROUTES = { journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", pebbles: "refuge", reflection: "journal" };
+  const CAVE_ROUTES = { cave: "refuge", journal: "journal", prayers: "prayers", refuge: "refuge", amens: "refuge", pebbles: "refuge", reflection: "journal" };
   const CAVE_ACTIONS = {
     journal: ["New entry", () => newEntryMenu()],
     prayers: ["New", () => newPrayerMenu()],
     // Refuge has no header button: its rooms are its own ways in.
   };
-  let caveTab = "journal";
+  let caveTab = "refuge";
   let tagFilter = null;
 
   // `route` is the hash that opened the cave, passed on so a tab can open
@@ -2342,6 +2363,11 @@
     wireAuth();
     wireSettings();
     $$("[data-cave-tab]").forEach((b) => b.addEventListener("click", () => showCave(b.dataset.caveTab)));
+    // The tabs don't change the hash, so tapping Cave while already on #cave
+    // fires no route change. Open Refuge anyway, as a fresh visit would.
+    $$('a[href="#cave"]').forEach((a) => a.addEventListener("click", () => {
+      if (location.hash === "#cave" && caveTab !== "refuge") showCave("refuge");
+    }));
     $("#caveAction").addEventListener("click", () => CAVE_ACTIONS[caveTab] && CAVE_ACTIONS[caveTab][1]());
     if (signedIn()) loadProfile();
     else updateChrome();

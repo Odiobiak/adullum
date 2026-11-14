@@ -16,6 +16,8 @@
     back: svg('<path d="M15 18l-6-6 6-6"/>'),
     speak: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
     close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
+    edit: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
+    share: svg('<path d="M12 15V4M8 8l4-4 4 4"/><path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5"/>'),
   };
 
   const ABOUT = "Facing something, like an interview or an exam? Say what it is and declare Scripture over it, out loud. Every verse is shown word for word, read from the Bible.";
@@ -40,18 +42,23 @@
 
   let context = { from: "home" }; // how the page was opened, with the prayer when there is one
   let current = null; // the declaration on screen
+  let editing = false; // the words open for the person to make their own
   let closeAloud = () => {};
 
   // Opens the page from somewhere else in the app.
   function open(ctx = { from: "home" }) {
     context = ctx;
     current = null;
+    editing = false;
     if (location.hash === "#declare") show("");
     else location.hash = "declare";
   }
 
   async function show(sub) {
-    if (sub) return showKept(sub);
+    if (sub) {
+      editing = false;
+      return showKept(sub);
+    }
     if (current) return renderWords();
     // A prayer that already has a kept declaration opens straight onto it.
     if (context.from === "prayer") {
@@ -151,7 +158,11 @@
       el("h2", { class: "section-title", text: "Kept" }),
       el("div", { class: "declare-kept-list" }, rows.map((d) =>
         el("a", { class: "declare-kept-item", href: `#declare/${d.id}` }, [
-          el("strong", { text: d.title }), el("span", { class: "faint", text: cave().when(d.created_at) }),
+          el("span", { class: "declare-kept-main" }, [
+            el("strong", { text: d.title }),
+            el("small", { text: d.name ? `For ${d.name} · ${d.situation}` : d.situation }),
+          ]),
+          el("span", { class: "faint", text: cave().when(d.created_at) }),
         ])
       ))
     );
@@ -188,6 +199,7 @@
 
   function renderWords() {
     const d = current;
+    if (editing) return renderEditor();
     const back = d.id
       ? backTo(context.from === "home" ? "Declare" : "Prayers", () => { current = null; location.hash = context.from === "home" ? "declare" : "prayers"; })
       : backTo("Change it", () => { const s = d.situation; current = null; context.name = d.name; renderForm(s); });
@@ -196,10 +208,7 @@
       el("p", { class: "declare-opening", text: d.opening }),
       ...d.lines.map((line) => el("div", { class: "declare-line" }, [
         el("p", { class: "declare-say", text: line.say }),
-        el("blockquote", { class: "declare-verse" }, [
-          el("p", { class: "scripture", text: line.text }),
-          el("a", { class: "declare-ref", href: `#${window.Reader.href(line.ref)}`, text: line.ref }),
-        ]),
+        verseBlock(line),
       ])),
       el("p", { class: "declare-opening declare-amen", text: "Amen." }),
     ]);
@@ -207,8 +216,12 @@
     const keepLabel = { home: "Keep", prayer: "Keep with this prayer", quick: "Keep as a prayer" }[context.from];
     const actions = el("div", { class: "declare-actions" }, [
       d.id ? null : el("button", { class: "btn btn-ghost btn-sm", type: "button", text: keepLabel, onclick: (e) => keep(e.currentTarget) }),
+      el("button", { class: "btn btn-ghost btn-sm", type: "button", html: `${ICON.edit}<span>Make it yours</span>`, onclick: () => { editing = true; renderWords(); } }),
       el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Other words", onclick: (e) => again(e.currentTarget) }),
-      d.id ? cave().moreMenu("More for this declaration", [{ label: "Delete", danger: true, onClick: remove }]) : null,
+      cave().moreMenu("More for this declaration", [
+        { label: navigator.share ? "Share" : "Copy the words", onClick: () => share(d) },
+        d.id ? { label: "Delete", danger: true, onClick: remove } : null,
+      ]),
     ]);
 
     page().replaceChildren(
@@ -219,6 +232,113 @@
       el("p", { class: "faint declare-note", text: `Shown in ${d.translation}. Change it in Settings.` })
     );
     window.scrollTo({ top: 0 });
+  }
+
+  // A line's verse, word for word as read from the database, with its reference.
+  function verseBlock(line) {
+    return el("blockquote", { class: "declare-verse" }, [
+      el("p", { class: "scripture", text: line.text }),
+      el("a", { class: "declare-ref", href: `#${window.Reader.href(line.ref)}`, text: line.ref }),
+    ]);
+  }
+
+  // ---------------------------------------------------------------------
+  // Make it yours: reword the name, the opening and each line, or drop a
+  // line. Each line keeps the verse it was given, which stays in view under
+  // it, and the server refuses a reference typed into the words
+  // (declare.py::kept_lines), since the verse already sits underneath.
+  // ---------------------------------------------------------------------
+  function renderEditor() {
+    const d = current;
+    const msg = cave().formMessage();
+    const grow = (box) => {
+      const fit = () => { box.style.height = "auto"; box.style.height = `${box.scrollHeight + 2}px`; };
+      box.addEventListener("input", fit);
+      requestAnimationFrame(fit);
+      return box;
+    };
+    const title = el("input", { class: "field declare-edit-title", maxlength: "80", "aria-label": "Name" });
+    title.value = d.title;
+    const opening = grow(el("textarea", { class: "field declare-edit-say", rows: "1", maxlength: "300", "aria-label": "Opening line" }));
+    opening.value = d.opening;
+
+    let lines = d.lines.map((line) => ({ ...line }));
+    const list = el("div", { class: "declare-edit-lines" });
+    function drawLines() {
+      list.replaceChildren(...lines.map((line, i) => {
+        const box = grow(el("textarea", { class: "field declare-edit-say", rows: "1", maxlength: "400", "aria-label": `Line ${i + 1}` }));
+        box.value = line.say;
+        box.addEventListener("input", () => { line.say = box.value; });
+        return el("div", { class: "declare-line declare-edit-line" }, [
+          el("div", { class: "declare-edit-row" }, [
+            box,
+            el("button", {
+              class: "iconbtn declare-drop", type: "button", "aria-label": `Remove line ${i + 1}`, title: "Remove this line",
+              html: ICON.close, disabled: lines.length === 1,
+              onclick: () => { lines = lines.filter((x) => x !== line); drawLines(); },
+            }),
+          ]),
+          verseBlock(line),
+        ]);
+      }));
+    }
+    drawLines();
+
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Done" });
+    const form = el("form", { class: "card declare-words declare-editing" }, [
+      el("label", { class: "field-wrap" }, ["Name", title]),
+      el("label", { class: "field-wrap" }, ["Opening", opening]),
+      list,
+      el("p", { class: "declare-opening declare-amen", text: "Amen." }),
+      msg.node,
+      el("div", { class: "declare-actions" }, [
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => { editing = false; renderWords(); } }),
+        save,
+      ]),
+    ]);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const edited = {
+        title: title.value.trim(),
+        opening: opening.value.trim(),
+        lines: lines.map((line) => ({ ...line, say: line.say.trim() })),
+      };
+      if (!edited.title || !edited.opening || edited.lines.some((line) => !line.say)) return msg.say("Leave no part empty.", true);
+      // A kept one saves now; new words are checked when they're kept.
+      if (d.id) {
+        save.disabled = true;
+        try {
+          const res = await api(`/me/declarations/${d.id}`, {
+            method: "PATCH",
+            body: { title: edited.title, opening: edited.opening, lines: edited.lines.map(({ say, ref }) => ({ say, ref })) },
+          });
+          edited.opening = res.opening || edited.opening;
+          toast("Saved.");
+        } catch (err) {
+          save.disabled = false;
+          return msg.say(err.message, true);
+        }
+      }
+      current = { ...d, ...edited };
+      editing = false;
+      renderWords();
+    });
+
+    page().replaceChildren(head("Make it yours", backTo("Back", () => { editing = false; renderWords(); })), form);
+    title.focus();
+  }
+
+  // The declaration as plain text, verses word for word, for the phone's own
+  // share sheet or the clipboard. Nothing goes through Adullam.
+  function share(d) {
+    const text = [
+      d.opening,
+      ...d.lines.map((line) => `${line.say}\n"${line.text}" (${line.ref}, ${d.translation})`),
+      "Amen.",
+    ].join("\n\n");
+    if (navigator.share) return navigator.share({ title: d.title, text }).catch(() => {});
+    if (!navigator.clipboard) return toast("Couldn't copy here.", { tone: "error" });
+    navigator.clipboard.writeText(text).then(() => toast("Copied.")).catch(() => toast("Couldn't copy.", { tone: "error" }));
   }
 
   async function keep(button) {
@@ -278,8 +398,11 @@
   }
 
   // ---------------------------------------------------------------------
-  // Speak it aloud: one line at a time, full screen
+  // Speak it aloud: one line at a time, full screen. Tap the words or swipe
+  // to move on, swipe back to go back, or use the arrow keys. After Amen it
+  // rests on a closing screen, with a way to say it all again.
   // ---------------------------------------------------------------------
+  const SWIPE_PX = 50;
   function speakAloud(d) {
     const steps = [{ say: d.opening }, ...d.lines, { say: "Amen." }];
     let at = 0;
@@ -294,8 +417,22 @@
         el("button", { class: "iconbtn", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => close() }), dots, count,
       ]),
       stage,
-      el("div", { class: "aloud-foot" }, [el("p", { class: "faint", text: "Say it out loud, then tap Next." }), el("div", { class: "aloud-buttons" }, [prev, next])]),
+      el("div", { class: "aloud-foot" }, [el("p", { class: "faint aloud-hint", text: "Say it out loud, then tap or swipe." }), el("div", { class: "aloud-buttons" }, [prev, next])]),
     ]);
+    const foot = wrap.querySelector(".aloud-foot");
+
+    // A tap on the words moves on; a sideways swipe moves either way. A drag
+    // that's mostly up or down is left alone, so long words can scroll.
+    let downAt = null;
+    stage.addEventListener("pointerdown", (e) => { downAt = { x: e.clientX, y: e.clientY }; });
+    stage.addEventListener("pointerup", (e) => {
+      if (!downAt || done) return;
+      const dx = e.clientX - downAt.x;
+      const dy = e.clientY - downAt.y;
+      downAt = null;
+      if (Math.abs(dx) > SWIPE_PX && Math.abs(dx) > Math.abs(dy)) step(dx < 0 ? 1 : -1);
+      else if (Math.abs(dx) < 10 && Math.abs(dy) < 10 && !e.target.closest("a, button")) step(1);
+    });
 
     function draw() {
       const s = steps[at];
@@ -310,12 +447,30 @@
       next.textContent = at === steps.length - 1 ? "Done" : "Next";
     }
     function step(by) {
-      if (at + by >= steps.length) return close();
+      if (at + by >= steps.length) return finish();
       at = Math.max(0, at + by);
       draw();
     }
+
+    // After Amen: a moment to rest, then say it again or close.
+    let done = false;
+    function finish() {
+      done = true;
+      [...dots.children].forEach((dot) => dot.classList.add("is-on"));
+      count.textContent = "";
+      foot.hidden = true;
+      stage.replaceChildren(el("div", { class: "aloud-end fade-in" }, [
+        el("p", { class: "aloud-say", text: "Spoken." }),
+        el("p", { class: "aloud-end-line", text: "Keep these words close today, and come back to say them again." }),
+        el("div", { class: "aloud-buttons" }, [
+          el("button", { class: "btn btn-ghost", type: "button", text: "Say it again", onclick: () => { done = false; at = 0; foot.hidden = false; draw(); } }),
+          el("button", { class: "btn btn-ember", type: "button", text: "Done", onclick: () => close() }),
+        ]),
+      ]));
+    }
     function onKey(e) {
       if (e.key === "Escape") close();
+      else if (done) return;
       else if (e.key === "ArrowRight") step(1);
       else if (e.key === "ArrowLeft") step(-1);
     }
@@ -324,6 +479,7 @@
       document.body.classList.remove("aloud-open");
       document.removeEventListener("keydown", onKey);
       if (wakeLock) wakeLock.release().catch(() => {});
+      if (document.fullscreenElement === wrap) document.exitFullscreen().catch(() => {});
       closeAloud = () => {};
     }
 
@@ -333,6 +489,9 @@
     document.addEventListener("keydown", onKey);
     // Keeps the screen on while they're reading aloud, where it's allowed.
     if (navigator.wakeLock) navigator.wakeLock.request("screen").then((lock) => (wakeLock = lock)).catch(() => {});
+    // The browser's own full screen where it's allowed (not on iPhones), so
+    // the address bar steps away too.
+    if (wrap.requestFullscreen) wrap.requestFullscreen().catch(() => {});
     draw();
     wrap.focus();
   }

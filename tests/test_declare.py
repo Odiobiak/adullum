@@ -190,3 +190,19 @@ class TestKeeping:
         client.get("/me/declarations", headers=HEADERS)
         client.delete("/me/declarations/33333333-3333-3333-3333-333333333333", headers=HEADERS)
         assert db.calls.count(("eq", ("user_id", USER.id))) == 2
+
+    def test_a_kept_one_can_be_reworded_within_its_own_passages(self, monkeypatch):
+        db = FakeDb([{"id": "d1", "lines": [{"say": "Old words.", "ref": "2 Timothy 1:7"}]}])
+        monkeypatch.setattr(declare, "get_supabase", lambda: db)
+        path = "/me/declarations/33333333-3333-3333-3333-333333333333"
+        res = client.patch(path, json={"lines": [{"say": "My own words.", "ref": "2 Timothy 1:7"}]}, headers=HEADERS)
+        assert res.json()["lines"] == [{"say": "My own words.", "ref": "2 Timothy 1:7"}]
+        assert db.calls.count(("eq", ("user_id", USER.id))) == 2
+        # A new passage, or a reference typed into the words, is refused.
+        assert client.patch(path, json={"lines": [{"say": "Words.", "ref": "John 3:16"}]}, headers=HEADERS).status_code == 422
+        assert client.patch(path, json={"lines": [{"say": "As John 3:16 says.", "ref": "2 Timothy 1:7"}]}, headers=HEADERS).status_code == 422
+
+    def test_editing_someone_elses_is_a_404(self, monkeypatch):
+        monkeypatch.setattr(declare, "get_supabase", lambda: FakeDb([]))
+        res = client.patch("/me/declarations/33333333-3333-3333-3333-333333333333", json={"title": "Mine"}, headers=HEADERS)
+        assert res.status_code == 404

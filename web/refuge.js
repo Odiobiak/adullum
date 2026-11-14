@@ -117,7 +117,8 @@
   // Called by web/cave.js whenever another tab or view takes over. A talk that
   // wasn't kept vanishes here, as Refuge promises.
   function hide() {
-    document.body.classList.remove("in-refuge");
+    document.body.classList.remove("in-refuge", "write-focus");
+    stopSpeaking();
     talk = null;
     stopStill();
     panel = null;
@@ -126,6 +127,8 @@
   function show(...nodes) {
     if (!panel) return;
     stopStill();
+    stopSpeaking();
+    document.body.classList.remove("write-focus");
     panel.replaceChildren(el("div", { class: "refuge" }, nodes.filter(Boolean)));
     // Moving between rooms from far down the page brings the new room into view.
     if (panel.getBoundingClientRect().top < 0) panel.scrollIntoView({ block: "start" });
@@ -331,9 +334,23 @@
     },
   };
 
+  // Gentle ways in for a blank page, offered one at a time by "A nudge".
+  const NUDGES = [
+    "What's on your mind right now?",
+    "If you could tell God one thing today, what would it be?",
+    "What are you carrying that you'd like to set down?",
+    "What surprised you this week?",
+    "Who has been on your heart lately, and why?",
+    "What do you need most today?",
+    "What are you grateful for that you almost missed?",
+    "Where did you feel far from God, or close to Him, this week?",
+  ];
+  let nudgeAt = -1;
+
   function writeRoom(shape = "blank") {
     const spec = SHAPES[shape];
     const blank = el("textarea", { class: "refuge-page", placeholder: "Start anywhere. It isn't saved while you write.", "aria-label": "What you want to write" });
+    const nudgeLine = el("p", { class: "write-nudge", hidden: true, "aria-live": "polite" });
     const steps = (spec.steps || []).map(([q, hint]) => {
       const box = el("textarea", { class: "refuge-page refuge-page-sm", "aria-label": q });
       return { q, box, node: el("div", { class: "lament-step" }, [el("label", { text: q }), el("p", { class: "hint", text: hint }), box]) };
@@ -343,12 +360,45 @@
       ? steps.filter((s) => s.box.value.trim()).map((s) => `${s.q}\n${s.box.value.trim()}`).join("\n\n")
       : blank.value.trim();
 
+    // Changing shape starts a new page, so words already written are checked first.
     const shapes = el("div", { class: "moods", role: "group", "aria-label": "How to write", style: "margin:0" }, Object.entries(SHAPES).map(([key, s]) =>
-      el("button", { class: "mood", type: "button", style: "text-transform:none", "aria-pressed": String(key === shape), text: s.label, onclick: () => writeRoom(key) })
+      el("button", { class: "mood", type: "button", style: "text-transform:none", "aria-pressed": String(key === shape), text: s.label, onclick: () => key !== shape && leave(() => writeRoom(key)) })
     ));
 
+    // How much is written, said quietly beside the promise that none of it is saved.
+    const tally = el("span", { class: "faint", "aria-live": "off" });
+    const count = () => {
+      const words = (writing().match(/\S+/g) || []).length;
+      tally.textContent = words ? `Nothing is saved unless you keep it · ${plural(words, "word", "words")}` : "Nothing is saved unless you keep it.";
+    };
+
+    // Leaving with words on the page asks first, since they can't be brought back.
+    const leave = (go) => {
+      if (writing() && !confirm("Leave without keeping it? What you wrote will be gone.")) return;
+      document.body.classList.remove("write-focus");
+      go();
+    };
+
+    // "A nudge" offers one question at a time for a blank page.
+    const nudge = shape === "blank"
+      ? el("button", { class: "act", type: "button", text: "A nudge", onclick: () => {
+          nudgeAt = (nudgeAt + 1) % NUDGES.length;
+          nudgeLine.textContent = NUDGES[nudgeAt];
+          nudgeLine.hidden = false;
+          blank.focus();
+        } })
+      : null;
+
+    // Focus: the page fills the screen with nothing else around it.
+    const focusBtn = el("button", { class: "act", type: "button", "aria-pressed": "false", text: "Focus", onclick: () => {
+      const on = document.body.classList.toggle("write-focus");
+      focusBtn.setAttribute("aria-pressed", String(on));
+      focusBtn.textContent = on ? "Done" : "Focus";
+      (spec.steps ? steps[0].box : blank).focus();
+    } });
+
     const actions = [
-      el("span", { class: "faint", text: "Nothing is saved unless you keep it." }),
+      tally,
       shape === "dream"
         ? el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Make it a goal", onclick: () => {
             // The hope becomes the goal, what they'd ask God is why it
@@ -364,6 +414,7 @@
         if (!body) return toast("Write a little first.", { tone: "info" });
         try {
           await api("/me/refuge/writings", { method: "POST", body: { shape, body } });
+          document.body.classList.remove("write-focus");
           toast("Kept. Only you can open it.");
           threshold();
         } catch (err) {
@@ -373,11 +424,23 @@
       el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Let it go", onclick: () => {
         const body = writing();
         if (!body) return toast("Write a little first.", { tone: "info" });
+        document.body.classList.remove("write-focus");
         release(body, spec.release, shape);
       } }),
     ];
 
-    show(room("Write it out", spec.lede, shapes, el("div", { class: "write-body" }, spec.steps ? steps.map((s) => s.node) : [blank]), el("div", { class: "release-row" }, actions)));
+    const node = room("Write it out", spec.lede,
+      el("div", { class: "write-tools" }, [shapes, el("div", { class: "write-tools-end" }, [nudge, focusBtn])]),
+      el("div", { class: "write-body" }, spec.steps ? steps.map((s) => s.node) : [nudgeLine, blank]),
+      el("div", { class: "release-row" }, actions));
+    node.classList.add("write-room");
+    node.querySelector(".back").onclick = () => leave(threshold);
+    node.addEventListener("input", count);
+    node.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && document.body.classList.contains("write-focus")) focusBtn.click();
+    });
+    count();
+    show(node);
     (spec.steps ? steps[0].box : blank).focus();
   }
 
@@ -415,10 +478,49 @@
     "I'm scared",
   ];
 
-  function aquilaBubble(text, extra) {
+  // Reading a reply aloud uses only a voice built into this device, never
+  // one that sends the words to a server, so a talk in Refuge stays here.
+  // With no such voice the button doesn't appear.
+  const canSpeak = "speechSynthesis" in window;
+  let speaking = null; // the Listen button whose reply is being read
+  function localVoice() {
+    const lang = (navigator.language || "en").split("-")[0];
+    const voices = speechSynthesis.getVoices().filter((v) => v.localService && v.lang.startsWith(lang));
+    return voices.find((v) => v.default) || voices[0] || null;
+  }
+  function stopSpeaking() {
+    if (!canSpeak || !speaking) return;
+    speechSynthesis.cancel();
+    speaking.setAttribute("aria-pressed", "false");
+    speaking = null;
+  }
+  function listenButton(text) {
+    if (!canSpeak) return null;
+    const btn = el("button", { class: "listen-btn", type: "button", "aria-pressed": "false", "aria-label": "Listen", title: "Listen", html: ICON.sound });
+    btn.onclick = () => {
+      if (speaking === btn) return stopSpeaking();
+      stopSpeaking();
+      const voice = localVoice();
+      if (!voice) return toast("This device has no built-in voice to read with.", { tone: "info" });
+      const line = new SpeechSynthesisUtterance(text);
+      line.voice = voice;
+      line.rate = 0.95;
+      line.onend = line.onerror = () => speaking === btn && stopSpeaking();
+      speaking = btn;
+      btn.setAttribute("aria-pressed", "true");
+      speechSynthesis.speak(line);
+    };
+    return btn;
+  }
+
+  function aquilaBubble(text, extra, { listen = false } = {}) {
     return el("div", { class: "soft-aq" }, [
       aquilaAvatar(),
-      el("div", { class: "words" }, [...text.split(/\n{2,}/).map((p) => el("p", { text: p })), extra || null]),
+      el("div", { class: "words" }, [
+        ...text.split(/\n{2,}/).map((p) => el("p", { text: p })),
+        extra || null,
+        listen ? listenButton(text) : null,
+      ]),
     ]);
   }
 
@@ -432,7 +534,7 @@
   function messageNode(m) {
     if (m.role === "user") return el("div", { class: "msg-me", text: m.content });
     const links = (m.verses || []).map((v) => el("a", { class: "verse-ref", href: `#${window.Reader.href(`${v.book} ${v.chapter}:${v.verse}`)}`, text: `Read ${v.book} ${v.chapter}:${v.verse} in context` }));
-    return aquilaBubble(m.content, m.care ? careCard() : links.length ? el("p", {}, links) : null);
+    return aquilaBubble(m.content, m.care ? careCard() : links.length ? el("p", {}, links) : null, { listen: m.content !== OPENING });
   }
 
   // Only role and content go to the server; verses and care are for drawing.
@@ -461,7 +563,9 @@
     if (!talk) talk = { messages: [{ role: "aquila", content: OPENING }], keptId: null };
     const list = el("div", { class: "soft-thread", "aria-live": "polite" }, talk.messages.map(messageNode));
     const box = el("textarea", { rows: "1", maxlength: "4000", placeholder: "Say as much or as little as you want", "aria-label": "Message to Aquila" });
-    const sendBtn = el("button", { class: "iconbtn", type: "button", "aria-label": "Send", html: ICON.send });
+    // Send stays quiet until there's something to send.
+    const sendBtn = el("button", { class: "iconbtn", type: "button", "aria-label": "Send", html: ICON.send, disabled: true });
+    const ready = () => { sendBtn.disabled = busy || !box.value.trim(); };
     // The voice call lives only here. It's a call of its own over Cognigy, so
     // its warning comes first (index.html::openVoice) and nothing from it
     // joins this written talk.
@@ -513,7 +617,7 @@
       text = (text || "").trim();
       if (!text || busy || !talk) return;
       busy = true;
-      sendBtn.disabled = true;
+      ready();
       if (starters) starters.remove();
       const mine = { role: "user", content: text };
       talk.messages.push(mine);
@@ -537,14 +641,20 @@
         node.scrollIntoView({ behavior: "smooth", block: "nearest" });
         saveKept();
       } catch (err) {
-        // A daily limit is said as it is; anything else can be sent again.
-        const note = err.status === 429 ? err.message : `${err.message} Your words are still here; try sending again.`;
-        wait.replaceWith(el("p", { class: `form-msg${err.status === 429 ? "" : " bad"}`, text: note }));
+        // A daily limit is said as it is; anything else can be sent again
+        // with one tap, and the words stay in the box either way.
         current.messages.pop();
+        list.lastElementChild.previousElementSibling?.remove(); // the unsent message
+        const limited = err.status === 429;
+        const note = el("div", { class: `form-msg talk-error${limited ? "" : " bad"}`, role: "alert" }, [
+          el("span", { text: err.message }),
+          limited ? null : el("button", { class: "act", type: "button", text: "Send again", onclick: () => { note.remove(); send(box.value); } }),
+        ]);
+        wait.replaceWith(note);
         box.value = text;
       } finally {
         busy = false;
-        sendBtn.disabled = false;
+        ready();
       }
     }
     sendBtn.onclick = () => send(box.value);
@@ -557,6 +667,7 @@
     box.addEventListener("input", () => {
       box.style.height = "auto";
       box.style.height = `${Math.min(box.scrollHeight, 160)}px`;
+      ready();
     });
 
     show(room("Talk with Aquila", null,
@@ -821,21 +932,31 @@
     const mark = async (day, tended) => {
       try {
         await api(`/me/refuge/seeds/${seed.id}/tend`, { method: "POST", body: { today: cave().localToday(), day, tended } });
-        rerender();
       } catch (err) {
         toast(err.message, { tone: "error" });
       }
+      // Either way the row is redrawn from the server, so a tick that
+      // didn't save never stays showing.
+      rerender();
     };
     const metWeek = seed.week_done >= seed.per_week;
     const sub = active
       ? `${seed.week_done} of ${seed.per_week} this week${metWeek ? " · well done" : ""}`
       : `${STATUS_LABEL[seed.status]}${seed.fulfilled_at ? ` ${shortDate(seed.fulfilled_at)}` : ""} · ${perWeekLabel(seed.per_week)}`;
-    return el("div", { class: `habit-row${seed.tended_today ? " is-done" : ""}${active ? "" : " is-quiet"}` }, [
+    const row = el("div", { class: `habit-row${seed.tended_today ? " is-done" : ""}${active ? "" : " is-quiet"}` });
+    row.append(...[
       active
         ? el("button", {
             class: "habit-check", type: "button", "aria-pressed": String(seed.tended_today),
             "aria-label": `Done today: ${seed.title}`, html: ICON.check,
-            onclick: () => mark(cave().localToday(), !seed.tended_today),
+            onclick: (e) => {
+              // The tick shows at once; the redraw after the server confirms it.
+              const done = !seed.tended_today;
+              row.classList.toggle("is-done", done);
+              e.currentTarget.setAttribute("aria-pressed", String(done));
+              e.currentTarget.disabled = true;
+              mark(cave().localToday(), done);
+            },
           })
         : el("span", { class: "habit-check", "aria-hidden": "true", html: ICON.check }),
       el("div", { class: "habit-main" }, [
@@ -844,20 +965,22 @@
       ]),
       active ? cave().weekDots(seed.week, { label: `${seed.title}, this week`, onToggle: (m) => mark(m.day, !m.done) }) : null,
       pebbleMenu(seed, rerender),
-    ]);
+    ].filter(Boolean));
+    return row;
   }
 
   // A goal as a card: how far along it is, and the one thing to do next.
   function goalCard(seed, rerender) {
     const active = seed.status === "growing";
     const m = seed.measure;
+    // Redrawn either way, so a step or tick that didn't save never stays showing.
     const patch = async (body) => {
       try {
         await api(`/me/refuge/seeds/${seed.id}`, { method: "PATCH", body });
-        rerender();
       } catch (err) {
         toast(err.message, { tone: "error" });
       }
+      rerender();
     };
     const complete = m && m.fraction >= 1;
     // Once there's nothing left to count, reaching it is the next thing, so
@@ -888,11 +1011,32 @@
       ]);
     }
 
+    const tick = (i, done) => {
+      const next = seed.steps.map((x, j) => (j === i ? { ...x, done } : x));
+      if (done && next.every((x) => x.done)) toast("Every step done. Mark it reached when you're ready.", { tone: "info" });
+      patch({ steps: next });
+    };
+    // A new step goes on the end with Enter, without opening the edit sheet.
+    const addStep = active && m && m.by === "steps"
+      ? el("input", {
+          class: "step-add", maxlength: "200", placeholder: "Add a step", "aria-label": `Add a step to ${seed.title}`,
+          onkeydown: (e) => {
+            const text = e.target.value.trim();
+            if (e.key !== "Enter" || !text) return;
+            e.preventDefault();
+            e.target.disabled = true;
+            patch({ steps: [...seed.steps, { text, done: false }] });
+          },
+        })
+      : null;
     const steps = m && m.by === "steps"
-      ? el("div", { class: "steps" }, seed.steps.map((s, i) => el("label", { class: `step${s.done ? " done" : ""}` }, [
-          el("input", { type: "checkbox", checked: s.done, disabled: !active, onchange: (e) => patch({ steps: seed.steps.map((x, j) => (j === i ? { ...x, done: e.target.checked } : x)) }) }),
-          el("span", { text: s.text }),
-        ])))
+      ? el("div", { class: "steps" }, [
+          ...seed.steps.map((s, i) => el("label", { class: `step${s.done ? " done" : ""}` }, [
+            el("input", { type: "checkbox", checked: s.done, disabled: !active, onchange: (e) => tick(i, e.target.checked) }),
+            el("span", { text: s.text }),
+          ])),
+          addStep,
+        ])
       : null;
 
     const status = active
@@ -1011,7 +1155,7 @@
     sleep: { name: "Deep rest", line: "In for 4, hold for 7, out for 8. Unhurried, for winding down at night.", phases: [["in", 4], ["hold", 7], ["out", 8]] },
   };
   const PHASE_WORDS = { in: "Breathe in", hold: "Hold", out: "Breathe out", rest: "Rest" };
-  const LENGTHS = [1, 3, 5, 10];
+  const LENGTHS = [1, 3, 5, 10, 15];
   const SETTLE_SECONDS = 3; // "Settle in" before the first breath
   const RECORD_AFTER = 20; // seconds of breathing before a pause counts this week
 
@@ -1110,7 +1254,19 @@
       minutes: LENGTHS.includes(saved.minutes) ? saved.minutes : 3,
       prayer: saved.prayer === NO_PRAYER || BREATH_PRAYERS.some((p) => p.id === saved.prayer) ? saved.prayer : "still",
       tones: saved.tones === true,
+      buzz: saved.buzz === true,
     };
+  }
+
+  // A small pulse as the breath turns, on phones that can (most Android
+  // phones; iPhones can't), so eyes can stay closed in silence too.
+  const canBuzz = typeof navigator.vibrate === "function";
+  function buzz(kind) {
+    try {
+      navigator.vibrate(kind === "in" ? 40 : [25, 70, 25]);
+    } catch {
+      /* fine without it */
+    }
   }
 
   // A local day as YYYY-MM-DD, `back` days before today.
@@ -1128,6 +1284,14 @@
     const oldest = dayKey(13);
     for (const day of Object.keys(log)) if (day < oldest) delete log[day];
     writeLocal(STILL_LOG_KEY, log);
+  }
+  // The last seven days as dots for cave().weekDots, lit on any day with a pause.
+  function stillWeek() {
+    const log = readLocal(STILL_LOG_KEY, {});
+    return [6, 5, 4, 3, 2, 1, 0].map((back) => {
+      const day = dayKey(back);
+      return { day, done: !!log[day], today: back === 0, future: false, label: cave().localDate(day).toLocaleDateString(undefined, { weekday: "narrow" }) };
+    });
   }
   function weekTally() {
     const log = readLocal(STILL_LOG_KEY, {});
@@ -1181,6 +1345,7 @@
     document.removeEventListener("keydown", still.onKey);
     document.removeEventListener("visibilitychange", still.onVisible);
     if (still.wake) still.wake.release().catch(() => {});
+    if (document.fullscreenElement === still.node) document.exitFullscreen().catch(() => {});
     still.node.remove();
     document.body.classList.remove("still-open");
     still = null;
@@ -1271,6 +1436,12 @@
       save();
       if (tones.checked) chime("in"); // a taste of it, and it unlocks sound on iPhones
     });
+    const buzzBox = el("input", { type: "checkbox", checked: prefs.buzz });
+    buzzBox.addEventListener("change", () => {
+      prefs.buzz = buzzBox.checked;
+      save();
+      if (buzzBox.checked) buzz("in"); // a taste of it
+    });
 
     const tally = weekTally();
     paintSummary();
@@ -1285,10 +1456,14 @@
           el("div", { class: "still-field" }, [el("p", { class: "still-label", text: "Rhythm" }), rhythms, rhythmLine]),
           el("div", { class: "still-field" }, [el("p", { class: "still-label", text: "Length" }), lengths]),
           el("label", { class: "switch still-switch" }, [tones, "Soft tones as the breath turns, so you can close your eyes"]),
+          canBuzz ? el("label", { class: "switch still-switch" }, [buzzBox, "A gentle vibration as the breath turns"]) : null,
         ]),
-        el("p", { class: "still-tally", text: tally.times
-          ? `This week: ${plural(tally.times, "quiet moment", "quiet moments")}, ${plural(tally.minutes, "minute", "minutes")}. Kept on this device only.`
-          : "Nothing here leaves your device." }),
+        el("div", { class: "still-week" }, [
+          tally.times ? cave().weekDots(stillWeek(), { label: "Quiet moments in the last seven days" }) : null,
+          el("p", { class: "still-tally", text: tally.times
+            ? `This week: ${plural(tally.times, "quiet moment", "quiet moments")}, ${plural(tally.minutes, "minute", "minutes")}. Kept on this device only.`
+            : "Nothing here leaves your device." }),
+        ]),
       ]),
     ]));
     showPrayer();
@@ -1364,6 +1539,7 @@
       light.style.transform = kind === "in" || kind === "hold" ? "scale(1)" : "scale(0.55)";
       if (lines) showWords(kind === "in" || kind === "hold" ? lines.in : lines.out);
       if (prefs.tones && moving) chime(kind);
+      if (prefs.buzz && moving && canBuzz) buzz(kind);
     }
 
     function tick() {
@@ -1493,6 +1669,7 @@
     document.addEventListener("keydown", still.onKey);
     document.addEventListener("visibilitychange", still.onVisible);
     keepScreenOn();
+    if (node.requestFullscreen) node.requestFullscreen().catch(() => {});
     node.focus();
     count.textContent = String(SETTLE_SECONDS);
     still.timer = setInterval(tick, 200);
@@ -2280,9 +2457,14 @@
         el("div", {}, el("a", { class: "btn btn-ember btn-sm", href: "https://www.google.com/maps/search/church+near+me", target: "_blank", rel: "noopener", text: "Find churches near me" })),
         el("p", { class: "kicker", style: "margin:6px 0 0", text: "Not sure what to say? You could start with this" }),
         el("p", { class: "say-this", text: words }),
-        el("div", {}, el("button", { class: "act", type: "button", text: "Copy", onclick: () => {
-          if (navigator.clipboard) navigator.clipboard.writeText(words).then(() => toast("Copied.")).catch(() => toast("Couldn't copy.", { tone: "error" }));
-        } })),
+        // Share opens the phone's own share sheet (a text, an email), so the
+        // words go straight to a pastor without passing through Adullam.
+        el("div", { class: "row", style: "gap:8px" }, [
+          el("button", { class: "act", type: "button", text: "Copy", onclick: () => {
+            if (navigator.clipboard) navigator.clipboard.writeText(words).then(() => toast("Copied.")).catch(() => toast("Couldn't copy.", { tone: "error" }));
+          } }),
+          navigator.share ? el("button", { class: "act", type: "button", text: "Share", onclick: () => navigator.share({ text: words }).catch(() => {}) }) : null,
+        ]),
       ])
     ));
   }
