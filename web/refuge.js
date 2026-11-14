@@ -2478,7 +2478,8 @@
   const KIND_NAME = { burden: "Prayer request", rejoice: "Good news" };
   const QUEUE_STATUS = { pending: "Flagged by the check", reported: "Reported", held: "Held" };
   const STATUS_NOW = { pending: "waiting", reported: "reported", held: "held", approved: "approved", removed: "removed" };
-  const DESK_TABS = [["review", "To review"], ["live", "On the wall"], ["log", "History"]];
+  // Giving (ways to give on the Support page) is drawn by web/support.js.
+  const DESK_TABS = [["review", "To review"], ["live", "On the wall"], ["log", "History"], ["giving", "Giving"]];
   const DESK_FILTERS = {
     review: [["all", "Everything"], ["urgent", "Urgent"], ["pending", "Flagged by the check"], ["reported", "Reported"], ["held", "Held"]],
     live: [["all", "Everything on the wall"], ["ending", "Ending in 2 days"], ["burden", "Prayer requests"], ["rejoice", "Good news"], ["answered", "Answered prayers"], ["kept_up", "Kept up"]],
@@ -2700,11 +2701,17 @@
     if (!box.firstChild) box.replaceChildren(el("div", { class: "empty", text: "Opening..." }));
     try {
       const data = await api("/admin/refuge");
-      const tab = await deskTab(data, renderDesk);
       const tabs = el("div", { class: "seg desk-tabs", role: "tablist", "aria-label": "Admin desk" }, DESK_TABS.map(([key, label]) => el("button", {
         type: "button", role: "tab", "aria-selected": String(desk.tab === key), onclick: () => openDesk(key),
         text: key === "review" && data.stats.to_review ? `${label} (${data.stats.to_review})` : label,
       })));
+      if (desk.tab === "giving") {
+        const panel = el("div", { class: "giving-admin" });
+        box.replaceChildren(el("div", { class: "refuge desk" }, [tabs, panel]));
+        await window.Support.renderAdmin(panel);
+        return;
+      }
+      const tab = await deskTab(data, renderDesk);
       const filter = cave().filterSelect("Show", DESK_FILTERS[desk.tab], desk.show[desk.tab], (value) => openDesk(desk.tab, value));
       box.replaceChildren(el("div", { class: "refuge desk" }, [deskStats(data.stats), tabs, cave().listBar(tab.count, filter), ...tab.nodes]));
     } catch (err) {
