@@ -15,16 +15,21 @@ How the words stay grounded:
   again once; none survive and the person is asked to put it another way.
 - A kept declaration stores each line's words and reference, never verse text,
   which is read again whenever it's opened.
+- After the lines comes a prayer to God over the same thing, in her words
+  (clean_prayer). It names no reference, so it can never pass off a verse she
+  wasn't given; one that does is dropped and the declaration goes without.
 
 A situation that sounds unsafe gets no declaration: the page shows helplines
 instead (app/care.py, the same phrases Refuge uses). Nothing here reaches
 Aquila's memory. Same rule as app/cave.py: every query filters by user id.
 """
 
+import logging
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, Depends, HTTPException
+from postgrest.exceptions import APIError
 from pydantic import BaseModel, Field
 
 from app import prayers, quota
@@ -39,10 +44,16 @@ from app.observability import get_langfuse_handler
 from app.retrieval import ParsedReference, find_references, hybrid_retrieve, lookup_by_reference, parse_reference
 from app.schemas import Verse
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
 _SETUP_HINT = "Keeping declarations needs a database update. Run supabase/migrations/20261119_declarations.sql in the Supabase SQL editor."
+_PRAYER_HINT = "Keeping the prayer needs a database update. Run supabase/migrations/20261123_declaration_prayers.sql in the Supabase SQL editor."
 _FIELDS = "id, title, situation, name, prayer_id, opening, lines, created_at"
+# Postgres "undefined column" and PostgREST "column not in schema cache":
+# the prayer column before its migration has run.
+_MISSING_COLUMN_CODES = ("42703", "PGRST204")
+MAX_PRAYER = 1200
 
 MAX_LINES = 5
 MAX_PASSAGE_VERSES = 3  # a passage is a verse or a short run, never a chapter
@@ -112,6 +123,13 @@ def clean_opening(text: str) -> str:
     """The opening line, or a plain one when it's empty or names a reference."""
     text = tidy(text)
     return text if text and not find_references(text) else FALLBACK_OPENING
+
+
+def clean_prayer(text: str | None) -> str | None:
+    """The prayer, or None when it's empty or names a reference: a prayer
+    leans on the passages under the lines, never on one it names itself."""
+    text = tidy(text)[:MAX_PRAYER]
+    return text if text and not find_references(text) else None
 
 
 def clean_name(text: str | None) -> str | None:
@@ -193,6 +211,7 @@ def declare(body: DeclareIn, user: AuthUser = Depends(require_user)) -> dict:
         "title": tidy(draft.title)[:80] or "Your declaration",
         "opening": clean_opening(draft.opening),
         "lines": with_text(lines, passages),
+        "prayer": clean_prayer(draft.prayer),
         "translation": translation,
     }
 
@@ -208,24 +227,36 @@ class KeepIn(BaseModel):
     name: str | None = Field(default=None, max_length=60)
     opening: str = Field(min_length=1, max_length=300)
     lines: list[KeptLine] = Field(min_length=1, max_length=MAX_LINES)
+    prayer: str | None = Field(default=None, max_length=MAX_PRAYER)
     # A declaration over a prayer stays with it (one per prayer). A quick one
     # from the prayer list becomes a prayer when it's kept.
     prayer_id: uuid.UUID | None = None
     as_prayer: bool = False
 
 
+def _read(query):
+    """Runs `query(fields)` with the prayer, or without it until the prayer
+    migration has run, so kept declarations still open before then."""
+    try:
+        return query(f"{_FIELDS}, prayer")
+    except APIError:
+        # Without the prayer: this works before its migration, and any other
+        # problem (a missing table) comes back from _db as what to run.
+        return _db(lambda: query(_FIELDS))
+
+
 @router.get("/me/declarations")
 def list_declarations(user: AuthUser = Depends(require_user)) -> list[dict]:
     """Kept declarations, newest first, without their verses."""
-    return _db(lambda: get_supabase().table("declarations").select(_FIELDS).eq("user_id", user.id)
-               .order("created_at", desc=True).limit(100).execute().data)
+    return _read(lambda fields: get_supabase().table("declarations").select(fields).eq("user_id", user.id)
+                 .order("created_at", desc=True).limit(100).execute().data)
 
 
 @router.get("/me/declarations/{declaration_id}")
 def get_declaration(declaration_id: uuid.UUID, translation: str | None = None, user: AuthUser = Depends(require_user)) -> dict:
     """One kept declaration, its verses read in the translation open now."""
-    rows = _db(lambda: get_supabase().table("declarations").select(_FIELDS)
-               .eq("id", str(declaration_id)).eq("user_id", user.id).limit(1).execute().data)
+    rows = _read(lambda fields: get_supabase().table("declarations").select(fields)
+                 .eq("id", str(declaration_id)).eq("user_id", user.id).limit(1).execute().data)
     if not rows:
         raise HTTPException(status_code=404, detail="Declaration not found")
     row = rows[0]
@@ -272,7 +303,16 @@ def keep_declaration(body: KeepIn, user: AuthUser = Depends(require_user)) -> di
         prayer_id = prayers.create_prayer(prayers.PrayerIn(body=row["situation"]), user)["id"]
     if prayer_id:
         db.table("declarations").delete().eq("prayer_id", prayer_id).eq("user_id", user.id).execute()
-    kept = _db(lambda: db.table("declarations").insert({**row, "prayer_id": prayer_id}).execute().data[0])
+    row["prayer_id"] = prayer_id
+    prayer = clean_prayer(body.prayer)
+    try:
+        kept = db.table("declarations").insert({**row, "prayer": prayer} if prayer else row).execute().data[0]
+    except APIError as err:
+        # Before the prayer migration, the declaration is kept without it.
+        if err.code not in _MISSING_COLUMN_CODES:
+            raise
+        log.info("declarations.prayer missing (run supabase/migrations/20261123_declaration_prayers.sql)")
+        kept = _db(lambda: db.table("declarations").insert(row).execute().data[0])
     return {"id": kept["id"], "prayer_id": prayer_id}
 
 
@@ -282,6 +322,8 @@ class EditIn(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=80)
     opening: str | None = Field(default=None, min_length=1, max_length=300)
     lines: list[KeptLine] | None = Field(default=None, min_length=1, max_length=MAX_LINES)
+    # An empty prayer takes it away.
+    prayer: str | None = Field(default=None, max_length=MAX_PRAYER)
 
 
 @router.patch("/me/declarations/{declaration_id}")
@@ -303,9 +345,14 @@ def edit_declaration(declaration_id: uuid.UUID, body: EditIn, user: AuthUser = D
         if any(line["ref"] not in given for line in lines):
             raise HTTPException(status_code=422, detail="A line can be reworded or removed, but its verse stays the one it was given.")
         changes["lines"] = lines
+    if body.prayer is not None:
+        if find_references(body.prayer):
+            raise HTTPException(status_code=422, detail="Leave references out of the prayer.")
+        changes["prayer"] = tidy(body.prayer) or None
     if changes:
-        _db(lambda: get_supabase().table("declarations").update(changes)
-            .eq("id", str(declaration_id)).eq("user_id", user.id).execute())
+        hint = _PRAYER_HINT if "prayer" in changes else _SETUP_HINT
+        _db_call(lambda: get_supabase().table("declarations").update(changes)
+                 .eq("id", str(declaration_id)).eq("user_id", user.id).execute(), hint)
     return {"ok": True, **changes}
 
 

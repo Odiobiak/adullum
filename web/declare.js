@@ -3,8 +3,10 @@
 //   home     the home screen's Declare line, for the person themselves
 //   prayer   "Declare over" on a prayer, which opens its kept one if it has one
 //   quick    "Declare" in the prayer list's New menu, for something right now
-// A short form, then the words: an opening line, a few lines to say aloud,
-// each with the verse it rests on (always read from the database), and Amen.
+// A short form, then the words: an opening line; a few verses, each read
+// aloud ("It is written") and then declared in a line of the person's own;
+// a prayer to God over the same thing; and Amen. Verses are always read from
+// the database, and the prayer never names a reference (declare.py).
 // "Speak it aloud" steps through them one at a time, full screen. Kept ones
 // sit under the form, and #declare/<id> opens one.
 //
@@ -207,9 +209,13 @@
     const words = el("article", { class: "card declare-words" }, [
       el("p", { class: "declare-opening", text: d.opening }),
       ...d.lines.map((line) => el("div", { class: "declare-line" }, [
-        el("p", { class: "declare-say", text: line.say }),
         verseBlock(line),
+        el("p", { class: "declare-say", text: line.say }),
       ])),
+      d.prayer ? el("div", { class: "declare-prayer" }, [
+        el("p", { class: "declare-label", text: "Pray" }),
+        el("p", { class: "declare-prayer-text", text: d.prayer }),
+      ]) : null,
       el("p", { class: "declare-opening declare-amen", text: "Amen." }),
     ]);
 
@@ -234,9 +240,11 @@
     window.scrollTo({ top: 0 });
   }
 
-  // A line's verse, word for word as read from the database, with its reference.
+  // A line's verse, word for word as read from the database, with its
+  // reference. It's read aloud first, so it says so.
   function verseBlock(line) {
     return el("blockquote", { class: "declare-verse" }, [
+      el("p", { class: "declare-label", text: "It is written" }),
       el("p", { class: "scripture", text: line.text }),
       el("a", { class: "declare-ref", href: `#${window.Reader.href(line.ref)}`, text: line.ref }),
     ]);
@@ -284,11 +292,16 @@
     }
     drawLines();
 
+    // The prayer can be reworded, or emptied to go without one.
+    const prayer = grow(el("textarea", { class: "field declare-edit-prayer", rows: "3", maxlength: "1200", "aria-label": "Prayer", placeholder: "Father, I bring this to you..." }));
+    prayer.value = d.prayer || "";
+
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Done" });
     const form = el("form", { class: "card declare-words declare-editing" }, [
       el("label", { class: "field-wrap" }, ["Name", title]),
       el("label", { class: "field-wrap" }, ["Opening", opening]),
       list,
+      el("label", { class: "field-wrap" }, ["Prayer", prayer]),
       el("p", { class: "declare-opening declare-amen", text: "Amen." }),
       msg.node,
       el("div", { class: "declare-actions" }, [
@@ -302,6 +315,7 @@
         title: title.value.trim(),
         opening: opening.value.trim(),
         lines: lines.map((line) => ({ ...line, say: line.say.trim() })),
+        prayer: prayer.value.trim() || null,
       };
       if (!edited.title || !edited.opening || edited.lines.some((line) => !line.say)) return msg.say("Leave no part empty.", true);
       // A kept one saves now; new words are checked when they're kept.
@@ -310,7 +324,7 @@
         try {
           const res = await api(`/me/declarations/${d.id}`, {
             method: "PATCH",
-            body: { title: edited.title, opening: edited.opening, lines: edited.lines.map(({ say, ref }) => ({ say, ref })) },
+            body: { title: edited.title, opening: edited.opening, lines: edited.lines.map(({ say, ref }) => ({ say, ref })), prayer: edited.prayer || "" },
           });
           edited.opening = res.opening || edited.opening;
           toast("Saved.");
@@ -333,9 +347,10 @@
   function share(d) {
     const text = [
       d.opening,
-      ...d.lines.map((line) => `${line.say}\n"${line.text}" (${line.ref}, ${d.translation})`),
+      ...d.lines.map((line) => `It is written: "${line.text}" (${line.ref}, ${d.translation})\n${line.say}`),
+      d.prayer,
       "Amen.",
-    ].join("\n\n");
+    ].filter(Boolean).join("\n\n");
     if (navigator.share) return navigator.share({ title: d.title, text }).catch(() => {});
     if (!navigator.clipboard) return toast("Couldn't copy here.", { tone: "error" });
     navigator.clipboard.writeText(text).then(() => toast("Copied.")).catch(() => toast("Couldn't copy.", { tone: "error" }));
@@ -351,6 +366,7 @@
         body: {
           title: d.title, situation: d.situation, name: d.name, opening: d.opening,
           lines: d.lines.map(({ say, ref }) => ({ say, ref })),
+          prayer: d.prayer || null,
           prayer_id: context.from === "prayer" ? context.prayer.id : null,
           as_prayer: context.from === "quick",
         },
@@ -404,7 +420,12 @@
   // ---------------------------------------------------------------------
   const SWIPE_PX = 50;
   function speakAloud(d) {
-    const steps = [{ say: d.opening }, ...d.lines, { say: "Amen." }];
+    const steps = [
+      { say: d.opening },
+      ...d.lines.map((line) => ({ ...line, label: "It is written" })),
+      d.prayer ? { label: "Pray", prayer: d.prayer } : null,
+      { say: "Amen." },
+    ].filter(Boolean);
     let at = 0;
     let wakeLock = null;
     const stage = el("div", { class: "aloud-stage", "aria-live": "polite" });
@@ -417,7 +438,7 @@
         el("button", { class: "iconbtn", type: "button", "aria-label": "Close", html: ICON.close, onclick: () => close() }), dots, count,
       ]),
       stage,
-      el("div", { class: "aloud-foot" }, [el("p", { class: "faint aloud-hint", text: "Say it out loud, then tap or swipe." }), el("div", { class: "aloud-buttons" }, [prev, next])]),
+      el("div", { class: "aloud-foot" }, [el("p", { class: "faint aloud-hint", text: "Read it all out loud, then tap or swipe." }), el("div", { class: "aloud-buttons" }, [prev, next])]),
     ]);
     const foot = wrap.querySelector(".aloud-foot");
 
@@ -436,10 +457,13 @@
 
     function draw() {
       const s = steps[at];
+      // A verse is read first, then declared; the prayer has the stage to itself.
       stage.replaceChildren(...[
-        el("p", { class: "aloud-say", text: s.say }),
+        s.label ? el("p", { class: "aloud-label", text: s.label }) : null,
         s.text ? el("p", { class: "scripture-lg", text: s.text }) : null,
         s.ref ? el("span", { class: "aloud-ref", text: s.ref }) : null,
+        s.say ? el("p", { class: `aloud-say${s.text ? " aloud-declare" : ""}`, text: s.say }) : null,
+        s.prayer ? el("p", { class: "aloud-prayer", text: s.prayer }) : null,
       ].filter(Boolean));
       [...dots.children].forEach((dot, i) => dot.classList.toggle("is-on", i <= at));
       count.textContent = `${at + 1} of ${steps.length}`;

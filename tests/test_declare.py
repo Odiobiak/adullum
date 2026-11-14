@@ -93,6 +93,11 @@ class TestUsableLines:
         assert declare.clean_opening("In Jesus' name, per Isaiah 41:10, I declare") == declare.FALLBACK_OPENING
         assert declare.clean_opening("In the name of Jesus, I declare over my exam.") == "In the name of Jesus, I declare over my exam."
 
+    def test_a_prayer_naming_a_verse_is_dropped(self):
+        assert declare.clean_prayer("Father, as Isaiah 41:10 says, hold me.") is None
+        assert declare.clean_prayer("  ") is None
+        assert declare.clean_prayer("Father,  I bring you my exam.\nKeep me steady.") == "Father, I bring you my exam. Keep me steady."
+
 
 class TestDeclareRoute:
     @pytest.fixture(autouse=True)
@@ -104,7 +109,7 @@ class TestDeclareRoute:
         draft = DeclareDraft(title="For your interview", opening="In the name of Jesus, I declare over my interview.", lines=[
             DeclareLine(say="I walk in without fear.", ref="2 Timothy 1:7"),
             DeclareLine(say="The Lord keeps me.", ref="Numbers 6:24-26"),
-        ])
+        ], prayer="Father, I bring you this interview. Give me peace.")
         monkeypatch.setattr(declare, "write_declaration", lambda *a, **k: draft)
         res = client.post("/declare", json={"situation": "A job interview tomorrow", "translation": "kjv"}, headers=HEADERS)
         assert res.status_code == 200
@@ -112,6 +117,7 @@ class TestDeclareRoute:
         assert body["translation"] == "KJV"
         assert body["lines"][0]["text"] == "For God hath not given us the spirit of fear;"
         assert body["lines"][1]["text"] == "v24 v25 v26"
+        assert body["prayer"] == "Father, I bring you this interview. Give me peace."
 
     def test_writes_again_once_when_too_few_lines_survive(self, monkeypatch):
         drafts = iter([
@@ -206,3 +212,13 @@ class TestKeeping:
         monkeypatch.setattr(declare, "get_supabase", lambda: FakeDb([]))
         res = client.patch("/me/declarations/33333333-3333-3333-3333-333333333333", json={"title": "Mine"}, headers=HEADERS)
         assert res.status_code == 404
+
+    def test_the_prayer_is_kept_and_can_be_reworded_without_references(self, monkeypatch):
+        db = FakeDb([{"id": "d1", "lines": [{"say": "Old words.", "ref": "2 Timothy 1:7"}]}])
+        monkeypatch.setattr(declare, "get_supabase", lambda: db)
+        client.post("/me/declarations", json={**self.BODY, "prayer": "Lord, go before me."}, headers=HEADERS)
+        inserted = next(args[0] for name, args in db.calls if name == "insert")
+        assert inserted["prayer"] == "Lord, go before me."
+        path = "/me/declarations/33333333-3333-3333-3333-333333333333"
+        assert client.patch(path, json={"prayer": "Lord, keep me."}, headers=HEADERS).json()["prayer"] == "Lord, keep me."
+        assert client.patch(path, json={"prayer": "Lord, as Psalm 23:1 says."}, headers=HEADERS).status_code == 422

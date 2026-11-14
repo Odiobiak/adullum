@@ -623,7 +623,15 @@ faith. Write what they will say.
 it starts with their name: "Tunde, in the name of Jesus, I declare God's word over your visa."
 - lines: three to five. Each puts one listed passage's own promise or truth into one or two \
 short sentences to say aloud, in the present tense, staying close to that passage's words, \
-with its reference in `ref` exactly as it's listed. Use each passage at most once.
+with its reference in `ref` exactly as it's listed. Use each passage at most once. Each \
+line is said straight after its verse is read aloud, so it answers that verse, as if to say \
+"so I declare...".
+- prayer: a prayer to pray aloud after the declarations, four to six sentences, spoken to God \
+("Father", "Lord"). Thank Him for who He is, bring Him what they're facing in plain words, ask \
+for what they need (peace, wisdom, courage, strength, His will to be done) and leave it in His \
+hands. Over someone else, pray for them by name ("Lord, I lift Tunde up to you"). It may lean \
+on what the listed passages say about God, but it never quotes them and never names a \
+reference. Ask with faith, and still never as if a particular outcome is promised.
 
 Who it's spoken over: if a name is given, they're declaring over someone else, so speak to \
 that person. Use their name in the opening, and "you" and "your" in every line, never "I" \
@@ -637,8 +645,8 @@ Don't quote the verse, since it's shown under the line, and don't name any refer
 words. Never say God has told them anything, and never promise a particular outcome ("you \
 will get the job"). Declare who God is and what He has promised over it.
 
-Bold, warm and plain, like someone who believes it. Never use an em dash. Don't end with \
-Amen; it's added for them."""
+Bold, warm and plain, like someone who believes it. Never use an em dash. Don't end the \
+lines or the prayer with Amen; it's added for them."""
 
 
 class DeclareIdeas(BaseModel):
@@ -654,6 +662,7 @@ class DeclareDraft(BaseModel):
     title: str
     opening: str
     lines: list[DeclareLine]
+    prayer: str = Field(default="", description="The prayer prayed after the declarations, four to six sentences, with no reference in it.")
 
 
 def suggest_declare_refs(situation: str, config: RunnableConfig | None = None) -> list[str]:
