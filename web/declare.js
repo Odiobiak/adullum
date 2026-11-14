@@ -383,17 +383,22 @@
     }
   }
 
-  // Fresh words for the same situation. A kept one stays kept until the new
-  // words are kept in its place.
+  // A new declaration for the same situation, on different verses. Every
+  // passage declared so far goes as `avoid`, so each tap moves on rather than
+  // circling back; when no others fit, the server rewords the same ones and
+  // says so (`fresh`). A kept one stays kept until the new words are kept.
+  const MAX_AVOID = 30;
   async function again(button) {
     const d = current;
+    const used = [...new Set([...(d.used || []), ...d.lines.map((line) => line.ref)])].slice(-MAX_AVOID);
     button.disabled = true;
-    button.textContent = "Finding words...";
+    button.textContent = "Finding other words...";
     try {
-      const res = await api("/declare", { method: "POST", body: { situation: d.situation, name: d.name, translation: translation() } });
+      const res = await api("/declare", { method: "POST", body: { situation: d.situation, name: d.name, translation: translation(), avoid: used } });
       if (res.care) return renderCare();
-      current = { ...res, situation: d.situation, name: d.name };
+      current = { ...res, situation: d.situation, name: d.name, used };
       renderWords();
+      toast(res.fresh ? "New verses, new words." : "These are the verses that fit best, in new words.", { tone: res.fresh ? "done" : "info" });
     } catch (err) {
       toast(err.message, { tone: "error" });
       button.disabled = false;

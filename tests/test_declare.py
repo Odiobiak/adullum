@@ -99,11 +99,49 @@ class TestUsableLines:
         assert declare.clean_prayer("Father,  I bring you my exam.\nKeep me steady.") == "Father, I bring you my exam. Keep me steady."
 
 
+class TestOtherWords:
+    def test_a_used_passage_is_left_out_with_any_that_overlap_it(self):
+        passages = {**PASSAGES, "Numbers 6:26": [verse("Numbers", 6, 26)], "Psalm 23:1": [verse("Psalm", 23, 1)]}
+        assert list(declare.without_used(passages, ["Numbers 6:24-26"])) == ["2 Timothy 1:7", "Psalm 23:1"]
+        assert declare.without_used(passages, []) == passages
+
+    @pytest.fixture
+    def signed_in(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+
+    def test_other_words_rest_on_different_verses(self, monkeypatch, signed_in):
+        more = {**PASSAGES, "Psalm 23:1": [verse("Psalm", 23, 1)], "Isaiah 41:10": [verse("Isaiah", 41, 10)], "Joshua 1:9": [verse("Joshua", 1, 9)]}
+        asked = {}
+        monkeypatch.setattr(declare, "gather_passages", lambda situation, translation, config, avoid=None: asked.update(avoid=avoid) or more)
+
+        def write(situation, name, passages, extra="", config=None):
+            asked["given"] = sorted(passages)
+            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say=f"Line {i}.", ref=k) for i, k in enumerate(passages)])
+
+        monkeypatch.setattr(declare, "write_declaration", write)
+        body = client.post("/declare", json={"situation": "An exam", "avoid": ["2 tim 1:7", "Numbers 6:24-26"]}, headers=HEADERS).json()
+        assert asked["avoid"] == ["2 Timothy 1:7", "Numbers 6:24-26"]
+        assert asked["given"] == ["Isaiah 41:10", "Joshua 1:9", "Psalm 23:1"]
+        assert body["fresh"] is True
+
+    def test_with_too_few_others_the_same_verses_come_back_reworded(self, monkeypatch, signed_in):
+        monkeypatch.setattr(declare, "gather_passages", lambda situation, translation, config, avoid=None: PASSAGES)
+        extras = []
+
+        def write(situation, name, passages, extra="", config=None):
+            extras.append(extra)
+            return DeclareDraft(title="t", opening="o", lines=[DeclareLine(say="a", ref="2 Timothy 1:7"), DeclareLine(say="b", ref="Numbers 6:24-26")])
+
+        monkeypatch.setattr(declare, "write_declaration", write)
+        body = client.post("/declare", json={"situation": "An exam", "avoid": ["2 Timothy 1:7"]}, headers=HEADERS).json()
+        assert body["fresh"] is False and "differently" in extras[0]
+
+
 class TestDeclareRoute:
     @pytest.fixture(autouse=True)
     def signed_in(self, monkeypatch):
         monkeypatch.setattr(auth, "_verify", lambda token: USER)
-        monkeypatch.setattr(declare, "gather_passages", lambda situation, translation, config: PASSAGES)
+        monkeypatch.setattr(declare, "gather_passages", lambda situation, translation, config, avoid=None: PASSAGES)
 
     def test_lines_come_back_with_verse_text_from_the_database(self, monkeypatch):
         draft = DeclareDraft(title="For your interview", opening="In the name of Jesus, I declare over my interview.", lines=[

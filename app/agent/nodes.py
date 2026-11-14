@@ -665,11 +665,15 @@ class DeclareDraft(BaseModel):
     prayer: str = Field(default="", description="The prayer prayed after the declarations, four to six sentences, with no reference in it.")
 
 
-def suggest_declare_refs(situation: str, config: RunnableConfig | None = None) -> list[str]:
+def suggest_declare_refs(situation: str, config: RunnableConfig | None = None, avoid: list[str] | None = None) -> list[str]:
     """Passages worth declaring over `situation`, as references only. Their
-    words are looked up afterwards, so nothing here is ever shown as Scripture."""
+    words are looked up afterwards, so nothing here is ever shown as Scripture.
+    `avoid` holds passages already used, for "Other words"."""
+    system = DECLARE_VERSES_PROMPT
+    if avoid:
+        system += "\n\nThey've already declared these, so choose different passages: " + "; ".join(avoid) + "."
     ideas: DeclareIdeas = _llm.with_structured_output(DeclareIdeas).invoke(
-        [SystemMessage(DECLARE_VERSES_PROMPT), HumanMessage(situation)], config=config
+        [SystemMessage(system), HumanMessage(situation)], config=config
     )
     return ideas.refs[:8]
 

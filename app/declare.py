@@ -19,6 +19,11 @@ How the words stay grounded:
   (clean_prayer). It names no reference, so it can never pass off a verse she
   wasn't given; one that does is dropped and the declaration goes without.
 
+"Other words" sends the passages already used (`avoid`). They're left out
+of what she's given, so the new declaration rests on different verses; when
+too few others fit, the same ones come back in fresh words, and the reply
+says so (`fresh`).
+
 A situation that sounds unsafe gets no declaration: the page shows helplines
 instead (app/care.py, the same phrases Refuge uses). Nothing here reaches
 Aquila's memory. Same rule as app/cave.py: every query filters by user id.
@@ -58,6 +63,8 @@ MAX_PRAYER = 1200
 MAX_LINES = 5
 MAX_PASSAGE_VERSES = 3  # a passage is a verse or a short run, never a chapter
 SEARCH_K = 6  # verses from the ordinary search, beside Aquila's suggestions
+MIN_FRESH = 3  # passages left after avoiding the used ones, enough for new words
+MAX_AVOID = 30
 FALLBACK_OPENING = "In the name of Jesus, I declare God's word over this."
 NO_WORDS = "Aquila couldn't find the right words this time. Try saying what you're facing a little differently."
 
@@ -136,6 +143,21 @@ def clean_name(text: str | None) -> str | None:
     return tidy(text)[:40] or None
 
 
+def verses_in(key: str) -> set[tuple[str, int, int]]:
+    """Every verse a passage key covers, so "Psalm 23:1" and "Psalm 23:1-3"
+    count as the same ground."""
+    ref = parse_reference(key or "")
+    if not ref or ref.verse_start is None:
+        return set()
+    return {(ref.book, ref.chapter, n) for n in range(ref.verse_start, (ref.verse_end or ref.verse_start) + 1)}
+
+
+def without_used(passages: dict[str, list[Verse]], avoid: list[str]) -> dict[str, list[Verse]]:
+    """The passages that share no verse with any of `avoid`."""
+    used = set().union(*(verses_in(a) for a in avoid)) if avoid else set()
+    return {key: vs for key, vs in passages.items() if not verses_in(key) & used}
+
+
 def with_text(lines: list[dict], passages: dict[str, list[Verse]]) -> list[dict]:
     """Each line with its passage's words, as read from the database."""
     return [{**line, "text": " ".join(v.text for v in passages.get(line["ref"], []))} for line in lines]
@@ -148,13 +170,16 @@ def _lookup(key: str, translation: str) -> list[Verse]:
     return lookup_by_reference(parse_reference(key), translation)
 
 
-def gather_passages(situation: str, translation: str, config: dict) -> dict[str, list[Verse]]:
+def gather_passages(situation: str, translation: str, config: dict, avoid: list[str] | None = None) -> dict[str, list[Verse]]:
     """Aquila's suggested passages (looked up, so a reference that doesn't
     exist simply drops out) and the ordinary search's verses, keyed by
-    reference. Her call and the search run side by side to save a wait."""
+    reference. Her call and the search run side by side to save a wait.
+    With `avoid`, she's asked for others and the search reaches further, so
+    there's enough left once the used ones are set aside."""
+    avoid = avoid or []
     with ThreadPoolExecutor(max_workers=4) as pool:
-        ideas = pool.submit(suggest_declare_refs, situation, config)
-        found = pool.submit(hybrid_retrieve, situation, translation, SEARCH_K)
+        ideas = pool.submit(suggest_declare_refs, situation, config, avoid)
+        found = pool.submit(hybrid_retrieve, situation, translation, SEARCH_K + len(avoid))
         keys = list(dict.fromkeys(k for k in map(canonical_ref, ideas.result()) if k))
         looked_up = pool.map(lambda k: _lookup(k, translation), keys)
         passages = {passage_key(vs): vs for vs in looked_up if vs}
@@ -175,6 +200,8 @@ class DeclareIn(BaseModel):
     situation: str = Field(min_length=1, max_length=600)
     name: str | None = Field(default=None, max_length=60)
     translation: str | None = Field(default=None, max_length=12)
+    # Passages already declared, for "Other words".
+    avoid: list[str] = Field(default_factory=list, max_length=MAX_AVOID)
 
 
 @router.post("/declare")
@@ -193,15 +220,22 @@ def declare(body: DeclareIn, user: AuthUser = Depends(require_user)) -> dict:
     name = clean_name(body.name)
     config = _config()
 
-    passages = gather_passages(situation, translation, config)
+    avoid = [key for key in map(canonical_ref, body.avoid) if key]
+    gathered = gather_passages(situation, translation, config, avoid=avoid)
+    # "Other words" rests on different verses when enough others fit; when
+    # they don't, the same ones come back, worded afresh.
+    fresh_passages = without_used(gathered, avoid)
+    fresh = not avoid or len(fresh_passages) >= MIN_FRESH
+    passages = fresh_passages if fresh else gathered
     if not passages:
         raise HTTPException(status_code=502, detail=NO_WORDS)
-    draft = write_declaration(situation, name, passages, config=config)
+    reword = "" if fresh else "They've declared over this before, so word every line and the prayer differently from last time."
+    draft = write_declaration(situation, name, passages, extra=reword, config=config)
     lines = usable_lines(draft.lines, passages)
     if len(lines) < 2:
         draft = write_declaration(
             situation, name, passages, config=config,
-            extra="Your last draft used a passage that isn't listed, or named a reference in its words. Use only the listed passages, with each reference exactly as written.",
+            extra=f"{reword}\n\nYour last draft used a passage that isn't listed, or named a reference in its words. Use only the listed passages, with each reference exactly as written.".strip(),
         )
         lines = usable_lines(draft.lines, passages) or lines
     if not lines:
@@ -213,6 +247,7 @@ def declare(body: DeclareIn, user: AuthUser = Depends(require_user)) -> dict:
         "lines": with_text(lines, passages),
         "prayer": clean_prayer(draft.prayer),
         "translation": translation,
+        "fresh": fresh,
     }
 
 
