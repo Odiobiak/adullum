@@ -328,11 +328,13 @@
     return el("div", { class: "list-bar" }, [el("span", { class: "list-count", text: count }), filter]);
   }
 
-  // A small dropdown filter. `options` is [[value, label], ...]; `onPick`
-  // gets the chosen value.
+  // A small dropdown filter. `options` is [[value, label], ...], where an
+  // item may instead be { group, options } to set a few apart under a label;
+  // `onPick` gets the chosen value.
   function filterSelect(label, options, selected, onPick) {
-    const select = el("select", { class: "filter-select", "aria-label": label }, options.map(([value, text]) =>
-      el("option", { value, text, selected: value === selected })
+    const option = ([value, text]) => el("option", { value, text, selected: value === selected });
+    const select = el("select", { class: "filter-select", "aria-label": label }, options.map((item) =>
+      Array.isArray(item) ? option(item) : el("optgroup", { label: item.group }, item.options.map(option))
     ));
     select.addEventListener("change", () => onPick(select.value));
     return select;
@@ -1867,9 +1869,10 @@
     }
   }
 
-  // The Journal's filter value that shows reflections instead of entries.
-  // Tags are always lower case (app/cave.py::_clean_tags), so it can't clash.
+  // The Journal's filter values for one kind of writing. Tags are always
+  // lower case (app/cave.py::_clean_tags), so neither can clash with one.
   const REFLECTIONS_FILTER = "@Reflections";
+  const ENTRIES_FILTER = "@Journal";
 
   // "New entry" offers a plain entry or a reflection.
   function newEntryMenu() {
@@ -1950,14 +1953,26 @@
       ]));
       return;
     }
-    // Filter by the tags actually in use, most used first, or to reflections.
+    // Filter by kind (reflections, then journal entries), then by the tags
+    // actually in use, most used first, each with how many it holds.
     // Filtering happens here rather than on the server: a journal is at most
     // a hundred entries.
     const counts = new Map();
     entries.forEach((e) => entryTags(e).forEach((t) => counts.set(t, (counts.get(t) || 0) + 1)));
     const used = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || a.localeCompare(b));
-    if (tagFilter === REFLECTIONS_FILTER ? !reflections.length : tagFilter && !counts.has(tagFilter)) tagFilter = null;
-    const options = [["", "All entries"], ...(reflections.length ? [[REFLECTIONS_FILTER, "Reflections"]] : []), ...used.map((t) => [t, `#${t}`])];
+    const kinds = [
+      reflections.length && [REFLECTIONS_FILTER, `Reflections (${reflections.length})`],
+      entries.length && [ENTRIES_FILTER, `Journal entries (${entries.length})`],
+    ].filter(Boolean);
+    // One kind alone would show the same as Everything, so it isn't offered.
+    const shownKinds = kinds.length > 1 ? kinds : [];
+    const options = [
+      ["", "Everything"],
+      ...shownKinds,
+      ...(used.length ? [{ group: "Tags", options: used.map((t) => [t, `#${t} (${counts.get(t)})`]) }] : []),
+    ];
+    const offered = [...shownKinds.map(([value]) => value), ...used];
+    if (tagFilter && !offered.includes(tagFilter)) tagFilter = null;
     const filter = options.length > 1
       ? filterSelect("Filter the journal", options, tagFilter || "", (value) => {
           tagFilter = value || null;
@@ -1976,9 +1991,9 @@
       );
       return;
     }
-    const shown = tagFilter ? entries.filter((e) => entryTags(e).includes(tagFilter)) : entries;
+    const shown = tagFilter && tagFilter !== ENTRIES_FILTER ? entries.filter((e) => entryTags(e).includes(tagFilter)) : entries;
     // The plan someone is living in, and reflections still in progress, sit
-    // above the entries when the whole journal is showing.
+    // above the entries only when everything is showing.
     const pinned = tagFilter ? [] : window.Reflections.pinned(reflections);
     panel.replaceChildren(
       listBar(`${shown.length} ${shown.length === 1 ? "entry" : "entries"}`, filter),

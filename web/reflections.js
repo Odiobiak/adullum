@@ -846,19 +846,6 @@
     }
   }
 
-  // Asks Aquila to pray over the plan, in her prayer mode (app/agent/nodes.py::
-  // pray_with). The verse goes first so she starts from it.
-  function prayOver(r) {
-    const la = r.look_ahead || {};
-    const hopes = (la.areas || []).flatMap((a) => (a.goals || []).map((g) => g.text)).slice(0, 4);
-    const parts = [`Would you pray with me over ${r.ahead_label}${r.title ? `, which I've called "${r.title}"` : ""}?`];
-    if (la.word) parts.push(`The word I sense for it is "${la.word}".`);
-    if (hopes.length) parts.push(`I'm hoping for: ${hopes.join("; ")}.`);
-    if ((la.asking || "").trim()) parts.push(la.asking.trim());
-    const ask = parts.join(" ");
-    app().submitQuery(la.verse_ref ? `On ${la.verse_ref}: ${ask}` : ask, { mode: "pray" });
-  }
-
   // How one goal stands, as a short line, from plan_progress.
   function goalStanding(p) {
     if (!p) return "";
@@ -868,13 +855,71 @@
     return "";
   }
 
-  // The plan someone is living in: pinned at the top of the Journal.
+  // Whole days from one ISO date to another, read as local days.
+  function daysBetween(from, to) {
+    return Math.round((new Date(`${to}T00:00`) - new Date(`${from}T00:00`)) / 86400000);
+  }
+
+  // How far through the stretch ahead today is: "Day 23 of 92 · 69 days left".
+  function stretchLine(r) {
+    const total = daysBetween(r.ahead_starts_on, r.ahead_ends_on) + 1;
+    const day = Math.min(Math.max(daysBetween(r.ahead_starts_on, cave().localToday()) + 1, 1), total);
+    const left = total - day;
+    return el("div", { class: "refl-stretch" }, [
+      el("small", { text: `Day ${day} of ${total} · ${left ? `${left} ${left === 1 ? "day" : "days"} left` : "last day"}` }),
+      bar(day / total),
+    ]);
+  }
+
+  // The plan's verse as a link into the Bible, its words read from the
+  // database once they arrive (never typed in).
+  function planVerse(ref) {
+    const verse = el("blockquote", { class: "refl-plan-verse", hidden: true }, [
+      el("p", { class: "scripture" }),
+      el("footer", { class: "refl-ref" }, el("a", { href: window.Reader.href(ref), text: ref })),
+    ]);
+    cave().verseText(ref).then((v) => {
+      verse.querySelector("p").textContent = `"${v.text}"`;
+      verse.querySelector("footer").append(` · ${v.translation}`);
+      verse.hidden = false;
+    }).catch(() => {});
+    return verse;
+  }
+
+  // Opens the journal sheet on the plan's verse, or blank without one.
+  async function writeAbout(r) {
+    const ref = (r.look_ahead || {}).verse_ref;
+    const verse = ref ? await cave().verseText(ref).catch(() => null) : null;
+    cave().openJournal(verse ? { passage_ref: ref, verse_text: verse.text } : {});
+  }
+
+  // What a kept plan set out, counted: "4 goals · 2 numbers to aim for".
+  function setOut(la) {
+    const goals = (la.areas || []).reduce((n, a) => n + (a.goals || []).length, 0);
+    const numbers = (la.numbers || []).filter((n) => n.target).length;
+    return [
+      goals && `${goals} ${goals === 1 ? "goal" : "goals"}`,
+      numbers && `${numbers} ${numbers === 1 ? "number" : "numbers"} to aim for`,
+    ].filter(Boolean).join(" · ");
+  }
+
+  // The plan someone is living in: pinned at the top of the Journal. How far
+  // through the stretch they are, each number with a bar, then each area's
+  // goals and how they stand.
   function planCard(r) {
     const la = r.look_ahead || {};
     const progress = r.progress || { numbers: [], goals: [] };
     const aims = (la.numbers || []).map((n, i) => {
+      if (!n.target) return null;
       const done = (progress.numbers[i] || {}).done;
-      return n.target ? el("span", { class: "refl-aim", text: done !== null && done !== undefined ? `${num(done)} of ${num(n.target)} ${n.label}` : `${num(n.target)} ${n.label}` }) : null;
+      const counted = done !== null && done !== undefined;
+      return el("li", {}, [
+        el("div", { class: "refl-review-top" }, [
+          el("span", { text: n.label }),
+          el("small", { class: counted && done >= n.target ? "met" : "", text: counted ? `${num(done)} of ${num(n.target)}` : `aim ${num(n.target)}` }),
+        ]),
+        counted ? bar(done / n.target) : null,
+      ]);
     }).filter(Boolean);
     // plan_progress lists every area's goals in order, so they're read in step.
     let at = 0;
@@ -885,24 +930,17 @@
         return el("li", {}, [g.text, standing ? el("small", { text: ` · ${standing}` }) : null]);
       })) : null,
     ]));
-    const verse = el("blockquote", { class: "refl-plan-verse", hidden: true }, [el("p", { class: "scripture" }), el("footer", { class: "refl-ref" })]);
-    if (la.verse_ref) {
-      cave().verseText(la.verse_ref).then((v) => {
-        verse.querySelector("p").textContent = `"${v.text}"`;
-        verse.querySelector("footer").textContent = `${la.verse_ref} · ${v.translation}`;
-        verse.hidden = false;
-      }).catch(() => {});
-    }
     return el("article", { class: "card warm refl-plan fade-in" }, [
       el("p", { class: "kicker ember refl-kicker", html: HORIZON }, [`Reflection · ${r.label} into ${r.ahead_label}`]),
       r.title ? el("h3", { class: "refl-plan-title", text: r.title }) : null,
+      stretchLine(r),
       la.word ? el("p", { class: "refl-plan-word", text: la.word }) : null,
-      verse,
-      aims.length ? el("div", { class: "refl-aims-row" }, aims) : null,
+      la.verse_ref ? planVerse(la.verse_ref) : null,
+      aims.length ? el("ul", { class: "refl-review" }, aims) : null,
       ...areas,
       el("div", { class: "card-actions-row" }, [
         el("a", { class: "btn btn-ember btn-sm", href: `#reflection/${r.id}`, text: "Open" }),
-        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Pray it with Aquila", onclick: () => prayOver(r) }),
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Write about it", onclick: () => writeAbout(r) }),
       ]),
     ]);
   }
@@ -911,10 +949,12 @@
     return r.title || `${r.label} into ${r.ahead_label}`;
   }
 
-  // A reflection in the list: a draft to carry on, or one kept before.
+  // A reflection in the list: a draft to carry on, or one kept before. A kept
+  // one says what it set out, and its word and verse sit side by side.
   function rowCard(r) {
     const draft = r.status !== "kept";
-    const word = (r.look_ahead || {}).word;
+    const la = r.look_ahead || {};
+    const plan = draft ? "" : setOut(la);
     const node = el("article", { class: "entry refl-entry fade-in" }, [
       el("div", { class: "entry-meta" }, [
         el("span", { class: "tag", html: `${HORIZON}<span>Reflection</span>` }),
@@ -923,21 +963,28 @@
       ]),
       el("h3", { text: called(r) }),
       r.title ? el("p", { class: "refl-dates-line", text: `${r.label} into ${r.ahead_label}` }) : null,
-      word ? el("p", { class: "refl-entry-word", text: word }) : null,
+      la.word || la.verse_ref ? el("p", { class: "refl-entry-line" }, [
+        la.word ? el("span", { class: "refl-entry-word", text: la.word }) : null,
+        la.verse_ref ? el("a", { class: "refl-ref", href: window.Reader.href(la.verse_ref), text: la.verse_ref }) : null,
+      ]) : null,
+      plan ? el("p", { class: "refl-dates-line", text: `Set out ${plan}` }) : null,
       el("div", { class: "entry-actions" }, [
         el("a", { class: "text-act", href: `#reflection/${r.id}`, text: draft ? "Carry on" : "Open" }),
-        el("div", { class: "entry-icons" }, cave().moreMenu("More for this reflection", [{
-          label: "Delete", danger: true,
-          onClick: async () => {
-            if (!confirm("Delete this reflection? Pebbles it started stay in Refuge. This can't be undone.")) return;
-            try {
-              await api(`/me/reflections/${r.id}`, { method: "DELETE" });
-              node.remove();
-            } catch (err) {
-              toast(err.message, { tone: "error" });
-            }
+        el("div", { class: "entry-icons" }, cave().moreMenu("More for this reflection", [
+          { label: "Write about it", onClick: () => writeAbout(r) },
+          {
+            label: "Delete", danger: true,
+            onClick: async () => {
+              if (!confirm("Delete this reflection? Pebbles it started stay in Refuge. This can't be undone.")) return;
+              try {
+                await api(`/me/reflections/${r.id}`, { method: "DELETE" });
+                node.remove();
+              } catch (err) {
+                toast(err.message, { tone: "error" });
+              }
+            },
           },
-        }])),
+        ])),
       ]),
     ]);
     return node;

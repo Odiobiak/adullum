@@ -2045,6 +2045,14 @@ body.still-open { overflow: hidden; }
 .refl-mark { width: 13px; height: 13px; flex: none; color: var(--ember); }
 .refl-kicker, .refl-entry .tag { display: inline-flex; align-items: center; gap: 6px; }
 .refl-entry-word { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: var(--ember-hi); }
+/* A kept reflection's word and verse on one line, under its name. */
+.refl-entry-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin: 2px 0 0; }
+.refl-entry-line a.refl-ref { font-size: 14px; color: var(--ember); text-decoration: none; }
+.refl-entry-line a.refl-ref:hover, .refl-plan-verse footer a:hover { text-decoration: underline; }
+.refl-plan-verse footer a { color: inherit; font-weight: 600; text-decoration: none; }
+/* How far through the plan's stretch today is. */
+.refl-stretch { display: grid; gap: 5px; }
+.refl-stretch small { font-size: 12.5px; color: var(--muted); }
 
 /* The plan someone is living in */
 .refl-plan { display: grid; gap: 12px; align-content: start; }
@@ -2054,8 +2062,6 @@ body.still-open { overflow: hidden; }
 .refl-plan-verse { margin: 0; display: grid; gap: 4px; }
 .refl-plan-verse .scripture { font-size: 16px; color: var(--soft); }
 .refl-ref { font-size: 12.5px; font-weight: 600; color: var(--ember); }
-.refl-aims-row { display: flex; flex-wrap: wrap; gap: 6px; }
-.refl-aim { padding: 3px 10px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 12.5px; font-weight: 600; }
 .refl-plan-area { display: grid; gap: 2px; font-size: 14px; }
 .refl-plan-area b { font-weight: 600; }
 .refl-plan-area b span { color: var(--ember); font-weight: 500; }

@@ -580,7 +580,7 @@
     <div class="wrap page">
       <div class="page-head">
         <div>
-          <h1 class="page-title" data-info="Your journal and prayers, and Refuge, a quiet place for every season. Only you can see them.">Your cave</h1>
+          <h1 class="page-title" data-info="Your journal and prayers, and Refuge, a quiet place for every season. Only you can see them.">Your Cave</h1>
         </div>
         <button type="button" class="btn btn-ember btn-sm" id="caveAction">New entry</button>
       </div>
@@ -1002,7 +1002,7 @@ function render() {
   $("#menu").hidden = true;
   $$("[data-home-link]").forEach((a) => (a.href = signedIn ? "#home" : "#welcome"));
 
-  const titles = { welcome: "Adullam, ask Aquila", signin: "Sign in, Adullam", home: "Home, Adullam", declare: "Declare, Adullam", aquila: "Aquila, Adullam", bible: "The Bible, Adullam", cave: "Your cave, Adullam", church: "Church, Adullam", settings: "Settings, Adullam", signedout: "Signed out, Adullam", desk: "Admin desk, Adullam", sermon: "Sermon notes, Adullam", support: "Support Adullam", privacy: "Privacy, Adullam", terms: "Terms of use, Adullam" };
+  const titles = { welcome: "Adullam, ask Aquila", signin: "Sign in, Adullam", home: "Home, Adullam", declare: "Declare, Adullam", aquila: "Aquila, Adullam", bible: "The Bible, Adullam", cave: "Your Cave, Adullam", church: "Church, Adullam", settings: "Settings, Adullam", signedout: "Signed out, Adullam", desk: "Admin desk, Adullam", sermon: "Sermon notes, Adullam", support: "Support Adullam", privacy: "Privacy, Adullam", terms: "Terms of use, Adullam" };
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.
