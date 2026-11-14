@@ -311,7 +311,6 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .filter-select { background: var(--surface); color: var(--text); border: 1px solid var(--line-2); border-radius: var(--pill); padding: 4px 12px; font-size: 13px; font-weight: 500; min-height: var(--h-btn-sm); max-width: 60%; }
 .filter-select:focus { outline: none; border-color: var(--ember); box-shadow: 0 0 0 3px var(--ring); }
 /* The prayer list is one readable column, so its bar matches that width. */
-.list-bar:has(+ .prayer-list) { max-width: 760px; }
 /* The reader bar's two page links sit together on the right, before the translation. */
 .reader-saved-link { margin-left: 0; }
 .iconbtn {
@@ -1069,44 +1068,74 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .cave-section .row-between .moods { margin: 0; }
 
 /* ---------- Prayers (web/prayers.js) ---------- */
-/* Prayers read as a list of sentences, so one readable column rather than a grid. */
-.prayer-list { grid-template-columns: minmax(0, 1fr); max-width: 760px; }
-.prayer-body { font-size: 17px; line-height: 1.5; color: var(--text); white-space: pre-wrap; margin: 0 0 4px; }
+/* The list fills the tab; This week and Fasting sit in a column beside it,
+   kept in view as the list scrolls. On a phone they follow the list. */
+.prayers-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; align-items: start; }
+.prayers-layout > .practice-stack { position: sticky; top: 77px; } /* clear of the 61px top bar */
+.prayer-main { display: grid; gap: 0; min-width: 0; }
+.practice-stack { display: grid; gap: 12px; }
+.practice-stack > .practice-link { justify-self: start; }
+
+/* One row per prayer: a tick, its words on one line and how long it's been
+   carried. Opened, the words show whole with the verse, the declaration and
+   what can be done. */
+.prayer-rows { display: grid; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow: hidden; }
+.prayer-row + .prayer-row { border-top: 1px solid var(--divider); }
+.prayer-row { transition: background-color 0.2s ease; }
+.prayer-row.is-open { background: radial-gradient(120% 100% at 0% 0%, var(--glow) 0%, var(--surface) 55%); }
+.prayer-row.is-answered.is-open { background: radial-gradient(120% 100% at 0% 0%, var(--sage-bg) 0%, var(--surface) 55%); }
+.prayer-row-head { display: flex; align-items: flex-start; gap: 12px; padding: 14px 14px 14px 16px; }
+.prayer-tick { flex: none; display: grid; place-items: center; width: 26px; height: 26px; margin-top: 1px; padding: 0; border-radius: 50%; border: 1.8px solid var(--line-2); background: var(--surface); color: var(--surface); cursor: pointer; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease; }
+.prayer-tick:hover:not(:disabled) { border-color: var(--sage); }
+.prayer-tick:active { transform: scale(0.92); }
+.prayer-tick:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.prayer-tick svg { width: 15px; height: 15px; }
+.prayer-tick.is-done { border-color: var(--sage); background: var(--sage); }
+.prayer-tick.is-answered { border: 0; background: var(--sage-bg); color: var(--sage); cursor: default; }
+.prayer-row-toggle { flex: 1; min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; row-gap: 3px; padding: 0; border: 0; background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.prayer-row-toggle:focus-visible { outline: 2px solid var(--ember); outline-offset: 4px; border-radius: 6px; }
+.prayer-row-text { grid-column: 1; font-size: 16px; line-height: 1.45; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.prayer-row.is-open .prayer-row-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+.prayer-row-line { grid-column: 1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 13px; color: var(--muted); }
+.prayer-row.is-answered .prayer-row-line { color: var(--sage); }
+.prayer-row-mark { display: inline-flex; align-items: center; gap: 4px; color: var(--ember-hi); font-weight: 500; }
+.prayer-row-mark svg { width: 13px; height: 13px; }
+.prayer-row-chevron { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: grid; place-items: center; color: var(--faint); transition: transform 0.2s ease; }
+.prayer-row-chevron svg { width: 18px; height: 18px; }
+.prayer-row.is-open .prayer-row-chevron { transform: rotate(180deg); }
+.prayer-row-body { display: grid; gap: 12px; padding: 0 16px 14px 54px; animation: rise 0.2s ease both; }
+.prayer-row-body[hidden] { display: none; }
+.prayer-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 16px; }
+.prayer-row-actions .more { margin-left: auto; }
 /* The passage under a prayer: a plain link, not a pill. */
-.prayer-passage { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; font-weight: 500; color: var(--ember-hi); }
+.prayer-passage { justify-self: start; display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; font-weight: 500; color: var(--ember-hi); }
 .prayer-passage svg { width: 15px; height: 15px; }
 .prayer-passage:hover { text-decoration: underline; }
-.prayer-card.is-answered { background: radial-gradient(120% 140% at 100% 0%, var(--sage-bg) 0%, var(--surface) 60%); border-color: var(--sage-line); }
+/* The declaration kept with a prayer: one card, one tap to open and speak it. */
+.prayer-declaration { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); border: 1px solid var(--ember-line); background: var(--card-warm); color: var(--text); text-decoration: none; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+.prayer-declaration:hover { border-color: var(--ember); box-shadow: 0 10px 22px -18px var(--ember-glow); }
+.prayer-declaration-icon { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen); }
+.prayer-declaration-icon svg { width: 17px; height: 17px; }
+.prayer-declaration-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.prayer-declaration-text strong { font-size: 14.5px; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.prayer-declaration-text small { font-size: 12.5px; color: var(--muted); }
+.prayer-declaration-go { flex: none; font-size: 13.5px; font-weight: 600; color: var(--ember); }
 .badge.answered, .badge.learned { background: var(--sage-bg); color: var(--sage); }
 .badge.answered { display: inline-flex; align-items: center; gap: 4px; text-transform: none; }
 .badge.answered svg { width: 12px; height: 12px; }
 .answer-note { background: var(--sage-bg); border-radius: var(--radius-sm); padding: 10px 14px; }
 .answer-note strong { display: block; font-size: 13px; font-weight: 600; color: var(--sage); margin-bottom: 2px; }
 .answer-note p { font-size: 15px; color: var(--text); white-space: pre-wrap; }
-.answered-line { display: flex; align-items: center; gap: 6px; color: var(--sage); font-size: 14px; font-weight: 500; margin-top: 8px; }
-.answered-line svg { width: 16px; height: 16px; display: block; }
-/* The menu sits at the end of a card's top line. */
-.prayer-card .entry-meta .more { margin: -6px -8px -6px auto; }
-.prayer-card .entry-since, .prayer-card .answered-on { flex: 1; min-width: 0; }
-.answered-on { display: inline-flex; align-items: center; gap: 5px; color: var(--sage); font-weight: 600; }
-.answered-on svg { width: 13px; height: 13px; flex: none; }
-/* A prayer's row: Prayed and Answered in words, the round icons at the end. */
 .text-act.is-done { color: var(--sage); }
-.text-act.is-quiet { color: var(--faint); font-weight: 500; }
+.text-act.is-quiet { color: var(--muted); font-weight: 500; }
 .text-act.is-quiet:hover { color: var(--sage); }
-.prayer-card .entry-actions { gap: 8px; }
-.prayed-count { color: var(--sage); }
 
-/* The top of the Prayers tab: this week of prayer and fasting, side by side,
-   the same width as the list beneath them. */
-.practice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; max-width: 760px; margin: 0 0 28px; }
-/* With no fast underway, the week has the row to itself. */
-.practice-grid:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
-.practice-card { display: grid; gap: 12px; align-content: start; padding: 18px; }
+/* This week of prayer and fasting, in the side column. */
+.practice-card { display: grid; gap: 12px; align-content: start; padding: 16px; }
 .practice-card .card-head { margin: 0; align-items: center; }
 .practice-aside { font-size: 13px; }
 .practice-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.practice-foot .faint { font-size: 12.5px; flex: 1 1 140px; }
+.practice-foot .faint { font-size: 12.5px; flex: 1 1 120px; }
 .practice-link { font-size: 13px; padding: 0; }
 .practice-card .week-dots { justify-content: space-between; }
 .practice-card.is-fasting { border-color: transparent; background: radial-gradient(120% 140% at 100% 0%, var(--glow) 0%, var(--surface) 60%) padding-box, var(--edge) border-box; }
@@ -1119,10 +1148,15 @@ body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
 .fast-head .more { margin: -6px -8px 0 0; }
 .fast-intention { font-size: 14px; color: var(--soft); line-height: 1.5; white-space: pre-wrap; }
 /* "Prayer list" and its info button share a line with the filter. */
-.prayer-list-bar { max-width: 760px; }
 .prayer-list-bar .title-info { margin: 0; }
-/* Past fasts, at the foot of the tab when none is underway. */
-#cavePanel > .practice-link { display: block; margin-top: 18px; }
+@media (max-width: 900px) {
+  .prayers-layout { grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .prayers-layout > .practice-stack { position: static; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+}
+@media (max-width: 560px) {
+  .prayer-row-head { padding: 13px 10px 13px 12px; gap: 10px; }
+  .prayer-row-body { padding: 0 12px 13px 48px; }
+}
 .setup-note { max-width: 760px; margin: 0 0 24px; padding: 12px 16px; border-radius: var(--radius-sm); background: var(--well); color: var(--muted); font-size: 14px; }
 .past-list { display: grid; gap: 4px; margin: 6px 0 4px; }
 .past-item { display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--divider); font-size: 14px; }
@@ -1804,8 +1838,6 @@ body.still-open { overflow: hidden; }
   .refuge-tile.is-wide { min-height: 0; flex-direction: row; align-items: center; justify-content: flex-start; }
   /* A secondary action shows its icon alone, so a card's actions fit one line. */
   /* Prayer and fasting stack; a habit's week drops under its name. */
-  .practice-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 22px; }
-  .practice-card { padding: 16px; }
   .habit-row { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "check main more" ". week week"; padding: 12px 6px 12px 12px; row-gap: 10px; }
   .habit-row > .week-dots { justify-content: space-between; padding-right: 10px; }
   .kept { flex-wrap: wrap; }
