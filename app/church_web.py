@@ -10,11 +10,13 @@ cut off at a size limit.
 
 No YouTube API key is needed. A channel's live page says whether it's live
 (its canonical link becomes the live video's watch page, alongside
-"isLiveNow":true), the channel page names the channel's id, and the public
-feed at /feeds/videos.xml?channel_id=... lists its latest videos. A video's
-transcript comes from youtube-transcript-api when YouTube allows it (it often
-refuses servers in the cloud), and otherwise from the video's own
-description.
+"isLiveNow":true), and the channel page names the channel's id. Its latest
+videos come from the public feed at /feeds/videos.xml?channel_id=... when
+that answers (it has been answering 404 for every channel), and otherwise
+from the channel's own Videos and Live pages, which carry the same list as
+JSON (`parse_channel_page`). A video's transcript comes from
+youtube-transcript-api when YouTube allows it (it often refuses servers in
+the cloud), and otherwise from the video's own description.
 
 The parsing helpers are pure functions over text, so tests/test_churches.py
 covers them without the network.
@@ -30,6 +32,8 @@ import re
 import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import date, timedelta
+from email.utils import parsedate_to_datetime
 from html import unescape
 from html.parser import HTMLParser
 from urllib.parse import parse_qs, urljoin, urlparse
@@ -47,7 +51,9 @@ USER_AGENT = (
 )
 TIMEOUT_SECONDS = 8
 MAX_REDIRECTS = 4
-PAGE_BYTES = 1_500_000
+# Generous, since a site's markup can be heavy before its words begin (one
+# church's homepage opens with a 1.5 MB inline drawing).
+PAGE_BYTES = 3_000_000
 # YouTube's pages carry a lot of script; the live page is about 1.6 MB.
 YOUTUBE_PAGE_BYTES = 3_000_000
 # The most of a podcast feed ever read; read_podcast_feed usually stops far sooner.
@@ -56,6 +62,16 @@ FEED_BYTES = 3_000_000
 
 class FetchError(Exception):
     """A link that couldn't be read, with a message fit to show a person."""
+
+
+def _status_message(status: int) -> str:
+    """What to tell a person when a page answers with an error."""
+    if status in (401, 403, 429, 503):
+        # Usually a bot check in front of the site (Cloudflare and the like).
+        return "That site doesn't let Adullam read it. You can enter the details yourself instead."
+    if status in (404, 410):
+        return "That page wasn't found. Check the link and try again."
+    return "That page didn't open. Check the link and try again."
 
 
 # ---------------------------------------------------------------------------
@@ -109,13 +125,15 @@ def safe_get(url: str, *, max_bytes: int = PAGE_BYTES, enough: Callable[[bytes],
                         url = check_url(urljoin(url, response.headers.get("location", "")))
                         continue
                     if response.status_code >= 400:
-                        raise FetchError("That page didn't open. Check the link and try again.")
+                        raise FetchError(_status_message(response.status_code))
                     body = bytearray()
                     for chunk in response.iter_bytes():
                         body.extend(chunk)
                         if len(body) >= max_bytes or (enough and enough(body)):
                             break
                     return url, bytes(body[:max_bytes]).decode(response.encoding or "utf-8", errors="replace")
+            except httpx.TimeoutException as err:
+                raise FetchError("That site took too long to answer. Try again in a moment.") from err
             except httpx.HTTPError as err:
                 raise FetchError("That page didn't open. Check the link and try again.") from err
     raise FetchError("That link kept redirecting.")
@@ -134,12 +152,22 @@ class Page:
     links: list[tuple[str, str]] = field(default_factory=list)  # (absolute href, anchor text)
     json_ld: list[dict] = field(default_factory=list)
     feeds: list[str] = field(default_factory=list)
+    # YouTube and podcast links named anywhere in the markup, scripts
+    # included, for sites whose footer links are drawn by JavaScript.
+    mentions: list[str] = field(default_factory=list)
 
 
 class _PageParser(HTMLParser):
     """Collects what a church page says, without running anything on it."""
 
     _SKIP = {"script", "style", "noscript", "svg", "template"}
+    # Tags that start a new line of text. Every other tag is a word break, so
+    # a menu of links reads "Sermons Locations About", not "SermonsLocationsAbout".
+    _BLOCK = {
+        "p", "div", "li", "br", "hr", "tr", "section", "article", "header", "footer", "nav", "main", "aside",
+        "ul", "ol", "table", "dl", "dt", "dd", "address", "blockquote", "figure", "figcaption", "form",
+        "h1", "h2", "h3", "h4", "h5", "h6",
+    }
 
     def __init__(self, base: str):
         super().__init__(convert_charrefs=True)
@@ -173,10 +201,10 @@ class _PageParser(HTMLParser):
         elif tag == "a" and a.get("href"):
             self._href = urljoin(self.page.url, a["href"])
             self._anchor = []
-        if tag in ("p", "div", "li", "br", "h1", "h2", "h3", "h4", "tr", "section"):
-            self._text.append("\n")
+        self._text.append("\n" if tag in self._BLOCK else " ")
 
     def handle_endtag(self, tag):
+        self._text.append("\n" if tag in self._BLOCK else " ")
         if tag == "script" and self._in_ld:
             self._in_ld = False
             try:
@@ -193,7 +221,7 @@ class _PageParser(HTMLParser):
         elif tag == "title":
             self._in_title = False
         elif tag == "a" and self._href:
-            self.page.links.append((self._href, " ".join("".join(self._anchor).split())))
+            self.page.links.append((self._href, " ".join(" ".join(self._anchor).split())))
             self._href = None
 
     def handle_data(self, data):
@@ -215,31 +243,95 @@ class _PageParser(HTMLParser):
         self.page.title = " ".join(self.page.title.split())
 
 
+# YouTube and podcast addresses as they appear in markup or in a script's
+# JSON (where "/" is often written "\/").
+_MEDIA_LINK = re.compile(
+    r"https?://(?:www\.|m\.)?(?:youtube\.com|youtu\.be|podcasts\.apple\.com|open\.spotify\.com|anchor\.fm)/[^\s\"'<>\\)]+"
+)
+
+
 def parse_page(url: str, html: str) -> Page:
     parser = _PageParser(url)
     parser.feed(html)
     parser.close()
-    return parser.page
+    page = parser.page
+    page.mentions = list(dict.fromkeys(_MEDIA_LINK.findall(html.replace("\\/", "/"))))[:50]
+    return page
 
 
-# Words in a link that point at the pages most likely to hold service times,
-# events and announcements.
-_USEFUL_PAGE = re.compile(r"visit|new here|im-new|i'm new|about|times|service|worship|events?|calendar|whats-on|what's on|news|announce|contact|location|sunday", re.IGNORECASE)
+def _site(host: str | None) -> str:
+    return (host or "").lower().removeprefix("www.")
+
+
+# What a link's words or path say about the page behind it, best first: when
+# the church meets, then what's coming up, then who they are.
+_PAGE_HINTS = (
+    (3, re.compile(r"(plan[ _-]?(a|your)?[ _-]?)?visit|new[ _-]?here|i'?m[ _-]?new|first[ _-]?time|services?|times|sundays?|worship|gatherings?|locations?|campus|find[ _-]us|join[ _-]us", re.IGNORECASE)),
+    (2, re.compile(r"events?|calendar|whats[ _-]?on|what's on|happening|news|announce|notices?|bulletin", re.IGNORECASE)),
+    (1, re.compile(r"about|contact|who[ _-]we[ _-]are|our[ _-]story|our[ _-](pastors|team|leaders)|leadership|staff", re.IGNORECASE)),
+)
+_NOT_A_PAGE = re.compile(r"\.(pdf|jpe?g|png|gif|webp|mp3|m4a|mp4|zip|docx?)$", re.IGNORECASE)
+
+
+def _page_score(path: str, text: str) -> int:
+    """How promising a link is. In its path a hint counts only at the start
+    of a part ("/about-us", "/Services.aspx"), so a news story's long slug
+    that merely mentions a pastor doesn't count. A long anchor is usually a
+    card's whole blurb, so only short ones count by their words."""
+    parts = [p for p in path.split("/") if p]
+    words = text if len(text) <= 40 else ""
+    return max((score for score, hint in _PAGE_HINTS if any(hint.match(p) for p in parts) or hint.search(words)), default=0)
 
 
 def useful_pages(page: Page, limit: int = 3) -> list[str]:
-    """Same-site links worth reading too, most promising first."""
-    host = urlparse(page.url).hostname
-    seen, found = {page.url.rstrip("/")}, []
+    """Same-site links worth reading too: the best of each kind first (times,
+    then events, then about), then the next best. Within a kind a shallower
+    page wins ("/news" over one story under it), then the page's own order."""
+    home = _site(urlparse(page.url).hostname)
+    seen, scored = {page.url.split("#")[0].rstrip("/")}, []
     for href, text in page.links:
         parts = urlparse(href)
         clean = href.split("#")[0].rstrip("/")
-        if parts.hostname != host or clean in seen or not parts.scheme.startswith("http"):
+        if (_site(parts.hostname) != home or clean in seen or parts.scheme not in ("http", "https")
+                or _NOT_A_PAGE.search(parts.path)):
             continue
-        if _USEFUL_PAGE.search(text) or _USEFUL_PAGE.search(parts.path):
+        score = _page_score(parts.path, text)
+        if score:
             seen.add(clean)
-            found.append(clean)
-    return found[:limit]
+            depth = len([p for p in parts.path.split("/") if p])
+            scored.append((-score, depth, len(scored), clean))
+    scored.sort()
+    picked: list[str] = []
+    for tier in (3, 2, 1):
+        best = next((url for score, _, _, url in scored if -score == tier), None)
+        if best:
+            picked.append(best)
+    rest = [url for *_, url in scored if url not in picked]
+    return (picked + rest)[:limit]
+
+
+def site_text(pages: list[Page], limit: int) -> str:
+    """The pages' words for the model, at most `limit` characters. A long line
+    already seen on an earlier page (the menu, the footer) is left out, and
+    each page gets a fair share, a short page's unused share passing on, so
+    the visit and events pages are read and not just the homepage."""
+    seen: set[str] = set()
+    bodies = []
+    for page in pages:
+        lines = []
+        for line in page.text.split("\n"):
+            key = line.lower()
+            if len(line) >= 20 and key in seen:
+                continue
+            lines.append(line)
+        seen.update(line.lower() for line in lines if len(line) >= 20)
+        bodies.append(f"Page: {page.url}\nTitle: {page.title}\n" + "\n".join(lines))
+    out, left = [], limit
+    for i, body in enumerate(bodies):
+        piece = body[: left // (len(bodies) - i)]
+        out.append(piece)
+        left -= len(piece)
+    return "\n\n".join(out)
 
 
 # ---------------------------------------------------------------------------
@@ -281,18 +373,64 @@ def from_json_ld(items: list[dict]) -> dict:
     return out
 
 
+# A channel's own address: /@handle, /channel/UC..., /c/name, /user/name, or
+# the old bare /name. A link to one of its tabs (/@handle/videos) is cut back
+# to the channel, since "/live" is added to it to check for a stream.
+_CHANNEL_PATH = re.compile(r"^/(@[\w.-]+|channel/UC[\w-]{22}|c/[\w.-]+|user/[\w.-]+|[A-Za-z0-9][\w.-]{2,})(?:/|$)")
+# First path parts that are YouTube's own pages, never a channel's old name.
+_YOUTUBE_PAGES = {
+    "watch", "embed", "shorts", "results", "playlist", "feed", "redirect", "live", "hashtag", "premium", "music",
+    "kids", "gaming", "account", "signin", "logout", "about", "howyoutubeworks", "ads", "creators", "t",
+    "attribution_link", "subscription_manager", "supported_browsers", "new", "trending", "post", "source",
+    "iframe_api", "player_api", "s", "img", "yts", "sw.js", "favicon.ico", "robots.txt",
+}
+# Podcast hosts whose links are, or lead to, a readable feed. Spotify's lead
+# nowhere readable, so a Spotify link is kept only when there's nothing better.
+_FEED_HOSTS = ("anchor.fm", "podbean.com", "buzzsprout.com", "libsyn.com", "simplecast.com", "megaphone.fm",
+               "captivate.fm", "transistor.fm", "spreaker.com", "omnycontent.com", "feedburner.com", "subsplash.com")
+
+
+def youtube_channel_url(href: str) -> str | None:
+    """The channel a YouTube link is the home of, or None for any other link."""
+    parts = urlparse(href)
+    if not (parts.hostname or "").lower().endswith("youtube.com"):
+        return None
+    match = _CHANNEL_PATH.match(parts.path)
+    if not match or match.group(1).lower() in _YOUTUBE_PAGES:
+        return None
+    return f"https://www.youtube.com/{match.group(1)}"
+
+
+def _podcast_rank(host: str, path: str) -> int:
+    """How readable a podcast link is likely to be, or 0 for no podcast."""
+    if host == "podcasts.apple.com":
+        return 4
+    if re.search(r"\.(rss|xml)$|/(podcast/)?rss/?$|/feed/podcast", path):
+        return 3
+    if any(host == h or host.endswith("." + h) for h in _FEED_HOSTS):
+        return 2
+    return 1 if host == "open.spotify.com" and path.startswith("/show/") else 0
+
+
 def social_links(links: list[str]) -> dict:
-    """The first YouTube, Facebook and podcast links among `links`."""
+    """The first YouTube channel, Facebook page and best podcast among
+    `links`, plus a YouTube video (`youtube_video`) to find the channel from
+    when no channel is linked."""
     out: dict = {}
+    podcast_rank = 0
     for href in links:
-        host = (urlparse(href).hostname or "").lower()
-        path = urlparse(href).path
-        if "youtube.com" in host and re.match(r"^/(@[\w.-]+|channel/UC[\w-]{22}|c/[\w.-]+|user/[\w.-]+)", path):
-            out.setdefault("youtube_url", href.split("?")[0].rstrip("/"))
-        elif host.endswith("facebook.com") and path.strip("/") and not path.startswith("/sharer"):
+        parts = urlparse(href)
+        host, path = (parts.hostname or "").lower(), parts.path
+        channel = youtube_channel_url(href)
+        if channel:
+            out.setdefault("youtube_url", channel)
+        elif youtube_video_id(href):
+            out.setdefault("youtube_video", href)
+        elif host.endswith("facebook.com") and path.strip("/") and not re.match(r"^/(sharer|share|plugins|dialog|tr)\b", path):
             out.setdefault("facebook_url", href.split("?")[0])
-        elif host in ("podcasts.apple.com", "open.spotify.com", "anchor.fm") or re.search(r"\.(rss|xml)$|/feed/?$", path):
-            out.setdefault("podcast_url", href)
+        elif (rank := _podcast_rank(host, path)) > podcast_rank:
+            podcast_rank = rank
+            out["podcast_url"] = href.split("?")[0] if host == "open.spotify.com" else href
     return out
 
 
@@ -366,6 +504,106 @@ def parse_youtube_feed(xml: str) -> list[dict]:
     return videos
 
 
+# "2 days ago", "Streamed 3 weeks ago", and the short forms "2d ago", "1mo ago".
+_AGO = re.compile(r"(\d+)\s*(years?|yrs?|y|months?|mos?|weeks?|wks?|w|days?|d|hours?|hrs?|h|minutes?|mins?|m|seconds?|secs?|s)\s+ago", re.IGNORECASE)
+_AGO_DAYS = {"y": 365, "mo": 30, "w": 7, "d": 1}
+
+
+def days_ago(label: str) -> int | None:
+    """How many days back YouTube's "N units ago" is, or None without one."""
+    match = _AGO.search(label or "")
+    if not match:
+        return None
+    unit = match.group(2).lower()
+    per = next((days for prefix, days in _AGO_DAYS.items() if unit.startswith(prefix)), 0)
+    return int(match.group(1)) * per
+
+
+def _initial_data(html: str) -> dict | None:
+    """The JSON a YouTube page draws itself from."""
+    start = html.find("ytInitialData = ")
+    if start < 0:
+        return None
+    try:
+        data, _ = json.JSONDecoder().raw_decode(html, start + len("ytInitialData = "))
+    except ValueError:
+        return None
+    return data if isinstance(data, dict) else None
+
+
+def _each(node, key: str):
+    """Every value stored under `key` anywhere in a JSON tree."""
+    stack = [node]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            if key in item:
+                yield item[key]
+            stack.extend(reversed(list(item.values())))
+        elif isinstance(item, list):
+            stack.extend(reversed(item))
+
+
+def _texts(node) -> list[str]:
+    """Every piece of text in a JSON tree, its spoken label first."""
+    found = []
+    for item in _each(node, "accessibilityLabel"):
+        if isinstance(item, str):
+            found.append(item)
+    for item in _each(node, "content"):
+        if isinstance(item, str):
+            found.append(item)
+    return found
+
+
+def parse_channel_page(html: str, today: date) -> list[dict]:
+    """Videos on a channel's Videos or Live page, newest first, in the same
+    shape as parse_youtube_feed. The page gives only an age ("2 days ago"),
+    so `published` is worked back from `today`. A stream that's live or
+    still to come has no age yet and is left out (live is checked apart)."""
+    data = _initial_data(html)
+    if not data:
+        return []
+    videos, seen = [], set()
+    for lockup in _each(data, "lockupViewModel"):
+        if not isinstance(lockup, dict) or lockup.get("contentType") != "LOCKUP_CONTENT_TYPE_VIDEO":
+            continue
+        video_id = lockup.get("contentId") or ""
+        if not _VIDEO_ID.match(video_id) or video_id in seen:
+            continue
+        meta = (lockup.get("metadata") or {}).get("lockupMetadataViewModel") or {}
+        title = ((meta.get("title") or {}).get("content") or "").strip()
+        ago = next((d for d in map(days_ago, _texts(meta.get("metadata"))) if d is not None), None)
+        if not title or ago is None:
+            continue
+        badges = [b.get("text", "") for b in _each(lockup.get("contentImage") or {}, "thumbnailBadgeViewModel") if isinstance(b, dict)]
+        seen.add(video_id)
+        videos.append({
+            "id": f"yt:{video_id}",
+            "video_id": video_id,
+            "title": title,
+            "published": (today - timedelta(days=ago)).isoformat(),
+            "url": f"https://www.youtube.com/watch?v={video_id}",
+            "length": next((b for b in badges if re.match(r"^\d+(:\d\d)+$", b)), ""),
+            "description": "",
+        })
+    return videos
+
+
+def channel_videos(channel_id: str, today: date, limit: int = 20) -> list[dict]:
+    """A channel's latest videos and past streams, from its own pages, newest
+    first. Many churches post whole services as streams, so Live counts too."""
+    found: dict[str, dict] = {}
+    for tab in ("videos", "streams"):
+        try:
+            _, html = safe_get(f"https://www.youtube.com/channel/{channel_id}/{tab}", max_bytes=YOUTUBE_PAGE_BYTES)
+        except FetchError:
+            continue
+        for video in parse_channel_page(html, today):
+            found.setdefault(video["video_id"], video)
+    return sorted(found.values(), key=lambda v: v["published"], reverse=True)[:limit]
+
+
 def read_podcast_feed(url: str, limit: int, *, max_bytes: int = FEED_BYTES) -> list[dict]:
     """A podcast's latest `limit` episodes. Reading stops once they've arrived,
     since a feed can hold years of episodes (several MB) and only its top is
@@ -373,6 +611,34 @@ def read_podcast_feed(url: str, limit: int, *, max_bytes: int = FEED_BYTES) -> l
     closing = b"</item>"
     _, xml = safe_get(url, max_bytes=max_bytes, enough=lambda body: body.count(closing) >= limit)
     return parse_podcast_feed(xml, limit)
+
+
+def _feed_date(value: str | None) -> str:
+    """An RSS date ("Sun, 09 Nov 2026 10:00:00 GMT") as YYYY-MM-DD, or ""."""
+    value = (value or "").strip()
+    try:
+        return parsedate_to_datetime(value).date().isoformat()
+    except (TypeError, ValueError, IndexError):
+        match = re.match(r"\d{4}-\d{2}-\d{2}", value)
+        return match.group(0) if match else ""
+
+
+def _feed_length(value: str | None) -> str:
+    """An episode's itunes:duration ("2712", "45:12", "01:05:00") as "h:mm:ss"
+    or "m:ss", the way YouTube writes a length, or ""."""
+    value = (value or "").strip()
+    if value.isdigit():
+        return clock(int(value)) if int(value) else ""
+    parts = value.split(":")
+    if 2 <= len(parts) <= 3 and all(p.isdigit() for p in parts):
+        seconds = 0
+        for part in parts:
+            seconds = seconds * 60 + int(part)
+        return clock(seconds) if seconds else ""
+    return ""
+
+
+_ITUNES = "{http://www.itunes.com/dtds/podcast-1.0.dtd}"
 
 
 def parse_podcast_feed(xml: str, limit: int | None = None) -> list[dict]:
@@ -398,11 +664,18 @@ def parse_podcast_feed(xml: str, limit: int | None = None) -> list[dict]:
             "id": "pod:" + hashlib.sha1(guid.encode()).hexdigest()[:16],
             "audio_url": audio,
             "title": (item.findtext("title") or "").strip(),
-            "published": (item.findtext("pubDate") or "").strip()[:16],
+            "published": _feed_date(item.findtext("pubDate")),
+            "length": _feed_length(item.findtext(f"{_ITUNES}duration")),
             "url": link,
             "description": re.sub(r"<[^>]+>", " ", unescape(item.findtext("description") or ""))[:1500],
         })
     return episodes
+
+
+def video_channel_id(html: str) -> str | None:
+    """The channel a watch page's own video belongs to (not a suggested one's)."""
+    match = re.search(r'"videoDetails":\{"videoId":"[\w-]{11}".*?"channelId":"(UC[\w-]{22})"', html)
+    return match.group(1) if match else None
 
 
 def watch_page_details(html: str) -> dict:

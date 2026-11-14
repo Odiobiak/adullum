@@ -42,6 +42,8 @@
     mark: svg('<path d="M6 4h12v17l-6-4-6 4z"/>'),
     notes: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/>'),
     bell: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'),
+    down: svg('<path d="M6 9l6 6 6-6"/>'),
+    up: svg('<path d="M6 15l6-6 6 6"/>'),
   };
 
   const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -326,13 +328,26 @@
   }
 
   // ---------------------------------------------------------------------
-  // The player: one video or episode, docked at the bottom while the
-  // Church view is open
+  // The player: one video or episode, docked at the foot of the screen
+  // while the Church view is open (a corner on a wide screen, the width of
+  // a phone). A video can shrink to one line and keeps playing in a small
+  // frame. The page gets room under its last row the height of the dock, so
+  // nothing is left hidden behind it.
   // ---------------------------------------------------------------------
   let dock = null;
+  let dockRoom = null;   // keeps the page's room in step with the dock's height
+  let playingId = null;  // the sermon in the dock, lit in any list showing it
+
+  function markPlaying() {
+    document.querySelectorAll(".church-row[data-id]").forEach((row) => row.classList.toggle("is-playing", row.dataset.id === playingId));
+  }
   function closePlayer() {
     if (dock) dock.remove();
-    dock = null;
+    if (dockRoom) dockRoom.disconnect();
+    dock = dockRoom = playingId = null;
+    document.body.classList.remove("has-player");
+    document.body.style.removeProperty("--player-room");
+    markPlaying();
   }
   function play(item) {
     if (!item.video_id && !item.audio_url) {
@@ -347,15 +362,39 @@
           referrerpolicy: "strict-origin-when-cross-origin",
         })
       : el("audio", { src: item.audio_url, controls: true, autoplay: true });
+    const shrink = item.video_id ? el("button", { class: "iconbtn", type: "button", "aria-label": "Make the player smaller", title: "Smaller", html: ICON.down }) : null;
+    if (shrink) shrink.onclick = () => {
+      const mini = dock.classList.toggle("is-mini");
+      shrink.innerHTML = mini ? ICON.up : ICON.down;
+      shrink.setAttribute("aria-label", mini ? "Make the player bigger" : "Make the player smaller");
+      shrink.title = mini ? "Bigger" : "Smaller";
+    };
     dock = el("div", { class: `church-player${item.video_id ? "" : " is-audio"}`, role: "region", "aria-label": "Now playing" }, [
       el("div", { class: "church-player-media" }, media),
       el("div", { class: "church-player-bar" }, [
         el("span", { class: "church-player-text" }, [el("strong", { text: item.title }), el("small", { text: item.church || "" })]),
-        el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Notes", onclick: () => fromLinkSheet({ url: item.url, churchId: item.church_id }) }),
-        el("button", { class: "iconbtn", type: "button", "aria-label": "Close player", html: ICON.close, onclick: closePlayer }),
-      ]),
+        el("button", { class: "btn btn-ember btn-sm church-player-notes", type: "button", text: "Notes", onclick: () => fromLinkSheet({ url: item.url, churchId: item.church_id }) }),
+        shrink,
+        el("button", { class: "iconbtn", type: "button", "aria-label": "Close player", title: "Close", html: ICON.close, onclick: closePlayer }),
+      ].filter(Boolean)),
     ]);
     document.body.append(dock);
+    document.body.classList.add("has-player");
+    const fit = () => dock && document.body.style.setProperty("--player-room", `${dock.offsetHeight}px`);
+    fit();
+    if (window.ResizeObserver) (dockRoom = new ResizeObserver(fit)).observe(dock);
+    playingId = item.id;
+    markPlaying();
+  }
+
+  // A sermon's length in words: "52 min", "1 hr 14 min". `length` is
+  // "h:mm:ss" or "m:ss", from YouTube or the podcast feed.
+  function minutes(length) {
+    const parts = (length || "").split(":").map(Number);
+    if (parts.length < 2 || parts.some(isNaN)) return "";
+    const total = Math.max(1, Math.round(parts.reduce((sum, p) => sum * 60 + p, 0) / 60));
+    const nb = "\u00a0"; // keeps "52 min" on one line
+    return total < 60 ? `${total}${nb}min` : `${Math.floor(total / 60)}${nb}hr${total % 60 ? ` ${total % 60}${nb}min` : ""}`;
   }
 
   function sermonRow(item, { showChurch = false } = {}) {
@@ -366,13 +405,14 @@
           onerror: (e) => e.currentTarget.replaceWith(el("span", { class: "church-thumb is-audio", "aria-hidden": "true", html: ICON.play })),
         })
       : el("span", { class: "church-thumb is-audio", "aria-hidden": "true", html: ICON.play });
-    const sub = [showChurch ? item.church : shortDate(item.published), (item.refs || [])[0]].filter(Boolean);
-    return el("div", { class: "church-row" }, [
+    const ref = (item.refs || [])[0];
+    const facts = [showChurch ? item.church : null, shortDate(item.published), minutes(item.length)].filter(Boolean).join(" · ");
+    return el("div", { class: `church-row${item.id === playingId ? " is-playing" : ""}`, "data-id": item.id }, [
       el("button", { class: "church-row-main", type: "button", onclick: () => play(item), "aria-label": `Play ${item.title}` }, [
         thumb,
         el("span", { class: "church-row-text" }, [
-          el("strong", { text: item.title }),
-          el("small", {}, sub.map((s, i) => el("span", { class: i === sub.length - 1 && (item.refs || [])[0] === s ? "verse-ref" : null, text: (i ? " · " : "") + s }))),
+          el("strong", { class: "church-row-title", text: item.title }),
+          el("small", {}, [facts, ref && facts ? " · " : null, ref ? el("span", { class: "verse-ref", text: ref }) : null]),
         ]),
       ]),
       el("button", { class: "iconbtn church-row-act", type: "button", title: "Make notes", "aria-label": `Make notes on ${item.title}`, html: ICON.notes, onclick: () => fromLinkSheet({ url: item.url, churchId: item.church_id }) }),
@@ -527,9 +567,15 @@
       body.replaceChildren(failed(err));
       return;
     }
+    const spotifyOnly = !church.youtube_url && /spotify\.com/i.test(church.podcast_url || "");
     body.replaceChildren(items.length
       ? el("div", { class: "card church-list" }, items.map((i) => sermonRow(i)))
-      : el("div", { class: "empty church-quiet", text: "No sermons found yet. A Spotify link can't be read; a YouTube channel or podcast feed can." }));
+      : el("div", { class: "empty church-quiet" }, [
+          spotifyOnly
+            ? "Spotify doesn't share its episodes with other apps. Add their YouTube channel, or the same podcast's Apple Podcasts link, to see sermons here."
+            : "No sermons found yet. Check their YouTube and podcast links.",
+          el("div", {}, el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Edit links", onclick: () => editSheet(church) })),
+        ]));
   }
 
   function churchTimes(church, body) {
@@ -640,9 +686,13 @@
     const city = el("input", { class: "field", maxlength: "120", value: data.city || "" });
     const zones = zoneOptions(data.time_zone);
     const zone = el("input", { class: "field", list: "churchZones", value: zones.value, autocomplete: "off", spellcheck: "false" });
-    const website = el("input", { class: "field", type: "text", inputmode: "url", autocapitalize: "off", spellcheck: "false", placeholder: "https://", value: data.website || "" });
-    const youtube = el("input", { class: "field", type: "text", inputmode: "url", autocapitalize: "off", spellcheck: "false", placeholder: "Channel link", value: data.youtube_url || "" });
-    const podcast = el("input", { class: "field", type: "text", inputmode: "url", autocapitalize: "off", spellcheck: "false", placeholder: "Podcast feed or Apple Podcasts link", value: data.podcast_url || "" });
+    const linkInput = (value, placeholder) => el("input", { class: "field", type: "text", inputmode: "url", autocapitalize: "off", spellcheck: "false", placeholder, value: value || "" });
+    const address = el("input", { class: "field", maxlength: "300", value: data.address || "" });
+    const pastors = el("input", { class: "field", maxlength: "300", placeholder: "Comma separated", value: data.pastors || "" });
+    const website = linkInput(data.website, "https://");
+    const youtube = linkInput(data.youtube_url, "Channel link");
+    const podcast = linkInput(data.podcast_url, "Podcast feed or Apple Podcasts link");
+    const facebook = linkInput(data.facebook_url, "Page link");
 
     const times = el("div", { class: "church-times" });
     const timeRow = (g = { label: "", day: 0, time: "10:00" }) => {
@@ -670,9 +720,11 @@
         times,
         el("button", { class: "act church-more-time", type: "button", html: `${ICON.plus}<span>Add a time</span>`, onclick: () => timeRow() }),
       ]),
-      el("details", { class: "church-links-box", open: !!(data.youtube_url || data.podcast_url) }, [
-        el("summary", { text: "Website, YouTube, podcast" }),
-        field("Website", website), field("YouTube", youtube), field("Podcast", podcast),
+      // Open whenever there's something in it to check, as after reading a site.
+      el("details", { class: "church-links-box", open: !!(data.address || data.pastors || data.youtube_url || data.podcast_url || data.facebook_url) }, [
+        el("summary", { text: "Address, pastors and links" }),
+        field("Address", address), field("Pastors", pastors),
+        field("Website", website), field("YouTube", youtube), field("Podcast", podcast), field("Facebook", facebook),
       ]),
       found.length ? el("p", { class: "muted church-found", text: `Also found: ${found.join(" and ")}.` }) : null,
       msg.node,
@@ -686,9 +738,12 @@
         name: name.value.trim(),
         city: city.value.trim() || null,
         time_zone: tz || null,
+        address: address.value.trim() || null,
+        pastors: pastors.value.trim() || null,
         website: website.value.trim() || null,
         youtube_url: youtube.value.trim() || null,
         podcast_url: podcast.value.trim() || null,
+        facebook_url: facebook.value.trim() || null,
         gatherings: [...times.children].map((r) => r.read()).filter((g) => g.time),
       };
       save.disabled = true;
@@ -702,7 +757,34 @@
     return form;
   }
 
-  function showAdd(mode = "link") {
+  // Steps shown while something slow happens on the server, lit one after
+  // another on a timer, since the server sends no progress of its own.
+  function progressSteps(labels, every = 3500) {
+    const node = el("ol", { class: "church-steps", hidden: true }, labels.map((t) => el("li", { text: t })));
+    const items = [...node.children];
+    let timer = null;
+    return {
+      node,
+      start() {
+        let at = 0;
+        node.hidden = false;
+        items[0].classList.add("is-now");
+        timer = setInterval(() => {
+          if (at >= items.length - 1) return;
+          items[at].classList.replace("is-now", "is-done");
+          items[++at].classList.add("is-now");
+        }, every);
+      },
+      stop() {
+        clearInterval(timer);
+        node.hidden = true;
+        items.forEach((li) => li.classList.remove("is-now", "is-done"));
+      },
+    };
+  }
+
+  // `prefill` carries a link that couldn't be read into the form by hand.
+  function showAdd(mode = "link", prefill = {}) {
     const pick = (key, label) => el("button", { type: "button", role: "tab", "aria-selected": String(mode === key), text: label, onclick: () => showAdd(key) });
     const body = el("div", { class: "church-add-body" });
     fill(
@@ -712,17 +794,28 @@
       body,
     );
     if (mode === "manual") {
-      body.append(el("div", { class: "card" }, churchForm({}, "Add to my churches", addChurch)));
+      body.append(el("div", { class: "card" }, churchForm(prefill, "Add to my churches", addChurch)));
       return;
     }
     const msg = cave().formMessage();
     const url = el("input", { class: "field", type: "text", inputmode: "url", autocapitalize: "off", spellcheck: "false", required: true, placeholder: "Website, YouTube channel or podcast", "aria-label": "Link" });
     const read = el("button", { class: "btn btn-ember", type: "submit", text: "Read it" });
-    const form = el("form", { class: "card church-link-form" }, [url, msg.node, read]);
+    const steps = progressSteps(["Opening the site", "Reading its visit and events pages", "Picking out times and details"], 4000);
+    const byHand = el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Enter it myself", hidden: true });
+    byHand.onclick = () => {
+      const link = url.value.trim();
+      showAdd("manual", /youtu\.?be/i.test(link) ? { youtube_url: link } : { website: link });
+    };
+    const form = el("form", { class: "card church-link-form" }, [
+      el("p", { class: "muted church-link-hint", text: "Adullam reads the site for their times, events and links. Nothing is added until you check it." }),
+      url, steps.node, msg.node, el("div", { class: "church-link-actions" }, [read, byHand]),
+    ]);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      read.disabled = true;
-      read.textContent = "Reading the site...";
+      read.disabled = url.disabled = true;
+      byHand.hidden = true;
+      msg.say("");
+      steps.start();
       try {
         const draft = await api(`/me/churches/read?today=${cave().localToday()}`, { method: "POST", body: { url: url.value.trim() } });
         body.replaceChildren(
@@ -730,9 +823,10 @@
           el("div", { class: "card" }, churchForm(draft, "Add to my churches", (values) => addChurch({ ...draft, ...values }))),
         );
       } catch (err) {
+        steps.stop();
         msg.say(err.message, true);
-        read.disabled = false;
-        read.textContent = "Read it";
+        read.disabled = url.disabled = false;
+        byHand.hidden = false;
       }
     });
     body.append(form);
@@ -929,46 +1023,34 @@
       ...mine.map((c) => el("option", { value: c.id, text: c.name, selected: c.id === churchId })),
     ]);
     const go = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Draft my notes" });
-    const steps = el("ol", { class: "church-steps", hidden: true }, ["Reading the captions", "Finding the passages", "Pulling out the main points", "Noting what to do this week"].map((t) => el("li", { text: t })));
+    const steps = progressSteps(["Reading the captions", "Finding the passages", "Pulling out the main points", "Noting what to do this week"]);
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "fromLinkTitle" }, [
       el("h3", { id: "fromLinkTitle", text: "Notes from a sermon" }),
-      el("p", { class: "sheet-lede", text: "Paste a link. Adullam drafts the note; you edit it." }),
+      el("p", { class: "sheet-lede", text: "Paste a YouTube or podcast link. Adullam drafts the note; you edit it." }),
       input,
       mine.length ? pick : null,
-      steps,
+      steps.node,
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), go]),
     ]);
     const close = cave().overlay(form);
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
-      go.disabled = true;
-      input.disabled = true;
-      steps.hidden = false;
-      let at = 0;
-      const items = [...steps.children];
-      items[0].classList.add("is-now");
-      const ticker = setInterval(() => {
-        if (at < items.length - 1) {
-          items[at].classList.replace("is-now", "is-done");
-          items[++at].classList.add("is-now");
-        }
-      }, 3500);
+      go.disabled = input.disabled = true;
+      msg.say("");
+      steps.start();
       try {
         const note = await api(`/me/sermons/from-link?today=${cave().localToday()}`, { method: "POST", body: { url: input.value.trim(), church_id: pick.value || null } });
-        clearInterval(ticker);
+        steps.stop();
         close();
         closePlayer();
         await openSermons();
         await window.Sermons.open(note.id);
-        if (!note.from_transcript) toast("Drafted from the description, since the captions weren't available.", { tone: "info" });
+        if (!note.from_transcript) toast("Drafted from the sermon's description, since its captions weren't available.", { tone: "info" });
       } catch (err) {
-        clearInterval(ticker);
-        steps.hidden = true;
-        items.forEach((li) => li.classList.remove("is-now", "is-done"));
+        steps.stop();
         msg.say(err.message, true);
-        go.disabled = false;
-        input.disabled = false;
+        go.disabled = input.disabled = false;
       }
     });
     input.focus();

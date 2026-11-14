@@ -163,7 +163,7 @@
         note.block_refs = saved.block_refs;
         note.updated_at = saved.updated_at;
         const listed = notes.find((n) => n.id === note.id);
-        if (listed) Object.assign(listed, { title: note.title, speaker: note.speaker, preached_on: note.preached_on, passage_ref: saved.passage_ref, passages: saved.passages });
+        if (listed) Object.assign(listed, { title: note.title, speaker: note.speaker, church: note.church, preached_on: note.preached_on, passage_ref: saved.passage_ref, passages: saved.passages });
         if (note === current) {
           setStatus(dirty ? "Saving..." : "Saved");
           refreshRefs();
@@ -261,7 +261,7 @@
       onclick: () => openNote(n.id, { scroll: true }),
     }, [
       el("strong", { text: n.title || "Untitled sermon" }),
-      el("span", { text: [niceDate(n.preached_on), n.speaker].filter(Boolean).join(" · ") }),
+      el("span", { text: [niceDate(n.preached_on), n.speaker || n.church].filter(Boolean).join(" · ") }),
       el("span", { class: "sermon-item-foot" }, [
         n.passages && n.passages[0] ? el("span", { class: "verse-ref", text: n.passages[0] }) : null,
         n.shared ? el("span", { class: "badge plain", text: "Shared" }) : null,

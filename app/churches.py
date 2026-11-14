@@ -45,6 +45,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 from urllib.parse import urlparse
+from xml.etree import ElementTree
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
@@ -75,7 +76,8 @@ MAX_CHURCHES = 20
 RECHECK_AFTER = timedelta(days=7)
 LIVE_CACHE_SECONDS = 120
 FEED_CACHE_SECONDS = 30 * 60
-SITE_TEXT_CHARS = 14_000
+SITE_TEXT_CHARS = 20_000  # shared across the pages read (church_web.site_text)
+_AUDIO_FILE = re.compile(r"\.(mp3|m4a|aac|wav|ogg|opus)$", re.IGNORECASE)
 MOODS = ("weary", "anxious", "grateful", "grieving", "deciding", "joyful")
 DAYS = ("sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday")
 _EM_DASH = "\u2014"
@@ -224,6 +226,10 @@ _READ_PROMPT = (
     "You read a church's own web pages and pick out practical details for one of its members. "
     "Use only what the pages state. Never guess a time, a date or a name: leave it out instead. "
     "Weekly gatherings go in `gatherings`; one-off dated events in `events`; announcements in `notices`. "
+    "Times often share a line ('Sundays 9am & 11am'): give each time its own gathering. "
+    "When the church meets in several places, keep the times of the place the first page is about, "
+    "or else of its main location, and name the place in the label ('Sunday service, Downtown'). "
+    "`city` is the town or city alone, without the street or country. "
     "Write plainly, never use an em dash, and don't add marketing language."
 )
 
@@ -337,21 +343,34 @@ def week_steps(note: dict) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Reading a church from its link
 # ---------------------------------------------------------------------------
+def _read_extra(url: str) -> web.Page | None:
+    try:
+        return web.parse_page(*web.safe_get(url))
+    except web.FetchError:
+        return None
+
+
 def read_church(url: str, today: date) -> dict:
     url = web.normalise_url(url)
     if web.is_youtube(url):
-        return _read_youtube_channel(url)
+        return _read_youtube(url)
     final_url, html = web.safe_get(url)
     page = web.parse_page(final_url, html)
-    pages = [page]
-    for extra in web.useful_pages(page):
-        try:
-            pages.append(web.parse_page(*web.safe_get(extra)))
-        except web.FetchError:
-            continue
+    extras = web.useful_pages(page)
+    with ThreadPoolExecutor(max_workers=max(len(extras), 1)) as pool:
+        pages = [page, *(p for p in pool.map(_read_extra, extras) if p)]
     structured = web.from_json_ld([item for p in pages for item in p.json_ld])
-    links = web.social_links([*structured.get("same_as", []), *(href for p in pages for href, _ in p.links)])
-    text = "\n\n".join(f"Page: {p.url}\nTitle: {p.title}\n{p.text}" for p in pages)[:SITE_TEXT_CHARS]
+    # The site's own links first, then any it names only in its scripts.
+    links = web.social_links([
+        *structured.get("same_as", []),
+        *(href for p in pages for href, _ in p.links),
+        *(href for p in pages for href in p.mentions),
+    ])
+    if not links.get("youtube_url") and links.get("youtube_video"):
+        channel = _channel_of_video(links["youtube_video"])
+        if channel:
+            links["youtube_url"] = f"https://www.youtube.com/channel/{channel}"
+    text = web.site_text(pages, SITE_TEXT_CHARS)
     try:
         draft = _llm.with_structured_output(ChurchDraft).invoke([
             SystemMessage(_READ_PROMPT),
@@ -365,13 +384,31 @@ def read_church(url: str, today: date) -> dict:
     return merge_draft(final_url, draft, structured, links, today)
 
 
-def _read_youtube_channel(url: str) -> dict:
+def _channel_of_video(video_url: str) -> str | None:
+    """The channel id behind a YouTube video link."""
+    try:
+        _, html = web.safe_get(f"https://www.youtube.com/watch?v={web.youtube_video_id(video_url)}", max_bytes=web.YOUTUBE_PAGE_BYTES)
+    except web.FetchError:
+        return None
+    return web.video_channel_id(html)
+
+
+def _read_youtube(url: str) -> dict:
+    """A church from a YouTube link: its channel, or the channel of a video.
+    YouTube's own `og:site_name` is always "YouTube", so the name comes from
+    the page title ("Harvest House - YouTube")."""
+    if web.youtube_video_id(url):
+        channel = _channel_of_video(url)
+        if not channel:
+            raise web.FetchError("Couldn't find the channel behind that video. Paste the channel's link instead.")
+        url = f"https://www.youtube.com/channel/{channel}"
     final_url, html = web.safe_get(url, max_bytes=web.YOUTUBE_PAGE_BYTES)
     page = web.parse_page(final_url, html)
-    name = (page.site_name or page.title).removesuffix(" - YouTube").strip()
+    name = page.title.removesuffix(" - YouTube").strip()
     return {
         "name": _plain(name, 120), "city": None, "time_zone": None, "address": None, "pastors": None,
-        "website": None, "youtube_url": final_url.split("?")[0].rstrip("/"), "podcast_url": None, "facebook_url": None,
+        "website": None, "youtube_url": web.youtube_channel_url(final_url) or final_url.split("?")[0].rstrip("/"),
+        "podcast_url": None, "facebook_url": None,
         "gatherings": [], "events": [], "notices": [], "source_url": final_url,
     }
 
@@ -460,25 +497,62 @@ def _podcast_feed_url(url: str) -> str | None:
         _, body = web.safe_get(f"https://itunes.apple.com/lookup?id={match.group(1)}&entity=podcast")
         results = json.loads(body).get("results") or []
         return results[0].get("feedUrl") if results else None
-    if host in ("open.spotify.com", "anchor.fm"):
+    if host in ("open.spotify.com", "podcasters.spotify.com"):
         return None  # no public feed behind these links
     return url
 
 
+def _read_podcast(url: str) -> list[dict]:
+    """A podcast's latest episodes. A link to the show's web page (Podbean,
+    Buzzsprout, a church's own site) is followed to the feed it names."""
+    feed = _podcast_feed_url(url)
+    if not feed:
+        return []
+    try:
+        episodes = web.read_podcast_feed(feed, 20)
+    except ElementTree.ParseError:
+        episodes = []
+    if episodes:
+        return episodes
+    page = web.parse_page(*web.safe_get(feed))
+    named = [f for f in page.feeds if "comments" not in f.lower()]
+    return web.read_podcast_feed(named[0], 20) if named else []
+
+
+def _youtube_uploads(channel: str) -> list[dict]:
+    """A channel's latest videos: the public feed when it answers, else the
+    channel's own Videos and Live pages (see app/church_web.py)."""
+    try:
+        videos = web.parse_youtube_feed(web.safe_get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel}")[1])
+    except (web.FetchError, ElementTree.ParseError):
+        videos = []
+    return videos or web.channel_videos(channel, date.today())
+
+
 def church_sermons(church: dict) -> list[dict]:
-    """The church's latest sermons, from its YouTube feed and its podcast."""
+    """The church's latest sermons, from its YouTube channel and its podcast."""
     items: list[dict] = []
     channel = church.get("youtube_channel_id")
     if channel:
-        items += _cached_feed(f"yt:{channel}", lambda: web.parse_youtube_feed(web.safe_get(f"https://www.youtube.com/feeds/videos.xml?channel_id={channel}")[1]))
+        items += _cached_feed(f"yt:{channel}", lambda: _youtube_uploads(channel))
     if church.get("podcast_url"):
         podcast = church["podcast_url"]
-
-        def load_podcast():
-            feed = _podcast_feed_url(podcast)
-            return web.read_podcast_feed(feed, 20) if feed else []
-        items += _cached_feed(f"pod:{podcast}", load_podcast)
+        items += _cached_feed(f"pod:{podcast}", lambda: _read_podcast(podcast))
+    items.sort(key=lambda i: i.get("published") or "", reverse=True)
     return [{**i, "church_id": church["id"], "church": church["name"], "refs": references_in(f"{i['title']} {i.get('description', '')}")[:3]} for i in items]
+
+
+def cached_episode(url: str) -> tuple[str, dict] | None:
+    """A sermon already read from a feed whose page or recording is `url`,
+    with the feed's cache key, so notes can be drafted from what the feed
+    says of it rather than from a page that's mostly script, or the audio."""
+    with _cache_lock:
+        feeds = list(_feed_cache.items())
+    for key, (_, items) in feeds:
+        for item in items:
+            if url in (item.get("url"), item.get("audio_url")):
+                return key, item
+    return None
 
 
 def _ensure_channel_id(church: dict, user: AuthUser) -> dict:
@@ -573,6 +647,14 @@ _DRAFT_PROMPT = (
 )
 
 
+def _feed_name(key: str) -> str:
+    """Who a cached feed belongs to, for a catalog source ("catalog:keller")."""
+    from app.listen import _BY_KEY  # listen imports this module, so imported here
+
+    source = _BY_KEY.get(key.removeprefix("catalog:")) if key.startswith("catalog:") else None
+    return source.name if source else ""
+
+
 def _source_for(url: str) -> dict:
     """What a sermon link says: details, and the words to draft from."""
     video = web.youtube_video_id(url)
@@ -589,6 +671,14 @@ def _source_for(url: str) -> dict:
         else:
             words = details.get("description", "")
         return {"video_id": video, "url": f"https://www.youtube.com/watch?v={video}", "details": details, "words": words, "transcript": bool(transcript)}
+    found = cached_episode(url)
+    if found:
+        key, item = found
+        details = {"title": item["title"], "channel": _feed_name(key), "date": item.get("published") or "", "description": item.get("description") or ""}
+        words = f"{item['title']}\n\n{details['description']}".strip()
+        return {"video_id": None, "url": item["url"], "details": details, "words": words, "transcript": False}
+    if _AUDIO_FILE.search(urlparse(url).path):
+        raise web.FetchError("That link is the recording itself, which can't be read. Paste the episode's page, or start a blank note.")
     final_url, html = web.safe_get(url)
     page = web.parse_page(final_url, html)
     return {"video_id": None, "url": final_url, "details": {"title": page.title, "description": page.description}, "words": page.text[:SITE_TEXT_CHARS], "transcript": False}

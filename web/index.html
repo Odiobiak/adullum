@@ -516,11 +516,11 @@
         </div>
         <div class="thread wrap">
           <div class="thread-inner" id="thread">
-            <!-- A new conversation: Aquila's mark, one question, and four ways to begin as cards. -->
+            <!-- A new conversation: Aquila's mark and one question, with the
+                 text box centred under them and the starters under that (CSS). -->
             <div class="ask-empty" id="askEmpty">
               <span class="avatar-a ask-empty-mark" aria-hidden="true" data-aquila-mark></span>
               <h1 class="page-title" data-info="Ask about a passage, a question you can't shake, or a season you're in. Every answer is drawn from Scripture and cites chapter and verse.">What would you like to talk about?</h1>
-              <div class="starter-cards" data-topics="Rest,Doubt,Anxiety,Forgiveness" data-submit data-cards></div>
             </div>
           </div>
         </div>
@@ -531,6 +531,8 @@
             <button class="composer-send" type="submit" id="submit" aria-label="Ask"><span class="spinner"></span><svg class="send-label" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
           </form>
           <div class="error" id="error" role="alert"></div>
+          <!-- Ways to begin, shown only while the conversation is new. -->
+          <div class="starter-cards" data-topics="Rest,Doubt,Anxiety,Forgiveness" data-submit data-cards></div>
           <p class="composer-note">Aquila can make mistakes. Read the verses she cites.</p>
         </div>
       </div>
@@ -940,9 +942,10 @@ $$("[data-topics]").forEach((box) => {
     b.type = "button";
     if ("cards" in box.dataset) {
       b.className = "starter-card";
-      b.innerHTML = `<span class="starter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TOPIC_ICONS[label] || ""}</svg></span><strong></strong><span></span>`;
-      b.querySelector("strong").textContent = label;
-      b.querySelector("span:last-child").textContent = q;
+      b.innerHTML = `<span class="starter-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TOPIC_ICONS[label] || ""}</svg></span><span></span>`;
+      b.lastChild.textContent = label;
+      b.title = q;
+      b.setAttribute("aria-label", q);
       b.addEventListener("click", () => submitQuery(q));
       box.appendChild(b);
       continue;

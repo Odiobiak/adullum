@@ -278,3 +278,141 @@ def test_a_quote_that_is_really_a_verse_is_left_out():
     assert "quote" not in [b["type"] for b in note["blocks"]]
     # No timestamps without a video to jump to.
     assert note["blocks"][-1]["label"] == "Listen again"
+
+
+# ---------------------------------------------------------------------------
+# Reading real-world church sites, YouTube channels and podcasts. Each case
+# below is shaped after a site that tripped the reading up once.
+# ---------------------------------------------------------------------------
+def test_words_in_neighbouring_tags_stay_apart():
+    page = web.parse_page("https://hope.org/", "<nav><a>Sermons</a><a>Locations</a><span>About</span></nav><p>Sundays <b>10am</b></p>")
+    assert "Sermons Locations About" in page.text and "Sundays 10am" in page.text
+
+
+def test_youtube_links_found_in_scripts_too():
+    html = '<script>var footer = {"yt":"https:\\/\\/www.youtube.com\\/@hopestreet"};</script>'
+    assert web.parse_page("https://hope.org/", html).mentions == ["https://www.youtube.com/@hopestreet"]
+
+
+@pytest.mark.parametrize("href, channel", [
+    ("https://www.youtube.com/@hopestreet/videos", "https://www.youtube.com/@hopestreet"),
+    ("https://www.youtube.com/saddlebackchurch", "https://www.youtube.com/saddlebackchurch"),
+    ("https://youtube.com/channel/UCkvTYtzvEDc7i0ATeWC-wHg?sub=1", "https://www.youtube.com/channel/UCkvTYtzvEDc7i0ATeWC-wHg"),
+    ("https://www.youtube.com/watch?v=bbbbbbbbbbb", None),
+    ("https://www.youtube.com/results?search_query=church", None),
+    ("https://vimeo.com/hopestreet", None),
+])
+def test_youtube_channel_url(href, channel):
+    assert web.youtube_channel_url(href) == channel
+
+
+def test_social_links_prefer_a_readable_podcast_and_keep_a_video_to_find_the_channel():
+    links = web.social_links([
+        "https://open.spotify.com/show/abc?si=x",
+        "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+        "https://hope.podbean.com",
+        "https://podcasts.apple.com/us/podcast/hope/id123",
+        "https://www.facebook.com/sharer/sharer.php?u=x",
+        "https://www.facebook.com/hopestreet",
+        "https://hope.org/blog/feed/",
+    ])
+    assert links == {
+        "youtube_video": "https://www.youtube.com/watch?v=bbbbbbbbbbb",
+        "podcast_url": "https://podcasts.apple.com/us/podcast/hope/id123",
+        "facebook_url": "https://www.facebook.com/hopestreet",
+    }
+
+
+def test_useful_pages_take_the_best_of_each_kind_and_skip_news_slugs():
+    page = web.Page(url="https://www.hope.org/", links=[
+        ("https://www.hope.org/news/a-word-from-our-pastor-on-the-move", "A word from our pastor on the move, and what comes next"),
+        ("https://hope.org/learn-more-about-stephen", "Learn more"),
+        ("https://hope.org/about-us", "About"),
+        ("https://hope.org/whats-on", "What's on"),
+        ("https://hope.org/plan-a-visit", "Plan a visit"),
+        ("https://hope.org/services", "Services"),
+        ("https://hope.org/bulletin.pdf", "Bulletin"),
+        ("https://other.org/visit", "Visit"),
+    ])
+    assert web.useful_pages(page) == ["https://hope.org/plan-a-visit", "https://hope.org/whats-on", "https://hope.org/about-us"]
+    assert web.useful_pages(page, limit=4)[-1] == "https://hope.org/services"
+
+
+def test_site_text_shares_the_room_and_leaves_out_repeated_menus():
+    menu = "Home About Visit Give Events Sermons Contact"
+    home = web.Page(url="https://hope.org/", title="Home", text=f"{menu}\n" + "Welcome home. " * 400)
+    visit = web.Page(url="https://hope.org/visit", title="Visit", text=f"{menu}\nSundays 9am and 11am")
+    text = web.site_text([home, visit], 1000)
+    assert len(text) <= 1000 and text.count(menu) == 1
+    assert "Sundays 9am and 11am" in text  # the visit page isn't crowded out by the homepage
+
+
+@pytest.mark.parametrize("label, days", [
+    ("2 days ago", 2), ("Streamed 3 weeks ago", 21), ("1 month ago", 30), ("1y ago", 365),
+    ("5 hours ago", 0), ("2d ago", 2), ("1.7 thousand views", None),
+])
+def test_days_ago(label, days):
+    assert web.days_ago(label) == days
+
+
+def _lockup(video_id, title, ago, length="51:49", kind="LOCKUP_CONTENT_TYPE_VIDEO"):
+    return {"lockupViewModel": {
+        "contentId": video_id, "contentType": kind,
+        "contentImage": {"thumbnailViewModel": {"overlays": [{"thumbnailBottomOverlayViewModel": {"badges": [{"thumbnailBadgeViewModel": {"text": length}}]}}]}},
+        "metadata": {"lockupMetadataViewModel": {"title": {"content": title}, "metadata": {"contentMetadataViewModel": {"metadataRows": [
+            {"metadataParts": [{"text": {"content": "Hope Street"}}]},
+            {"metadataParts": [{"text": {"content": "1.2K"}, "accessibilityLabel": "1.2 thousand views"}, {"text": {"content": ago}}]},
+        ]}}}},
+    }}
+
+
+def test_channel_page_lists_videos_with_their_age_as_a_date():
+    import json
+    items = [
+        _lockup("aaaaaaaaaaa", "Strength for the weary", "2 days ago"),
+        _lockup("aaaaaaaaaaa", "Strength for the weary", "2 days ago"),  # shown twice on the page
+        _lockup("ccccccccccc", "Sunday service, live", "", length="LIVE"),  # live now: no age yet
+        _lockup("ddddddddddd", "A playlist", "1 week ago", kind="LOCKUP_CONTENT_TYPE_PLAYLIST"),
+    ]
+    html = f"<script>var ytInitialData = {json.dumps({'contents': items})};</script>"
+    videos = web.parse_channel_page(html, date(2026, 11, 13))
+    assert videos == [{
+        "id": "yt:aaaaaaaaaaa", "video_id": "aaaaaaaaaaa", "title": "Strength for the weary", "published": "2026-11-11",
+        "url": "https://www.youtube.com/watch?v=aaaaaaaaaaa", "length": "51:49", "description": "",
+    }]
+    assert web.parse_channel_page("<html>no data</html>", date(2026, 11, 13)) == []
+
+
+def test_podcast_dates_and_lengths_are_plain():
+    xml = """<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd"><channel>
+    <item><title>One</title><guid>1</guid><pubDate>Sun, 09 Nov 2026 10:00:00 GMT</pubDate><itunes:duration>2712</itunes:duration><enclosure url="https://cdn.example.com/1.mp3"/></item>
+    <item><title>Two</title><guid>2</guid><pubDate>not a date</pubDate><itunes:duration>01:05:00</itunes:duration><enclosure url="https://cdn.example.com/2.mp3"/></item>
+    </channel></rss>"""
+    one, two = web.parse_podcast_feed(xml)
+    assert (one["published"], one["length"]) == ("2026-11-09", "45:12")
+    assert (two["published"], two["length"]) == ("", "1:05:00")
+
+
+def test_a_watch_page_names_its_own_videos_channel():
+    html = '"channelId":"UCaaaaaaaaaaaaaaaaaaaaaa" ... "videoDetails":{"videoId":"bbbbbbbbbbb","title":"x","channelId":"UCkvTYtzvEDc7i0ATeWC-wHg"}'
+    assert web.video_channel_id(html) == "UCkvTYtzvEDc7i0ATeWC-wHg"
+
+
+def test_a_blocked_site_says_so():
+    assert "doesn't let Adullam read it" in web._status_message(403)
+    assert "wasn't found" in web._status_message(404)
+
+
+def test_notes_on_a_podcast_episode_come_from_its_feed():
+    from app import churches
+    episode = {"id": "pod:1", "title": "Fixate on Him", "url": "https://cdn.example.com/1.m4a", "audio_url": "https://cdn.example.com/1.m4a",
+               "published": "2026-11-11", "description": "On Hebrews 12:2."}
+    churches._feed_cache["catalog:cymbala"] = (time.monotonic(), [episode])
+    try:
+        source = churches._source_for("https://cdn.example.com/1.m4a")
+        assert source["words"] == "Fixate on Him\n\nOn Hebrews 12:2."
+        assert source["details"]["channel"] == "Brooklyn Tabernacle" and source["details"]["date"] == "2026-11-11"
+        with pytest.raises(web.FetchError, match="recording itself"):
+            churches._source_for("https://cdn.example.com/unknown.mp3")
+    finally:
+        churches._feed_cache.pop("catalog:cymbala", None)
