@@ -2444,8 +2444,18 @@ button.refl-status-pill { cursor: pointer; }
 .encouragement-count { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--ember-hi); background: var(--ember-bg); border-radius: var(--pill); padding: 1px 7px; white-space: nowrap; }
 
 /* ---------- Home (cave.js::showHome) ----------
-   Notifications first, one line each; then the verse, Today and Goals as
-   quiet lists, so the page reads as a few rows rather than a wall of cards. */
+   A warm opening (the day, the greeting, the ask box and the verse), then
+   one line per notification, then Today and the last conversation beside
+   what's quieter, so the two columns end close together. */
+.home-hero { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: center; margin: 0 0 18px; padding: 30px 32px; border-radius: var(--radius); border: 1px solid var(--ember-line); overflow: hidden; background: radial-gradient(60% 120% at 100% 0%, var(--glow-strong) 0%, transparent 65%), radial-gradient(90% 120% at 0% 100%, var(--glow) 0%, var(--card-warm) 45%, var(--surface) 100%); box-shadow: 0 26px 54px -38px var(--ember-glow); }
+.home-hero:has(#homeVerse:empty) { grid-template-columns: minmax(0, 1fr); }
+/* The cave's arch, faint in the corner behind the verse. */
+.home-hero-arch { position: absolute; right: -18px; bottom: -26px; width: 220px; height: auto; color: var(--ember); opacity: 0.09; pointer-events: none; }
+.home-hero-main { position: relative; display: grid; gap: 4px; min-width: 0; }
+.home-hero .page-title { margin: 0 0 14px; font-size: clamp(28px, 3.6vw, 38px); }
+.home-hero .home-ask { margin: 0; background: var(--surface); }
+.home-hero .home-verse { position: relative; margin: 0; padding-left: 28px; border-left: 1px solid var(--ember-line); }
+.home-hero .home-verse:empty { display: none; }
 /* The big ask box (home and welcome): a book mark, the question, the mic,
    and a round send button that stays quiet until something is typed. */
 .home-ask { margin: 0 0 20px; }
@@ -2533,9 +2543,9 @@ button.refl-status-pill { cursor: pointer; }
 .ember-day.today small { color: var(--text); }
 
 /* Verse for today: the text, then its reference, Reflect and "⋯" on one line. */
-.home-verse { margin-bottom: 16px; }
-.home-verse:has(.more-menu) { position: relative; z-index: 5; }
-.home-verse .scripture-lg { margin: 0; font-size: clamp(18px, 2vw, 21px); }
+.home-verse:has(.more-menu) { z-index: 5; }
+.hero-verse .kicker { margin: 0 0 8px; }
+.home-verse .scripture-lg { margin: 0; font-size: clamp(19px, 2vw, 23px); line-height: 1.5; }
 .home-verse-foot { display: flex; align-items: center; gap: 4px 10px; margin-top: 12px; }
 .home-verse-foot .verse-ref { margin-right: auto; min-width: 0; text-decoration: none; }
 .home-verse-foot .verse-ref:hover { color: var(--ember-hi); }
@@ -2548,9 +2558,34 @@ button.refl-status-pill { cursor: pointer; }
 .card-link:hover { color: var(--ember-hi); }
 .home-quiet { margin: 0; font-size: 14px; }
 
+@media (max-width: 820px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 22px 20px; }
+  .home-hero .home-verse { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--ember-line); }
+  .home-hero-arch { width: 150px; }
+}
+
+/* Today's head: a ring that fills as the day's ticks are done (--done, 0 to 1). */
+.card-head:has(.today-progress) { align-items: center; }
+.card-head:has(.today-progress) .kicker { margin: 0; }
+.today-progress { display: inline-flex; align-items: center; gap: 8px; }
+.today-progress[hidden] { display: none; }
+.today-ring { display: grid; width: 26px; height: 26px; --done: 0; }
+.today-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.today-ring circle { fill: none; stroke-width: 4; }
+.today-ring .ring-track { stroke: var(--well); }
+.today-ring .ring-fill { stroke: var(--ember); stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--done) * 100); transition: stroke-dashoffset 0.5s ease, stroke 0.3s ease; }
+.today-progress.is-done .ring-fill { stroke: var(--sage); }
+/* Under a row's words: a reading plan's bar, a habit's week as dots. */
+.today-bar { display: block; height: 4px; margin-top: 7px; border-radius: var(--pill); background: var(--well); overflow: hidden; }
+.today-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--ember-grad); transition: width 0.5s ease; }
+.today-dots { display: flex; gap: 5px; margin-top: 7px; }
+.today-dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--well); box-shadow: inset 0 0 0 1px var(--line-2); }
+.today-dots i.on { background: var(--sage); box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .today-ring .ring-fill, .today-bar > span { transition: none; } }
+
 /* Today: one row each, a circle to tick on the left. */
 .today-items { list-style: none; margin: 0; padding: 0; display: grid; }
-.today-item { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--divider); }
+.today-item { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--divider); }
 .today-item:first-child { border-top: 0; padding-top: 2px; }
 .today-item:last-child { padding-bottom: 0; }
 .today-tick { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 1.5px solid var(--line-2); background: transparent; color: transparent; display: grid; place-items: center; padding: 0; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.12s ease; }

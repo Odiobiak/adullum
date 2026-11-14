@@ -1057,9 +1057,10 @@
   }
 
   // The verse, its reference (a link into the reader), one way to reflect
-  // on it, and everything else behind "⋯".
+  // on it, and everything else behind "⋯". It sits in the home's opening,
+  // beside the greeting, so it's drawn without a card of its own.
   function verseCard(v) {
-    return el("section", { class: "card warm home-verse fade-in" }, [
+    return el("div", { class: "hero-verse fade-in" }, [
       el("h2", { class: "kicker ember", text: "Verse for today" }),
       el("p", { class: "scripture-lg", text: `"${v.text}"` }),
       el("div", { class: "home-verse-foot" }, [
@@ -1078,8 +1079,9 @@
   // One row of Today. A row with `done` (true or false) has a circle that
   // ticks it through `onTick(next)`, which resolves false when it couldn't;
   // a row without just opens `href` or runs `onOpen`.
-  function todayRow({ icon, title, detail, href, onOpen, done = null, onTick, tickLabel }) {
-    const text = [el("strong", { text: title }), detail ? el("small", { text: detail }) : null];
+  // `progress` is drawn under the words: a plan's bar or a habit's week.
+  function todayRow({ icon, title, detail, href, onOpen, done = null, onTick, tickLabel, progress = null }) {
+    const text = [el("strong", { text: title }), detail ? el("small", { text: detail }) : null, progress];
     const body = href
       ? el("a", { class: "today-body", href }, text)
       : el("button", { class: "today-body", type: "button", onclick: onOpen }, text);
@@ -1117,17 +1119,27 @@
     }
   }
 
+  // A thin bar for how far through something is, 0 to 1.
+  function progressBar(fraction) {
+    const fill = el("span");
+    fill.style.width = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
+    return el("span", { class: "today-bar", "aria-hidden": "true" }, fill);
+  }
+
   function planRow(plan) {
     if (!plan) return todayRow({ icon: ICON.book, title: "Start a reading plan", href: "#bible/plans" });
     const refs = compactRefs(plan.refs);
+    const bar = progressBar((plan.day - (plan.done_today ? 0 : 1)) / plan.days);
     return todayRow({
       title: refs.join(", ") || plan.title,
       detail: `${plan.title} · Day ${plan.day} of ${plan.days}`,
       href: refs.length ? `#${window.Reader.href(plan.refs[0])}` : "#bible/plans",
       done: !!plan.done_today,
+      progress: bar,
       tickLabel: `Mark day ${plan.day} of ${plan.title} as read`,
       onTick: async (done) => {
         const result = await tickRequest(`/me/plans/${plan.id}/progress`, { day: plan.day, done });
+        if (result) bar.firstChild.style.width = `${Math.round((result.completed / result.days) * 100)}%`;
         if (result && done) toast(`Day ${plan.day} read. ${result.completed} of ${result.days} done.`);
         return !!result;
       },
@@ -1159,13 +1171,19 @@
   function habitRow(habit) {
     const detail = (done) => `${done} of ${habit.per_week} this week`;
     let weekDone = habit.week_done;
+    // The week's aim as dots, one lit for each day done.
+    const dots = el("span", { class: "today-dots", "aria-hidden": "true" }, Array.from({ length: habit.per_week }, () => el("i")));
+    const paintDots = () => [...dots.children].forEach((d, i) => d.classList.toggle("on", i < weekDone));
+    paintDots();
     const row = todayRow({
       title: habit.title, detail: detail(weekDone), href: "#pebbles", done: !!habit.tended_today, tickLabel: `${habit.title}: done today`,
+      progress: dots,
       onTick: async (tended) => {
         const ok = !!(await tickRequest(`/me/refuge/seeds/${habit.id}/tend`, { tended }));
         if (ok) {
           weekDone += tended ? 1 : -1;
           row.querySelector("small").textContent = detail(weekDone);
+          paintDots();
         }
         return ok;
       },
@@ -1195,6 +1213,9 @@
     return todayRow({ icon: TODAY_ICON.goal, title: goal.title, detail: [count, due].filter(Boolean).join(" · "), href: "#pebbles" });
   }
 
+  // A ring that fills with the day's ticks; CSS draws it from --done (0 to 1).
+  const RING = '<svg viewBox="0 0 36 36"><circle class="ring-track" cx="18" cy="18" r="15"/><circle class="ring-fill" cx="18" cy="18" r="15" pathLength="100"/></svg>';
+
   const TODAY_ICON = {
     // An hourglass for the days of a fast, a flag for a goal.
     fast: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h12M6 21h12M7 3c0 5 10 5 10 9s-10 4-10 9M17 3c0 5-10 5-10 9s10 4 10 9"/></svg>',
@@ -1211,13 +1232,17 @@
       ...habits.map(habitRow),
       data.goal ? goalRow(data.goal) : null,
     ].filter(Boolean);
-    const tally = el("span", { class: "card-aside" });
+    const words = el("span");
+    const ring = el("span", { class: "today-ring", "aria-hidden": "true", html: RING });
+    const tally = el("span", { class: "card-aside today-progress" }, [ring, words]);
     const list = el("ul", { class: "today-items" }, rows);
     const count = () => {
       const ticks = $$(".today-tick", list);
       const done = ticks.filter((t) => t.getAttribute("aria-pressed") === "true").length;
       // A tally only once there's more than one thing to tick.
-      tally.textContent = ticks.length < 2 ? "" : done === ticks.length ? "All done" : `${done} of ${ticks.length}`;
+      tally.hidden = ticks.length < 2;
+      words.textContent = done === ticks.length ? "All done" : `${done} of ${ticks.length}`;
+      ring.style.setProperty("--done", ticks.length ? done / ticks.length : 0);
       tally.classList.toggle("is-done", !!ticks.length && done === ticks.length);
     };
     list.addEventListener("today:tick", count);
@@ -1421,12 +1446,12 @@
     // line above (showHome); nothing else about churches shows here.
     drawAmens(data.amens);
     $("#homeStart").replaceChildren(...[startCard(data)].filter(Boolean));
-    $("#homeMain").replaceChildren(todayCard(data));
-    // The halfway check-in on a reflection's plan leads the side while it
-    // lasts (two weeks from the middle of the stretch, app/reflections.py).
+    // Today and the last conversation, with what's quieter beside them. The
+    // halfway check-in on a reflection's plan leads the side while it lasts
+    // (two weeks from the middle of the stretch, app/reflections.py).
+    $("#homeMain").replaceChildren(...[todayCard(data), continueCard(data.last_session)].filter(Boolean));
     $("#homeSide").replaceChildren(...[
       data.reflection ? window.Reflections.homeCard(data.reflection) : null,
-      continueCard(data.last_session),
       lookBackCard(data.revisit, data.remember),
       window.Support.homeCard(),
     ].filter(Boolean));

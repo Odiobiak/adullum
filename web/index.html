@@ -469,26 +469,29 @@
   <!-- ======================= Home (signed in) ======================= -->
   <section data-view="home" hidden>
     <div class="wrap page">
-      <div class="page-head">
-        <div>
+      <!-- The opening: the day, the greeting and the ask box, with the verse
+           for today beside them (below on a phone) and the cave's arch behind. -->
+      <section class="home-hero">
+        <svg class="home-hero-arch" viewBox="0 0 132 110" fill="none" aria-hidden="true"><path d="M6 106C6 52 32 8 66 8s60 44 60 98" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/><path d="M44 106c0-22 10-38 22-38s22 16 22 38" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        <div class="home-hero-main">
           <!-- The date, and the streak beside it as a few quiet words (cave.js::emberChip). -->
           <p class="eyebrow home-day"><span id="dayLine">&nbsp;</span><span id="homeEmbers"></span></p>
           <h1 class="page-title" id="greet">Welcome back</h1>
+          <form class="ask-box ask-lg home-ask" id="homeAsk">
+            <span class="ask-lg-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
+            <label for="homeQuery" class="sr">Ask Aquila</label>
+            <input id="homeQuery" autocomplete="off" enterkeyhint="send" placeholder="Ask Aquila about Scripture">
+            <button class="ask-lg-send" type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
+          </form>
         </div>
-      </div>
+        <div class="home-verse" id="homeVerse"></div>
+      </section>
       <!-- Where to start, for someone new until they close it (cave.js::startCard). -->
       <div id="homeStart"></div>
       <!-- A church live now: one full-width line, only while it's live. -->
       <div class="home-notes" id="homeNotes"></div>
       <!-- Amens (only when there's something to tell) and Declare, side by side (cave.js::showHome). -->
       <div class="home-tiles" id="homeTiles"></div>
-      <form class="ask-box ask-lg home-ask" id="homeAsk">
-        <span class="ask-lg-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
-        <label for="homeQuery" class="sr">Ask Aquila</label>
-        <input id="homeQuery" autocomplete="off" enterkeyhint="send" placeholder="Ask Aquila about Scripture">
-        <button class="ask-lg-send" type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
-      </form>
-      <div class="home-verse" id="homeVerse"></div>
       <div class="cols">
         <div class="maincol" id="homeMain"></div>
         <div class="sidecol" id="homeSide"></div>
