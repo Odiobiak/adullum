@@ -191,3 +191,15 @@ def test_connections_needs_a_reference():
 def test_connections_payload_is_json_serialisable():
     node = connections._node({"book": "John", "chapter": 3, "verse": 16, "text": "For God so loved"}, seed=True)
     assert json.loads(json.dumps(node))["id"] == "John 3:16"
+
+
+class TestProfileRow:
+    """PATCH /me's welcome flag only ever stamps the tour as seen."""
+
+    def test_welcomed_stamps_the_time(self):
+        row = cave.profile_row(cave.ProfilePatch(welcomed=True))
+        assert set(row) == {"welcomed_at"}
+        datetime.fromisoformat(row["welcomed_at"])
+
+    def test_welcomed_false_changes_nothing(self):
+        assert cave.profile_row(cave.ProfilePatch(welcomed=False, display_name="Ruth")) == {"display_name": "Ruth"}

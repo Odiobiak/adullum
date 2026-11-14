@@ -94,6 +94,10 @@ class EmailCode(BaseModel):
     code: str = Field(min_length=6, max_length=10)
 
 
+class NewPassword(BaseModel):
+    password: str = Field(min_length=6, max_length=72)  # 72: bcrypt's limit, which Supabase uses
+
+
 class RefreshBody(BaseModel):
     refresh_token: str
 
@@ -143,6 +147,21 @@ def magic_link(body: EmailOnly, request: Request) -> dict:
     return {"status": "sent"}
 
 
+@router.post("/auth/reset")
+def reset_password(body: EmailOnly, request: Request) -> dict:
+    """"Forgot your password?". Supabase answers the same whether or not the
+    address has an account, so the page never tells anyone who's signed up."""
+    _auth_call(lambda: auth.send_password_reset(body.email, _redirect_to(request)))
+    return {"status": "sent"}
+
+
+@router.post("/auth/password")
+def new_password(body: NewPassword, user: AuthUser = Depends(require_user)) -> dict:
+    """A new password, from the reset link's sheet or Settings."""
+    _auth_call(lambda: auth.set_password(user.id, body.password))
+    return {"status": "ok"}
+
+
 @router.post("/auth/verify")
 def verify(body: EmailCode) -> dict:
     try:
@@ -177,6 +196,8 @@ class ProfilePatch(BaseModel):
     # their evening (app/one_another.py::run_digest).
     amens_digest: bool | None = None
     time_zone: str | None = Field(default=None, max_length=64)
+    # True once the welcome tour has been seen or skipped (web/welcome.js).
+    welcomed: bool | None = None
 
     @field_validator("time_zone")
     @classmethod
@@ -188,6 +209,15 @@ class ProfilePatch(BaseModel):
         except (ZoneInfoNotFoundError, ValueError) as err:
             raise ValueError("That isn't a time zone.") from err
         return zone
+
+
+def profile_row(body: ProfilePatch) -> dict:
+    """The columns a profile patch changes. The welcome tour is only ever
+    marked seen, stamped with the time, never unseen."""
+    row = body.model_dump(exclude_none=True)
+    if row.pop("welcomed", False):
+        row["welcomed_at"] = _now()
+    return row
 
 
 def _ensure_profile(user: AuthUser) -> dict:
@@ -239,7 +269,7 @@ def me(user: AuthUser = Depends(require_user)) -> dict:
 @router.patch("/me")
 def update_me(body: ProfilePatch, user: AuthUser = Depends(require_user)) -> dict:
     _ensure_profile(user)
-    patch = body.model_dump(exclude_none=True)
+    patch = profile_row(body)
     if not patch:
         return _ensure_profile(user)
     patch["updated_at"] = _now()

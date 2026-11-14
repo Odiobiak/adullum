@@ -3,10 +3,11 @@ routes' auth gates. No network: Supabase is never reached."""
 
 from datetime import date, timedelta
 
+import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import auth, hearth
+from app import auth, cave, hearth
 from app.retrieval import parse_reference
 
 client = TestClient(main.app)
@@ -125,6 +126,29 @@ class TestRoutes:
         assert client.get("/auth/providers").json() == {"google": False}
         assert client.get("/auth/google", follow_redirects=False).status_code == 404
 
+    def test_password_reset_sends_a_link_back_to_this_site(self, monkeypatch):
+        sent = []
+        monkeypatch.setattr(auth, "send_password_reset", lambda email, redirect_to: sent.append((email, redirect_to)))
+        res = client.post("/auth/reset", json={"email": "ruth@example.com"})
+        assert res.json() == {"status": "sent"}
+        assert sent == [("ruth@example.com", "http://testserver/")]
+
+    def test_a_new_password_needs_sign_in_and_six_characters(self):
+        assert client.post("/auth/password", json={"password": "longenough"}).status_code == 401
+        with pytest.raises(ValueError):
+            cave.NewPassword(password="short")
+
     def test_google_url_uses_implicit_flow_shape(self):
         url = auth.google_authorize_url("http://localhost:8000/")
         assert url.endswith("/auth/v1/authorize?provider=google&redirect_to=http%3A%2F%2Flocalhost%3A8000%2F")
+
+
+class TestWelcomed:
+    """The welcome tour's state on the home payload (web/welcome.js)."""
+
+    def test_unknown_before_the_migration(self):
+        assert hearth.welcomed({"display_name": "Ruth"}) is None
+
+    def test_seen_or_not(self):
+        assert hearth.welcomed({"welcomed_at": None}) is False
+        assert hearth.welcomed({"welcomed_at": "2026-11-14T10:00:00+00:00"}) is True

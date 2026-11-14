@@ -109,6 +109,14 @@ def fast_underway(fasts: list[dict], today: date) -> dict | None:
     return {k: fast.get(k) for k in ("id", "kind", "detail", "intention")} | {"progress": fast_progress(fast, today)}
 
 
+def welcomed(profile: dict) -> bool | None:
+    """Whether the welcome tour has been seen (web/welcome.js), or None until
+    the welcome migration has run, when the browser remembers it instead."""
+    if "welcomed_at" not in profile:
+        return None
+    return profile["welcomed_at"] is not None
+
+
 def _record_visit(user: AuthUser, day: date) -> None:
     try:
         get_supabase().table("user_activity").upsert(
@@ -223,6 +231,7 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
             "memory_enabled": profile.get("memory_enabled", True),
             # When the account was made, so the home can guide someone new.
             "joined": profile.get("created_at"),
+            "welcomed": welcomed(profile),
         },
         "today": day.isoformat(),
         "embers": got["embers"],

@@ -2898,3 +2898,162 @@ body.aloud-open { overflow: hidden; }
   .promise-part { padding: 20px; }
   .promise-part.is-gift { border-left: 0; border-top: 1px solid var(--line); }
 }
+
+/* ---------- The welcome tour (web/welcome.js) ----------
+   Opens over the home screen below the top bar and tab bar, so the tab each
+   step is about can be lit where it really lives. Every colour is a token. */
+.welcome { position: fixed; inset: 0; z-index: 25; display: grid; place-items: start center; padding: 80px 16px 24px; overflow-y: auto; background: radial-gradient(70% 60% at 50% 40%, color-mix(in srgb, var(--ground) 35%, transparent), var(--shadow)); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); animation: appear 0.2s ease both; }
+body.is-welcoming { overflow: hidden; }
+body.is-welcoming .appnav a.is-lit { background: var(--ember); color: var(--ember-ink); font-weight: 600; box-shadow: 0 0 0 4px var(--ring); animation: wl-beckon 2s ease infinite; }
+body.is-welcoming .tabbar a.is-lit { color: var(--ember-hi); font-weight: 600; }
+body.is-welcoming .tabbar a.is-lit svg { background: var(--ember); color: var(--ember-ink); box-shadow: 0 0 0 3px var(--ring); }
+@keyframes wl-beckon { 50% { box-shadow: 0 0 0 7px var(--ring); } }
+.wl-card { width: min(820px, 100%); display: flex; flex-direction: column; border-radius: 22px; border: 1px solid var(--ember-line); background: var(--surface); box-shadow: 0 40px 80px -36px var(--shadow); overflow: hidden; animation: rise 0.35s cubic-bezier(.2, .8, .2, 1) both; }
+.wl-top, .wl-panel, .wl-foot { flex: none; }
+.wl-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px 0; }
+.wl-steps { display: flex; gap: 6px; align-items: center; }
+.wl-dot { width: 22px; height: 4px; padding: 0; border: 0; border-radius: 4px; background: var(--line); transition: background-color 0.25s ease, width 0.25s ease; }
+.wl-dot.is-past { background: var(--ember-line); }
+.wl-dot[aria-current="step"] { width: 34px; background: var(--ember); }
+.wl-count { margin-left: 8px; color: var(--faint); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.wl-skip { background: none; border: 0; padding: 6px 4px; border-radius: 8px; color: var(--muted); font-size: 13.5px; }
+.wl-skip:hover { color: var(--text); }
+.wl-panel { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 26px; align-items: center; min-height: 400px; padding: 18px 26px 8px; }
+.wl-panel[hidden] { display: none; }
+.wl-panel.is-wide { grid-template-columns: minmax(0, 1fr); align-items: start; }
+.wl-panel > * { animation: rise 0.35s ease both; }
+.wl-copy { display: grid; gap: 12px; min-width: 0; }
+.wl-copy h2 { margin: 0; font-size: clamp(22px, 2.6vw, 27px); font-weight: 700; line-height: 1.2; letter-spacing: -0.015em; text-wrap: balance; }
+.wl-kicker { display: inline-flex; align-items: center; gap: 7px; color: var(--ember); font-size: 13px; font-weight: 600; }
+.wl-kicker svg { width: 16px; height: 16px; }
+.wl-lead { margin: 0; color: var(--soft); font-size: 15px; }
+.wl-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.wl-parts li { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; color: var(--soft); font-size: 14px; line-height: 1.45; }
+.wl-parts b { color: var(--text); font-weight: 600; }
+/* The numbers: an outlined ring, the same on the drawing and in the list. */
+.wl-num, .wl-mark { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--ember); background: var(--surface); color: var(--ember); font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.wl-mark { position: absolute; top: -8px; right: -8px; z-index: 1; width: 20px; height: 20px; font-size: 11px; box-shadow: 0 0 0 3px var(--surface); }
+.wl-tip { display: flex; gap: 10px; align-items: flex-start; margin: 0; padding: 10px 12px; border-radius: var(--radius-sm); background: var(--well); color: var(--soft); font-size: 13.5px; }
+.wl-tip svg { flex: none; width: 16px; height: 16px; margin-top: 2px; color: var(--ember); }
+.wl-tip.is-private { background: var(--sage-bg); color: var(--text); }
+.wl-tip.is-private svg { color: var(--sage); }
+.wl-tabmap { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.wl-tabmap button { display: grid; justify-items: center; gap: 5px; padding: 10px 4px 9px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 600; transition: border-color 0.15s ease, transform 0.15s ease; }
+.wl-tabmap button:hover { border-color: var(--ember-line); transform: translateY(-1px); }
+.wl-tabmap svg { width: 20px; height: 20px; color: var(--ember); }
+.wl-tabmap small { color: var(--muted); font-size: 11px; font-weight: 400; line-height: 1.3; text-align: center; }
+.wl-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 26px 20px; }
+.wl-foot .btn[hidden] { display: none; }
+.wl-keys { color: var(--faint); font-size: 12px; }
+
+/* The drawings: a small version of each tab's own screen. */
+.wl-art { position: relative; min-width: 0; min-height: 340px; display: grid; gap: 10px; align-content: center; padding: 18px; border-radius: var(--radius); border: 1px solid var(--ember-line); background: radial-gradient(70% 90% at 80% 0%, var(--glow-strong) 0%, transparent 60%), radial-gradient(90% 100% at 0% 100%, var(--glow) 0%, var(--card-warm) 55%, var(--well) 100%); }
+.wl-art.is-welcome { place-items: center; }
+.wl-mini { position: relative; display: grid; gap: 7px; padding: 11px 13px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 14px 28px -22px var(--shadow); }
+.wl-mini.is-warm { border-color: var(--ember-line); }
+.wl-mini h4 { margin: 0; display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 12px; font-weight: 650; }
+.wl-mini h4::after { content: ""; flex: 1; height: 1px; background: var(--divider); }
+.wl-title { color: var(--text); font-size: 12.5px; font-weight: 650; }
+.wl-sub { color: var(--muted); font-size: 11.5px; }
+.wl-bars { display: grid; gap: 6px; }
+.wl-bars i { display: block; height: 7px; border-radius: 4px; background: var(--raised); }
+.wl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wl-line { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
+.wl-line svg { flex: none; width: 15px; height: 15px; color: var(--ember); }
+.wl-mini-hero { position: relative; display: grid; gap: 8px; padding: 12px 13px; border-radius: 14px; border: 1px solid var(--ember-line); background: radial-gradient(80% 120% at 100% 0%, var(--glow-strong), transparent 60%), var(--card-warm); }
+.wl-mini-hero strong { font-size: 14px; }
+.wl-mini-ask { display: flex; align-items: center; justify-content: space-between; height: 30px; padding: 0 4px 0 12px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--faint); font-size: 11.5px; }
+.wl-mini-ask i { width: 22px; height: 22px; border-radius: 50%; background: var(--raised); }
+.wl-ticks { display: grid; gap: 6px; }
+.wl-ticks span { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
+.wl-ticks span::before { content: ""; flex: none; width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--line-2); }
+.wl-ticks span.done::before { background: var(--ember); border-color: var(--ember); }
+.wl-ticks.is-bullets span::before { width: 5px; height: 5px; margin: 0 4px; border: 0; background: var(--ember); }
+.wl-seg { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); font-size: 12px; text-align: center; }
+.wl-seg span { position: relative; padding: 5px 0; border-radius: var(--pill); color: var(--muted); }
+.wl-seg span.on { background: var(--ember-bg); color: var(--text); font-weight: 600; }
+.wl-art .wl-seg { margin-top: 12px; }
+.wl-seg .wl-mark { top: -19px; right: 50%; transform: translateX(50%); }
+.wl-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; }
+.wl-tile { position: relative; display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); font-size: 12.5px; font-weight: 600; }
+.wl-tile.wide { grid-column: span 2; border-color: var(--ember-line); background: var(--card-warm); }
+.wl-tile-icon, .wl-church-mark { flex: none; display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; background: var(--ember-bg); color: var(--ember); }
+.wl-tile-icon svg, .wl-church-mark svg { width: 14px; height: 14px; }
+.wl-chat { display: grid; grid-template-columns: 0.8fr 2fr; gap: 8px; }
+.wl-rail { position: relative; display: grid; gap: 6px; align-content: start; padding: 9px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; }
+.wl-rail b { color: var(--faint); font-size: 10.5px; font-weight: 600; }
+.wl-rail span { overflow: hidden; padding: 4px 6px; border-radius: 6px; color: var(--soft); text-overflow: ellipsis; white-space: nowrap; }
+.wl-rail span.on { background: var(--ember-bg); color: var(--text); }
+.wl-chat-main { display: grid; gap: 7px; min-width: 0; }
+.wl-bubble { justify-self: end; max-width: 88%; padding: 8px 12px; border-radius: 14px 14px 4px 14px; border: 1px solid var(--ember-line); background: var(--ember-bg); color: var(--text); font-size: 12.5px; }
+.wl-refs { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--ember); font-size: 12px; }
+.wl-refs span { text-decoration: underline; text-decoration-color: var(--ember-line); text-underline-offset: 3px; }
+.wl-icons { display: flex; gap: 10px; color: var(--muted); }
+.wl-icons svg { width: 15px; height: 15px; }
+.wl-doors { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wl-door { position: relative; display: grid; gap: 6px; padding: 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); }
+.wl-door svg { width: 18px; height: 18px; color: var(--ember); }
+.wl-door strong { font-size: 13px; }
+.wl-door small { color: var(--muted); font-size: 11.5px; }
+.wl-verse-bar { display: flex; justify-content: space-around; padding: 8px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--soft); font-size: 11.5px; }
+.wl-verse-block { display: grid; gap: 5px; padding: 7px 10px; border-left: 2px solid var(--ember-line); border-radius: 0 8px 8px 0; background: var(--well); }
+.wl-verse-block span { color: var(--ember); font-size: 11.5px; font-weight: 600; }
+.wl-verse-block i { display: block; height: 6px; border-radius: 3px; background: var(--raised); }
+.wl-church { display: flex; align-items: center; gap: 10px; }
+.wl-church strong { display: block; font-size: 12.5px; }
+.wl-church small { color: var(--muted); font-size: 11.5px; }
+.wl-live { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; color: var(--live); font-size: 11.5px; font-weight: 650; }
+.wl-live::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--live); animation: live-pulse 1.6s ease infinite; }
+/* The welcome's picture: the app itself, as a phone shows it. */
+.wl-device { width: min(260px, 100%); display: grid; overflow: hidden; border-radius: 26px; border: 1px solid var(--line-2); background: var(--ground); box-shadow: 0 26px 50px -26px var(--shadow), 0 0 0 5px var(--surface); }
+.wl-device-bar { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--divider); background: var(--surface); font-size: 12px; font-weight: 700; }
+.wl-device-logo { display: inline-flex; align-items: center; gap: 6px; }
+.wl-device-logo svg { width: 16px; height: 13px; color: var(--ember); }
+.wl-device-me { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); font-size: 10.5px; }
+.wl-device-body { display: grid; gap: 7px; padding: 10px; }
+.wl-device-tabs { display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px 2px 8px; border-top: 1px solid var(--divider); background: var(--surface); }
+.wl-device-tabs > span { display: grid; justify-items: center; gap: 2px; color: var(--muted); font-size: 9.5px; }
+.wl-device-tabs > span:first-child { color: var(--ember); font-weight: 600; }
+.wl-device-tabs svg { width: 17px; height: 17px; }
+
+/* Make it yours */
+.wl-form { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 22px; }
+.wl-field { display: grid; gap: 8px; align-content: start; }
+.wl-field .field { margin: 0; }
+.wl-field[hidden] { display: none; }
+.wl-label { font-size: 13.5px; font-weight: 600; }
+.wl-hint { color: var(--muted); font-weight: 400; }
+.wl-wants { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.wl-want { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font-size: 13.5px; font-weight: 600; line-height: 1.25; text-align: left; transition: border-color 0.15s ease, background-color 0.15s ease; }
+.wl-want:hover { border-color: var(--ember-line); }
+.wl-want[aria-pressed="true"] { border-color: var(--ember); background: var(--card-warm); box-shadow: 0 0 0 3px var(--ring); }
+.wl-want-icon { flex: none; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.wl-want-icon svg { width: 16px; height: 16px; }
+.wl-want[aria-pressed="true"] .wl-want-icon { background: var(--ember); color: var(--ember-ink); }
+.wl-looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+
+/* Under the start list on the home screen. */
+.start-tour { justify-self: start; padding: 2px 0; border: 0; background: none; color: var(--muted); font-size: 13.5px; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
+.start-tour:hover { color: var(--text); }
+
+@media (max-width: 720px) {
+  /* On a phone the tour fills the space between the top bar and the tab bar. */
+  .welcome { padding: 57px 0 calc(60px + env(safe-area-inset-bottom, 0px)); place-items: start stretch; background: var(--ground); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .wl-card { width: 100%; min-height: 100%; border: 0; border-radius: 0; box-shadow: none; }
+  .wl-panel { grid-template-columns: minmax(0, 1fr); gap: 18px; min-height: 0; padding: 14px 16px 6px; }
+  .wl-art { order: -1; min-height: 0; padding: 16px; }
+  .wl-device { width: min(240px, 100%); }
+  .wl-chat { grid-template-columns: minmax(0, 1fr); }
+  .wl-rail { display: none; }
+  .wl-form { grid-template-columns: minmax(0, 1fr); }
+  .wl-top { padding: 12px 16px 0; }
+  .wl-foot { padding: 12px 16px 16px; }
+  .wl-keys { display: none; }
+}
+@media (max-width: 420px) {
+  .wl-wants { grid-template-columns: minmax(0, 1fr); }
+  .wl-tabmap small { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome, .wl-card, .wl-panel > *, .wl-live::before, body.is-welcoming .appnav a.is-lit { animation: none; }
+}

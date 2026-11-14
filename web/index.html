@@ -437,6 +437,7 @@
             <div id="pwRow" hidden>
               <label class="field-label" for="authPassword">Password</label>
               <input class="field" id="authPassword" type="password" autocomplete="current-password" minlength="6" placeholder="At least 6 characters">
+              <button type="button" class="linkish" id="forgotPw" style="font-size:14px;margin-top:-6px">Forgot your password?</button>
             </div>
             <p class="form-msg" id="authMsg" role="alert"></p>
             <button type="submit" class="btn btn-ember btn-block" id="authPrimary">Email me a sign-in link</button>
@@ -623,6 +624,10 @@
         </form>
       </section>
       <section class="card">
+        <h2 class="section-title" data-info="A minute's walk through the five tabs and what's in each.">Find your way</h2>
+        <button type="button" class="btn btn-ghost" data-welcome-tour>Take the tour again</button>
+      </section>
+      <section class="card">
         <h2 class="section-title" data-info="Choose the light you read by. It's kept on this device.">Appearance</h2>
         <div class="theme-options" id="themeOptions"></div>
       </section>
@@ -644,6 +649,7 @@
         <h2 class="section-title" data-info="Signing out keeps everything safe until you come back.">Account</h2>
         <div class="row" style="gap:8px;flex-wrap:wrap">
           <button type="button" class="btn btn-ghost" data-sign-out>Sign out</button>
+          <button type="button" class="btn btn-ghost" id="changePassword">Change password</button>
           <button type="button" class="btn btn-ghost" id="exportData">Download your data</button>
           <button type="button" class="btn btn-ghost danger-text" id="closeAccount">Delete account</button>
         </div>
@@ -700,14 +706,15 @@
       <h2>Who else handles your data</h2>
       <p>We use a small number of services to run Adullam. Each handles only what it needs.</p>
       <ul>
-        <li><strong>Supabase:</strong> our database, sign-in, sign-in emails and photo storage.</li>
+        <li><strong>Supabase:</strong> our database, sign-in and photo storage.</li>
+        <li><strong>Resend:</strong> delivers sign-in emails, so it receives your email address and the sign-in link.</li>
         <li><strong>Render:</strong> runs our server.</li>
         <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
         <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after [retention period].</li>
         <li><strong>Deepgram:</strong> only if you tap Speak in Refuge's talk. Your voice goes to them to become words, and Aquila's replies to be read aloud. We ask them not to keep your voice to improve their models.</li>
         <li><strong>Cognigy and its speech providers:</strong> only if you use "Talk out loud". Your voice and its transcript go to them to hold the call. The call isn't confidential the way a talk with clergy would be.</li>
         <li><strong>Google:</strong> serves the fonts this site uses (which shares your IP address with Google), and handles sign-in if you choose "Continue with Google".</li>
-        <li><strong>Cloudflare (cdnjs):</strong> serves the code that draws Connections.</li>
+        <li><strong>Cloudflare:</strong> runs our domain's DNS, forwards email sent to hello@adullamapp.com, and (through cdnjs) serves the code that draws Connections.</li>
         <li><strong>YouTube:</strong> plays sermons in Listen when you press play, using its privacy-enhanced player.</li>
         <li><strong>Giving:</strong> if you give, you do it through the service you pick on the Support page (Stripe, PayPal, Venmo, Cash App, Zelle or your bank), under its own privacy policy. Your card and account details go to that service, never to us. If you put your email in a gift's note so we can thank you, we use it only to mark your account as a friend of the cave.</li>
         <li><strong>Apple, Google or Mozilla:</strong> deliver notifications to your device, if you turn them on.</li>
@@ -865,6 +872,7 @@
 <script src="refuge.js"></script>
 <script src="support.js"></script>
 <script src="reflections.js"></script>
+<script src="welcome.js"></script>
 <script src="reader.js"></script>
 <script src="graph.js"></script>
 <script>

@@ -618,11 +618,50 @@
         user: null,
       });
       history.replaceState(null, "", location.pathname + location.search + "#home");
-      setTimeout(() => toast("You're signed in."), 300);
+      // A reset link: they're signed in, and choose the new password next.
+      if (params.get("type") === "recovery") setTimeout(() => passwordSheet({ reset: true }), 300);
+      else setTimeout(() => toast("You're signed in."), 300);
     } else if (params.get("error_description")) {
       history.replaceState(null, "", location.pathname + location.search + "#signin");
       setTimeout(() => toast(params.get("error_description").replace(/\+/g, " "), { tone: "error" }), 300);
     }
+  }
+
+  // Choosing a new password: after a reset link, or from Settings.
+  function passwordSheet({ reset = false } = {}) {
+    const field = (label, autocomplete) =>
+      el("input", { class: "field", type: "password", minlength: "6", maxlength: "72", autocomplete, "aria-label": label, placeholder: label });
+    const first = field("New password", "new-password");
+    const again = field("Type it again", "new-password");
+    const msg = formMessage();
+    const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Save password" });
+    const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "pwTitle" }, [
+      el("h3", { id: "pwTitle", text: reset ? "Choose a new password" : "Change password" }),
+      el("p", { class: "muted", text: reset ? "You're signed in. Set a new password for next time." : "At least 6 characters." }),
+      first,
+      again,
+      msg.node,
+      el("div", { class: "sheet-actions" }, [
+        el("span", { style: "flex:1" }),
+        el("button", { class: "btn btn-ghost btn-sm", type: "button", text: reset ? "Later" : "Cancel", onclick: () => close() }),
+        save,
+      ]),
+    ]);
+    const close = overlay(form);
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (first.value.length < 6) return msg.say("Passwords need at least 6 characters.", true);
+      if (first.value !== again.value) return msg.say("Those don't match.", true);
+      save.disabled = true;
+      try {
+        await api("/auth/password", { method: "POST", body: { password: first.value } });
+        close();
+        toast("Your new password is saved.");
+      } catch (err) {
+        msg.say(err.message, true);
+        save.disabled = false;
+      }
+    });
   }
 
   async function loadProfile() {
@@ -719,6 +758,7 @@
       : "Your journal, conversations and plans are where you left them.";
     $("#nameRow").hidden = !join;
     $("#pwRow").hidden = authMethod !== "password";
+    $("#forgotPw").hidden = join;
     $("#authPassword").autocomplete = join ? "new-password" : "current-password";
     $$("[data-method]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.method === authMethod)));
     $("#authPrimary").textContent = authMethod === "link" ? "Email me a sign-in link" : join ? "Create account" : "Sign in";
@@ -740,6 +780,23 @@
       })
     );
     $("#switchMode").addEventListener("click", () => app().go(authMode === "join" ? "signin" : "join"));
+    // Emails a link that signs them in to choose a new one (consumeRedirect).
+    $("#forgotPw").addEventListener("click", async (e) => {
+      const address = $("#authEmail").value.trim();
+      if (!address) {
+        $("#authEmail").focus();
+        return say("#authMsg", "Add your email above, then tap this again.", true);
+      }
+      e.currentTarget.disabled = true;
+      try {
+        await api("/auth/reset", { method: "POST", body: { email: address } });
+        say("#authMsg", `If ${address} has an account, a link to choose a new password is on its way.`);
+      } catch (err) {
+        say("#authMsg", err.message, true);
+      } finally {
+        e.currentTarget.disabled = false;
+      }
+    });
     $("#diffEmail").addEventListener("click", () => {
       authMode = "signin";
       renderAuth();
@@ -1297,6 +1354,10 @@
       { key: "refuge", name: "Rest in Refuge", icon: START_ICON.refuge, href: "#refuge" },
       { key: "church", name: "Add your church", icon: START_ICON.church, href: "#church/add" },
     ].map((p) => ({ ...p, done: p.done || tried.has(p.key) }));
+    // What they picked in the welcome tour's last step comes first (web/welcome.js).
+    const first = window.Welcome.startFirst();
+    const rank = (p) => (first.includes(p.key) ? first.indexOf(p.key) : first.length);
+    places.sort((a, b) => rank(a) - rank(b));
     const done = places.filter((p) => p.done).length;
     if (done === places.length) return null;
 
@@ -1324,9 +1385,17 @@
           el("span", { class: "start-name", text: p.name }),
           p.done ? el("span", { class: "sr", text: "(done)" }) : null,
         ])
-      ))
+      )),
+      el("button", { class: "start-tour", type: "button", "data-welcome-tour": "", text: "Take the tour again" })
     );
     return node;
+  }
+
+  // Redraws the start list after the welcome tour, with its picks first.
+  function redrawStart() {
+    const box = $("#homeStart");
+    const data = readHome() || keptHome();
+    if (box && data) box.replaceChildren(...[startCard(data)].filter(Boolean));
   }
 
   function continueCard(s) {
@@ -1421,6 +1490,8 @@
     // predate it, so it's neither drawn nor kept.
     if (homeEdits !== edits) return;
     keepHome(data);
+    // Someone new is walked through the tabs once (web/welcome.js).
+    if (!$('[data-view="home"]').hidden) window.Welcome.maybeShow(data.profile);
     if (kept && JSON.stringify({ ...data, memories: [] }) === JSON.stringify(kept)) return;
     drawHome(data);
     // Over a kept home the cards change in place rather than rising in again.
@@ -2217,6 +2288,7 @@
     $$("[data-sign-out]").forEach((b) => b.addEventListener("click", signOut));
     $("#exportData").addEventListener("click", exportData);
     $("#closeAccount").addEventListener("click", closeAccount);
+    $("#changePassword").addEventListener("click", () => passwordSheet());
   }
 
   // Saves a file from the server. It goes through fetch rather than a plain
@@ -2343,6 +2415,8 @@
     signedIn,
     signOut,
     account,
+    displayName,
+    redrawStart,
     supporterSince,
     isFriend,
     onView,

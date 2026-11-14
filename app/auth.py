@@ -103,6 +103,18 @@ def verify_email_code(email: str, token: str) -> dict:
     return session_payload(resp.session)
 
 
+def send_password_reset(email: str, redirect_to: str | None) -> None:
+    """Emails a link that signs the person in to choose a new password. It
+    lands like a magic link, with `type=recovery` in the fragment."""
+    _auth_client().auth.reset_password_for_email(email, {"redirect_to": redirect_to} if redirect_to else None)
+
+
+def set_password(user_id: str, password: str) -> None:
+    """Saves a new password for a signed-in person, through the admin API, so
+    no session needs to be held here."""
+    _auth_client().auth.admin.update_user_by_id(user_id, {"password": password})
+
+
 def google_authorize_url(redirect_to: str) -> str:
     """Supabase's hosted Google sign-in. Without a PKCE challenge it answers
     with the implicit flow, so tokens come back in the URL fragment exactly
