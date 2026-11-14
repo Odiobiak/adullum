@@ -5,7 +5,7 @@ chapter-and-verse citations, never an invented reference. Ask her a question and
 she looks up actual verses before she answers, so if the text doesn't address
 something, she says so instead of making it up.
 
-**[Try it live →](https://adullum.onrender.com)** (free-tier hosting, so the first
+**[Try it live →](https://www.adullamapp.com)** (free-tier hosting, so the first
 request after a while can take ~50 seconds to wake up; after that it's fast)
 
 ## What it does
@@ -29,7 +29,7 @@ request after a while can take ~50 seconds to wake up; after that it's fast)
 
 ## Try it out
 
-Open **[adullum.onrender.com](https://adullum.onrender.com)** and ask something.
+Open **[adullamapp.com](https://www.adullamapp.com)** and ask something.
 A few to start with:
 
 - "What does Romans 8:28 mean?"

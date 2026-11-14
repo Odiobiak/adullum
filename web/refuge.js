@@ -36,6 +36,8 @@
     bell: svg('<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'),
     lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
     mic: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
+    phone: svg('<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2"/>'),
+    stop: svg('<rect x="7" y="7" width="10" height="10" rx="2"/>'),
     pen: svg('<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'),
     talk: svg('<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/>'),
     // Pebbles: a small cairn of three stones, like the stones of remembrance in Joshua 4.
@@ -118,6 +120,7 @@
   // wasn't kept vanishes here, as Refuge promises.
   function hide() {
     document.body.classList.remove("in-refuge", "write-focus");
+    endSpeech();
     stopSpeaking();
     talk = null;
     stopStill();
@@ -467,6 +470,152 @@
   }
 
   // ---------------------------------------------------------------------
+  // Speaking in the talk (app/voice.py), beside the Cognigy call
+  // ---------------------------------------------------------------------
+  // Tap Speak and talk. When you pause, Deepgram turns what you said into
+  // words, it's sent like a typed message (so it's the same Aquila, with the
+  // same care check), and her reply is read aloud. Then it listens again,
+  // hands-free, until you tap Stop, stay quiet for a while, or leave Refuge.
+  // Every turn shows in the talk as ordinary messages, so Keep still works.
+  const SPEECH_NOTICE = "adullamSpeechNoticeSeen";
+  const SILENCE_MS = 1400;           // a pause this long ends what you're saying
+  const WAIT_FOR_SPEECH_MS = 12000;  // this long with nothing said ends the session, so the mic is never left open
+  const MAX_TURN_MS = 60000;
+  const SPEAKING_LEVEL = 0.02;       // how loud counts as speaking (RMS, 0 to 1)
+  // A silent clip played on the first tap, so phones let the reply play later.
+  const SILENCE_CLIP = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
+
+  let speechReady = null; // a promise: does this server offer Speak?
+  // The session while it runs: { stream, audio, context, analyser, on, cancelTurn, skip, ui }.
+  // The audio context is made inside the tap that starts it, since phones
+  // only let one start there, and every turn reuses it.
+  let speech = null;
+
+  function canUseSpeech() {
+    speechReady ??= navigator.mediaDevices && window.MediaRecorder
+      ? api("/me/voice/speech").then((r) => !!r.ready).catch(() => false)
+      : Promise.resolve(false);
+    return speechReady;
+  }
+
+  function apiUrl(path) {
+    const base = (document.getElementById("apiBase") || {}).value || location.origin;
+    return `${base.trim().replace(/\/$/, "")}${path}`;
+  }
+
+  // A fetch with the person's sign-in that throws the server's own words.
+  async function voiceFetch(path, init) {
+    const resp = await fetch(apiUrl(path), { ...init, headers: { ...(await cave().authHeaders()), ...init.headers } });
+    if (resp.ok) return resp;
+    const data = await resp.json().catch(() => ({}));
+    const err = new Error(typeof data.detail === "string" ? data.detail : "Voice isn't working just now.");
+    err.status = resp.status;
+    throw err;
+  }
+
+  // Records until the person pauses after speaking, then resolves the
+  // recording; resolves null when nothing was said (or the turn was cancelled).
+  function recordTurn(onLevel) {
+    return new Promise((resolve) => {
+      const { stream, analyser } = speech;
+      const type = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4", "audio/ogg"].find((t) => MediaRecorder.isTypeSupported(t)) || "";
+      const recorder = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+      const chunks = [];
+      const samples = new Float32Array(analyser.fftSize);
+      const began = performance.now();
+      let heard = false;
+      let quietSince = began;
+      let frame = 0;
+      const finish = () => recorder.state === "recording" && recorder.stop();
+      const tick = () => {
+        analyser.getFloatTimeDomainData(samples);
+        const level = Math.sqrt(samples.reduce((sum, v) => sum + v * v, 0) / samples.length);
+        onLevel(level);
+        const now = performance.now();
+        if (level > SPEAKING_LEVEL) {
+          heard = true;
+          quietSince = now;
+        }
+        const paused = heard && now - quietSince > SILENCE_MS;
+        const silent = !heard && now - began > WAIT_FOR_SPEECH_MS;
+        if (paused || silent || now - began > MAX_TURN_MS) return finish();
+        frame = requestAnimationFrame(tick);
+      };
+      recorder.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+      recorder.onstop = () => {
+        cancelAnimationFrame(frame);
+        onLevel(0);
+        resolve(heard ? new Blob(chunks, { type: (recorder.mimeType || type || "audio/webm").split(";")[0] }) : null);
+      };
+      if (speech) speech.cancelTurn = () => { heard = false; finish(); };
+      recorder.start();
+      tick();
+    });
+  }
+
+  async function transcribe(blob) {
+    const resp = await voiceFetch("/me/voice/transcribe", { method: "POST", headers: { "Content-Type": blob.type }, body: blob });
+    return ((await resp.json()).text || "").trim();
+  }
+
+  // Reads a reply aloud; resolves when it ends or is skipped.
+  async function playReply(text) {
+    const resp = await voiceFetch("/me/voice/speak", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const url = URL.createObjectURL(await resp.blob());
+    try {
+      await new Promise((resolve) => {
+        if (!speech) return resolve();
+        speech.skip = () => { speech.audio.pause(); resolve(); };
+        speech.audio.onended = speech.audio.onerror = resolve;
+        speech.audio.src = url;
+        speech.audio.play().catch(resolve);
+      });
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+  }
+
+  // Before the first time: where the voice goes, said plainly.
+  function speechNotice() {
+    let seen = false;
+    try { seen = localStorage.getItem(SPEECH_NOTICE) === "1"; } catch { /* private window: ask each time */ }
+    if (seen) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      let answered = false;
+      const answer = (yes) => {
+        answered = true;
+        if (yes) try { localStorage.setItem(SPEECH_NOTICE, "1"); } catch { /* fine */ }
+        close();
+        resolve(yes);
+      };
+      const close = cave().overlay(el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "speechTitle" }, [
+        el("h3", { id: "speechTitle", text: "Speak with Aquila" }),
+        el("p", { class: "sheet-lede", text: "Talk, and pause when you're done. Aquila answers out loud, then listens again until you tap Stop." }),
+        el("p", { text: "What you say goes to Deepgram to become words, and Aquila's replies go there to be read aloud. Adullam keeps none of it unless you keep this talk, and Deepgram is asked not to keep your voice." }),
+        el("div", { class: "sheet-actions" }, [
+          el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Not now", onclick: () => answer(false) }),
+          el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Start speaking", onclick: () => answer(true) }),
+        ]),
+      ]), { onClose: () => { if (!answered) resolve(false); } });
+    });
+  }
+
+  // Ends the session: the mic is released and any reply stops.
+  function endSpeech(note, tone = "info") {
+    if (!speech) return;
+    const { stream, audio, context, ui } = speech;
+    speech.on = false;
+    if (speech.cancelTurn) speech.cancelTurn();
+    if (speech.skip) speech.skip();
+    speech = null;
+    audio.pause();
+    stream.getTracks().forEach((t) => t.stop());
+    context.close().catch(() => {});
+    ui.off();
+    if (note) toast(note, { tone });
+  }
+
+  // ---------------------------------------------------------------------
   // Talk with Aquila
   // ---------------------------------------------------------------------
   const OPENING = "I'm here. Whatever you're carrying or hoping for, you can bring it. I'll listen first.";
@@ -560,19 +709,112 @@
   }
 
   function talkRoom(firstMessage) {
+    endSpeech(); // a redrawn talk starts quiet
     if (!talk) talk = { messages: [{ role: "aquila", content: OPENING }], keptId: null };
     const list = el("div", { class: "soft-thread", "aria-live": "polite" }, talk.messages.map(messageNode));
     const box = el("textarea", { rows: "1", maxlength: "4000", placeholder: "Say as much or as little as you want", "aria-label": "Message to Aquila" });
     // Send stays quiet until there's something to send.
     const sendBtn = el("button", { class: "iconbtn", type: "button", "aria-label": "Send", html: ICON.send, disabled: true });
-    const ready = () => { sendBtn.disabled = busy || !box.value.trim(); };
-    // The voice call lives only here. It's a call of its own over Cognigy, so
+    const ready = () => { sendBtn.disabled = busy || !!speech || !box.value.trim(); };
+    // The live call lives only here. It's a call of its own over Cognigy, so
     // its warning comes first (index.html::openVoice) and nothing from it
     // joins this written talk.
     const voiceBtn = el("button", {
-      class: "iconbtn soft-mic", type: "button", "aria-label": "Talk out loud", title: "Talk out loud", html: ICON.mic,
+      class: "iconbtn soft-mic", type: "button", "aria-label": "Call Aquila (live call)", title: "Call Aquila (live call)", html: ICON.phone,
       onclick: () => app().openVoice(),
     });
+    // Speak: hands-free turns inside this talk (see "Speaking in the talk"),
+    // shown once the server says it offers it.
+    const speakBtn = el("button", { class: "iconbtn soft-mic soft-speak", type: "button", "aria-label": "Speak", title: "Speak", "aria-pressed": "false", html: ICON.mic, hidden: true });
+    const voiceState = el("span", { class: "voice-state" });
+    const voiceAct = el("button", { class: "act", type: "button" });
+    const voiceBar = el("div", { class: "voice-bar", role: "status", "aria-live": "polite", hidden: true }, [
+      el("span", { class: "voice-dot", "aria-hidden": "true" }), voiceState, voiceAct,
+    ]);
+    const voiceUi = {
+      // `step` is listening, hearing, thinking or speaking.
+      show(step) {
+        voiceBar.hidden = false;
+        voiceBar.dataset.step = step;
+        voiceState.textContent = {
+          listening: "Listening. Pause when you're done.",
+          hearing: "Hearing you...",
+          thinking: "Aquila is listening...",
+          speaking: "Aquila is speaking",
+        }[step];
+        voiceAct.textContent = step === "speaking" ? "Skip" : "Stop";
+        voiceAct.onclick = step === "speaking" ? () => speech && speech.skip && speech.skip() : () => endSpeech();
+      },
+      level(value) { voiceBar.style.setProperty("--level", Math.min(1, value * 12).toFixed(2)); },
+      off() {
+        voiceBar.hidden = true;
+        speakBtn.setAttribute("aria-pressed", "false");
+        speakBtn.innerHTML = ICON.mic;
+        ready();
+      },
+    };
+    canUseSpeech().then((ok) => { speakBtn.hidden = !ok; });
+
+    // One hands-free turn after another, for as long as the session is on.
+    async function speechLoop() {
+      while (speech && speech.on) {
+        voiceUi.show("listening");
+        const recording = await recordTurn(voiceUi.level);
+        if (!speech || !speech.on) return;
+        if (!recording) return endSpeech("Stopped listening after a quiet while. Tap the mic whenever you want to speak again.");
+        voiceUi.show("hearing");
+        let text;
+        try {
+          text = await transcribe(recording);
+        } catch (err) {
+          return endSpeech(err.message, err.status === 429 ? "info" : "error");
+        }
+        if (!speech || !speech.on) return;
+        if (!text) {
+          toast("I didn't catch that. Try again?", { tone: "info" });
+          continue;
+        }
+        voiceUi.show("thinking");
+        const reply = await send(text);
+        if (!reply || !speech || !speech.on) return endSpeech();
+        // When someone may not be safe, the helplines under her reply need to be seen, not talked over.
+        if (reply.care) return endSpeech("I've stopped listening so you can see who you can talk to right now.");
+        voiceUi.show("speaking");
+        try {
+          await playReply(reply.content);
+        } catch (err) {
+          return endSpeech(err.message, err.status === 429 ? "info" : "error");
+        }
+      }
+    }
+
+    speakBtn.onclick = async () => {
+      if (speech) return endSpeech();
+      // Both made inside this tap, so a phone lets the reply play and the
+      // voice be heard later: a silent clip, and the audio context.
+      const audio = new Audio(SILENCE_CLIP);
+      audio.play().catch(() => {});
+      const context = new AudioContext();
+      context.resume().catch(() => {});
+      if (!(await speechNotice())) return context.close().catch(() => {});
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      } catch {
+        context.close().catch(() => {});
+        return toast("Allow the microphone to speak with Aquila.", { tone: "error" });
+      }
+      // How loud the voice is, read each frame while a turn records.
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 1024;
+      context.createMediaStreamSource(stream).connect(analyser);
+      stopSpeaking(); // the on-device Listen, if it was reading
+      speech = { stream, audio, context, analyser, on: true, ui: voiceUi };
+      speakBtn.setAttribute("aria-pressed", "true");
+      speakBtn.innerHTML = ICON.stop;
+      ready();
+      speechLoop();
+    };
     const starters = talk.messages.length === 1
       ? el("div", { class: "starters" }, STARTERS.map((s) => el("button", { class: "act", type: "button", text: s, onclick: () => send(s) })))
       : null;
@@ -640,6 +882,7 @@
         wait.replaceWith(node);
         node.scrollIntoView({ behavior: "smooth", block: "nearest" });
         saveKept();
+        return reply;
       } catch (err) {
         // A daily limit is said as it is; anything else can be sent again
         // with one tap, and the words stay in the box either way.
@@ -652,6 +895,7 @@
         ]);
         wait.replaceWith(note);
         box.value = text;
+        return null;
       } finally {
         busy = false;
         ready();
@@ -674,7 +918,8 @@
       el("div", { class: "talk-bar" }, [status, el("div", { class: "talk-actions" }, [keepBtn, erase])]),
       list,
       starters,
-      el("div", { class: "soft-composer" }, [box, voiceBtn, sendBtn])
+      voiceBar,
+      el("div", { class: "soft-composer" }, [box, speakBtn, voiceBtn, sendBtn])
     ));
     if (firstMessage) send(firstMessage);
     else box.focus();

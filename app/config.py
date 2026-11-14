@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     vapid_public_key: str = ""
     vapid_private_key: str = ""
     # Who push services contact about this sender: "mailto:you@example.com".
-    vapid_subject: str = "mailto:hello@adullum.app"
+    vapid_subject: str = "mailto:hello@adullamapp.com"
     # Shared with the scheduled GitHub workflow that wakes the server to send
     # due reminders (POST /internal/send-reminders). Left empty, that endpoint
     # refuses every call, and reminders go out only while the server is awake.
@@ -123,6 +123,16 @@ class Settings(BaseSettings):
     # as "Authorization: Bearer <secret>" or "?key=<secret>". Left empty, the
     # server stays open as before.
     mcp_secret: str = ""
+
+    # Speaking in Refuge's talk (app/voice.py): Deepgram turns the person's
+    # voice into words and Aquila's reply into speech. The key stays on this
+    # server. Left empty, the talk's Speak button doesn't appear.
+    deepgram_api_key: str = ""
+    deepgram_stt_model: str = "nova-3"
+    deepgram_tts_voice: str = "aura-2-thalia-en"
+    # A turn heard and a reply spoken each count once.
+    quota_speech: int = 200
+    cost_speech_usd: float = 0.002
 
 
 settings = Settings()

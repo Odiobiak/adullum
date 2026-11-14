@@ -6,7 +6,7 @@
 # server is awake it also checks every minute by itself (app/reminders.py).
 #
 # Needs two repository secrets:
-#   DEPLOY_URL   - the live base URL, e.g. https://adullum.onrender.com (already used by deploy-watch)
+#   DEPLOY_URL   - the live base URL, e.g. https://www.adullamapp.com (already used by deploy-watch)
 #   CRON_SECRET  - the same value as CRON_SECRET in Render's environment
 #
 # GitHub may run scheduled jobs a few minutes late when it's busy, so a

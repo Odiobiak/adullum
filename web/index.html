@@ -668,7 +668,7 @@
     <article class="wrap page legal">
       <h1 class="page-title">Privacy</h1>
       <p class="muted">Last updated 7 November 2026</p>
-      <p>People bring very personal things to Adullam: prayers, grief, marriages, money, doubts. This page says plainly what happens to what you write here. Adullam is run by [operator name], who is responsible for your data. Questions go to <a href="mailto:hello@adullum.app">hello@adullum.app</a>.</p>
+      <p>People bring very personal things to Adullam: prayers, grief, marriages, money, doubts. This page says plainly what happens to what you write here. Adullam is run by [operator name], who is responsible for your data. Questions go to <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>.</p>
 
       <h2>The short version</h2>
       <ul>
@@ -692,7 +692,7 @@
       <h2>Refuge</h2>
       <ul>
         <li><strong>Write it out:</strong> "Let it go" never leaves your device. Only "Keep it" stores anything.</li>
-        <li><strong>Talk with Aquila:</strong> the talk is held in your browser and gone when you leave, unless you press Keep. Aquila's replies are written by OpenAI, so what you say is sent there to answer you. These talks are never recorded in our quality logs and never become memory notes.</li>
+        <li><strong>Talk with Aquila:</strong> the talk is held in your browser and gone when you leave, unless you press Keep. Aquila's replies are written by OpenAI, so what you say is sent there to answer you. If you tap Speak, your voice goes to Deepgram to become words and her replies go there to be read aloud; we keep neither the audio nor the words unless you keep the talk. These talks are never recorded in our quality logs and never become memory notes.</li>
         <li><strong>Amens:</strong> nobody using Adullam, the people who look after the wall included, is ever shown who wrote a post. A post is stored with your account so you can see, manage and delete it. Before it goes up it's checked automatically (using OpenAI's moderation service) and may be read by a person on our admin desk. Posts leave the wall after a set time.</li>
         <li>If something you write suggests you may be in danger, Adullam shows you helplines. It never contacts anyone on your behalf.</li>
       </ul>
@@ -704,6 +704,7 @@
         <li><strong>Render:</strong> runs our server.</li>
         <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
         <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after [retention period].</li>
+        <li><strong>Deepgram:</strong> only if you tap Speak in Refuge's talk. Your voice goes to them to become words, and Aquila's replies to be read aloud. We ask them not to keep your voice to improve their models.</li>
         <li><strong>Cognigy and its speech providers:</strong> only if you use "Talk out loud". Your voice and its transcript go to them to hold the call. The call isn't confidential the way a talk with clergy would be.</li>
         <li><strong>Google:</strong> serves the fonts this site uses (which shares your IP address with Google), and handles sign-in if you choose "Continue with Google".</li>
         <li><strong>Cloudflare (cdnjs):</strong> serves the code that draws Connections.</li>
@@ -722,7 +723,7 @@
         <li><strong>Delete your account:</strong> Settings, then Account. This removes everything at once and can't be undone. Copies in our database provider's backups expire within [backup window], and records held by OpenAI and Langfuse expire on the schedules above.</li>
         <li><strong>Memory:</strong> switch it off, or remove any note, in Settings.</li>
         <li><strong>Notifications:</strong> turn them off from any bell, or in your browser. Signing out stops them on that device.</li>
-        <li>You can also ask us to see, correct or delete your data, or object to how we use it, at <a href="mailto:hello@adullum.app">hello@adullum.app</a>. [If you are in the UK or EU, you can complain to your data protection authority.]</li>
+        <li>You can also ask us to see, correct or delete your data, or object to how we use it, at <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>. [If you are in the UK or EU, you can complain to your data protection authority.]</li>
       </ul>
 
       <h2>Keeping it safe</h2>
@@ -765,7 +766,7 @@
       <p>Don't try to reach other people's data, get around our limits or security, overload the service, or use Adullam to build a competing dataset or service.</p>
 
       <h2>Giving</h2>
-      <p>Adullam is free. A gift is voluntary and doesn't buy access to anything people rely on. Monthly gifts can be stopped at any time in the service you gave through (Stripe's receipt, PayPal, Venmo, Cash App or your bank). If something went wrong with a gift, write to <a href="mailto:hello@adullum.app">hello@adullum.app</a>.</p>
+      <p>Adullam is free. A gift is voluntary and doesn't buy access to anything people rely on. Monthly gifts can be stopped at any time in the service you gave through (Stripe's receipt, PayPal, Venmo, Cash App or your bank). If something went wrong with a gift, write to <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>.</p>
 
       <h2>Scripture and sources</h2>
       <p>The Bible translations here are in the public domain. Cross-references come from OpenBible.info under CC BY. Sermons in Listen belong to their publishers.</p>
@@ -775,7 +776,7 @@
 
       <h2>Changes and ending</h2>
       <p>We may update these terms and will say so in the app before a change that matters takes effect. We may stop offering Adullam; if we do, we'll give you notice and time to download your data. These terms are governed by the laws of [jurisdiction].</p>
-      <p class="muted">Questions: <a href="mailto:hello@adullum.app">hello@adullum.app</a></p>
+      <p class="muted">Questions: <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a></p>
     </article>
   </section>
 
@@ -1383,7 +1384,9 @@ window.AdullamApp = {
 // This must be the plain https Endpoint config URL, NOT the wss:// gateway
 // URL. initWebRTCWidget() fetches it to read the endpoint config and works out
 // its own socket from there; a wss:// address fails silently on the click.
-const VOICE_CONFIG_URL = "https://endpoint-trial-us.cognigy.ai/ab44c007158cc1c81fe2a57510da6639ab95acd67cefe4103f667cfd59386c6b";
+// The "aquila" endpoint in the Adullam project, answered by the flow that
+// scripts/build_cognigy_voice.py builds (docs/cognigy-voice.md).
+const VOICE_CONFIG_URL = "https://endpoint-trial.cognigy.ai/b9e2c1f64c32ccb170c3e6e8da920050168877e5d7b8baf4a9bc5821113f8e38";
 const disclaimerOverlay = $("#disclaimerOverlay");
 const VOICE_CALL_BUTTON = ".webrtc_widget_call_button, .voice_connect_widget_call_button, .vc_widget_call_button";
 const VOICE_END_BUTTON = ".webrtc_widget_end_call_button, .voice_connect_widget_end_call_button, .vc_widget_end_call_button";

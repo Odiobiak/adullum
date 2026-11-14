@@ -8,9 +8,9 @@ Tick a box by changing `[ ]` to `[x]`.
 - [x] Render off the free plan (`render.yaml` says `plan: free`). A sleeping server makes the first visitor wait 30 to 60 seconds.
 - [ ] Voice: move off the Cognigy trial endpoint (`web/index.html`, `VOICE_CONFIG_URL`), or confirm its limits and expiry.
 - [ ] Privacy and Terms: fill every [bracketed] part (operator name, retention, backup window, age, jurisdiction).
-- [ ] `hello@adullum.app` is a real inbox that reaches me.
+- [ ] `hello@adullamapp.com` is a real inbox that reaches me.
 - [ ] Link previews: add `og:title`, `og:description`, `og:image` (1200x630) and `og:url` to `web/index.html`.
-- [ ] Spending: hard monthly limit set with the model provider.
+- [x] Spending: hard monthly limit set with the model provider.
 - [x] Daily limits live: run `supabase/migrations/20261121_usage_limits.sql`, then ask as a guest 6 times and see the gentle "Sign in" message.
 - [ ] `MCP_SECRET` set on Render and added to Cognigy's MCP node (as `Authorization: Bearer ...` or `?key=...` on the URL); a voice call still answers.
 - [ ] Guest counting checked on Render: two phones on different networks each get their own 5 questions (confirms the real address header arrives).
@@ -63,7 +63,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [ ] Full run on a real iPhone (Safari and Home Screen app) and Android: sign up, magic link, Aquila, Refuge, Amens, Prayers, Declare, Bible, Church.
 - [ ] Dark themes and the largest text size checked for readability.
 - [ ] Sign in, export and account deletion work end to end.
-- [ ] Custom domain (optional, looks more trustworthy than onrender.com).
+- [ ] Custom domain: adullamapp.com added on Render, DNS set in Cloudflare (DNS only), certificate issued, and the address added to Supabase Auth > URL Configuration.
 
 ## 7. Social account
 

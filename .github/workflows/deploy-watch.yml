@@ -7,7 +7,7 @@ name: Deploy watch
 # Requires these repository secrets (Settings > Secrets and variables > Actions):
 #   RENDER_API_KEY     - Render account API key (render.com > Account Settings > API Keys)
 #   RENDER_SERVICE_ID  - the srv-xxxx id of the Render web service (from its dashboard URL)
-#   DEPLOY_URL         - the live base URL, e.g. https://adullum.onrender.com
+#   DEPLOY_URL         - the live base URL, e.g. https://www.adullamapp.com
 
 on:
   push:
