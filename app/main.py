@@ -402,4 +402,17 @@ app.mount(
 # Serves web/index.html at "/" and any future static assets alongside it.
 # Mounted last so it never shadows the API routes above — FastAPI matches
 # explicit paths first and falls through to the mount only for anything else.
-app.mount("/", StaticFiles(directory=Path(__file__).resolve().parent.parent / "web", html=True), name="web")
+class _CheckedStaticFiles(StaticFiles):
+    """The web client, sent with `Cache-Control: no-cache`: a browser may keep
+    its copy but asks each load whether it's still current, answered with a
+    small 304 when nothing changed. Without it browsers guess how long to
+    reuse a file, and once kept running the old desk for hours after a
+    deploy added its Giving tab."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
+app.mount("/", _CheckedStaticFiles(directory=Path(__file__).resolve().parent.parent / "web", html=True), name="web")
