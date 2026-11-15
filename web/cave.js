@@ -1640,6 +1640,32 @@
     }, 1200);
   }
 
+  // The conversations rail folds to a slim strip, remembered on this device.
+  // With nothing remembered it starts folded on a tablet, where the page is
+  // narrow, and open on a wider screen. Phones use the Conversations sheet.
+  const RAIL_KEY = "adullam:rail-folded";
+  function setupRailFold() {
+    const button = $("#railFold");
+    const layout = button && button.closest(".ask-layout");
+    if (!layout) return;
+    const paint = (folded) => {
+      layout.classList.toggle("rail-folded", folded);
+      const label = folded ? "Show conversations" : "Hide conversations";
+      button.setAttribute("aria-expanded", String(!folded));
+      button.setAttribute("aria-label", label);
+      button.title = label;
+    };
+    paint(readStore(RAIL_KEY, window.matchMedia("(max-width: 980px)").matches));
+    // Only animate a fold the person makes, not the first paint.
+    requestAnimationFrame(() => layout.classList.add("rail-ready"));
+    button.addEventListener("click", () => {
+      const folded = !layout.classList.contains("rail-folded");
+      writeStore(RAIL_KEY, folded);
+      paint(folded);
+    });
+  }
+  setupRailFold();
+
   async function openConversations() {
     const list = el("div", { class: "conv-list" }, el("p", { class: "faint", text: "Opening..." }));
     const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "convTitle" }, [

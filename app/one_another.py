@@ -469,7 +469,11 @@ def wall(
 
     def opened_now():
         # The wall is open now: what's new on the home notice counts from here.
-        db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
+        # Only bookkeeping, so a failure here never keeps the wall from opening.
+        try:
+            db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
+        except Exception:
+            log.warning("Couldn't note when the wall was opened", exc_info=True)
 
     if not first:
         rows = page_to_carry()

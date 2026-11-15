@@ -9,9 +9,31 @@ from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
 from typing import Any, Callable
 
+import httpx
 from supabase import Client, create_client
+from supabase.lib.client_options import SyncClientOptions
 
 from app.config import settings
+
+
+def http_client() -> httpx.Client:
+    """The HTTP connection pool every Supabase request goes through.
+
+    Supabase's own default is one HTTP/2 connection shared by every thread,
+    and it retries a dropped request only for GETs. `gather` sends several
+    queries at once, and database functions and writes are POSTs, so the
+    first burst after the server sat idle could land on a connection that
+    was opening or closing and fail outright (the Amens wall said "Couldn't
+    open this" until it was tapped again). Plain HTTP/1.1 gives each thread
+    its own connection from the pool, and `retries` tries a failed connect
+    once more.
+    """
+    return httpx.Client(
+        http2=False,
+        transport=httpx.HTTPTransport(retries=1),
+        timeout=httpx.Timeout(60, connect=10),
+        follow_redirects=True,
+    )
 
 
 @lru_cache
@@ -24,7 +46,8 @@ def get_supabase() -> Client:
     to Supabase directly instead of through this API, it must use the public
     anon key + Supabase Auth instead, so the RLS policies in schema.sql apply.
     """
-    return create_client(settings.supabase_url, settings.supabase_service_key)
+    options = SyncClientOptions(httpx_client=http_client())
+    return create_client(settings.supabase_url, settings.supabase_service_key, options=options)
 
 
 def gather(*calls: Callable[[], Any]) -> list[Any]:
