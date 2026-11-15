@@ -113,6 +113,12 @@ WALL_VIEWS_HINT = (
     "in the Supabase SQL editor."
 )
 
+# Taking a post off one's own wall reads a table added later still.
+REMOVE_HINT = (
+    "Removing a post from your wall needs a database update. Run supabase/migrations/20261126_amens_remove.sql "
+    "in the Supabase SQL editor."
+)
+
 _moderation = OpenAI(api_key=settings.openai_api_key)
 
 
@@ -560,6 +566,33 @@ def react(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
     # The trigger has counted it on the post already.
     rows = db.table("refuge_posts").select("amen_count").eq("id", str(post_id)).limit(1).execute().data
     return {"reactions": (rows[0].get("amen_count") or 0) if rows else 0}
+
+
+def _not_own(post_id: uuid.UUID, user: AuthUser) -> None:
+    """Refuses a post this person wrote; their own are managed under Yours."""
+    if _post(str(post_id))["user_id"] == user.id:
+        raise HTTPException(status_code=400, detail="That one's yours.")
+
+
+@router.post("/me/refuge/posts/{post_id}/remove")
+def remove_from_wall(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
+    """Takes someone else's post off this person's wall, for when they'd
+    rather not pray or rejoice over it. Only their view changes: the post
+    stays up for everyone else, its writer is never told, and it isn't a
+    report (that's what Report is for)."""
+    _not_own(post_id, user)
+    row = {"user_id": user.id, "post_id": str(post_id)}
+    _db_call(lambda: get_supabase().table("refuge_wall_removals").upsert(row, on_conflict="user_id,post_id", ignore_duplicates=True).execute(), REMOVE_HINT)
+    return {"status": "removed"}
+
+
+@router.delete("/me/refuge/posts/{post_id}/remove")
+def restore_to_wall(post_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dict:
+    """Undo for remove_from_wall: the post comes back to this person's wall."""
+    _db_call(lambda: (
+        get_supabase().table("refuge_wall_removals").delete().eq("user_id", user.id).eq("post_id", str(post_id)).execute()
+    ), REMOVE_HINT)
+    return {"status": "restored"}
 
 
 @router.post("/me/refuge/posts/{post_id}/kind-words")

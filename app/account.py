@@ -63,6 +63,7 @@ EXPORT_TABLES: dict[str, str] = {
     "refuge_reactions": "Amens you said",
     "refuge_kind_words": "Kind words you sent",
     "refuge_reports": "Posts you reported",
+    "refuge_wall_removals": "Posts you removed from your Amens wall",
     "user_activity": "The days you used Adullam (for your streak)",
 }
 

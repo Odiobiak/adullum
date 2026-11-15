@@ -15,7 +15,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [x] `MCP_SECRET` set on Render and added to Cognigy's MCP node (as `Authorization: Bearer ...` or `?key=...` on the URL); a voice call still answers.
 - [ ] Guest counting checked on Render: two phones on different networks each get their own 5 questions (confirms the real address header arrives).
 - [ ] Cognigy's per-minute price known and set as `COST_VOICE_CALL_USD`; a maximum session length set in Cognigy too.
-- [x] Every migration run in production, through `20261125_welcome_tour.sql`; every tab opened signed in with no "run this" message.
+- [ ] Every migration run in production, through `20261126_amens_remove.sql`; every tab opened signed in with no "run this" message.
 - [ ] Render secrets set: VAPID keys, `VAPID_SUBJECT`, `CRON_SECRET`, Langfuse, support links, `SENTRY_DSN`.
 - [ ] GitHub repo secrets set: `DEPLOY_URL`, `CRON_SECRET`.
 - [ ] Supabase Auth redirect URLs include the final domain.

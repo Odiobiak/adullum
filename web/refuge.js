@@ -2188,10 +2188,23 @@
       onOpen: () => { choosing = true; clearTimeout(timer); },
       onClose: () => { choosing = false; moveOn(); },
     });
-    const report = cave().moreMenu("More", [{
-      label: "Report", danger: true,
-      onClick: () => reportSheet(post, () => foldAway(card, () => wall.reported(post))),
-    }]);
+    // Not every post is one someone can carry. Removing it is a quiet choice,
+    // kept in the menu: it leaves only their wall, nobody is told, and Undo
+    // brings it back.
+    const remove = async () => {
+      try {
+        await api(`/me/refuge/posts/${post.id}/remove`, { method: "POST" });
+      } catch (err) {
+        return toast(err.message, { tone: "error" });
+      }
+      clearTimeout(timer);
+      foldAway(card, () => wall.left(post));
+      toast("Removed from your wall. It stays up for others.", { tone: "info", action: { label: "Undo", onClick: () => wall.restore(post) } });
+    };
+    const report = cave().moreMenu("More", [
+      { label: "Remove from my wall", onClick: remove },
+      { label: "Report", danger: true, onClick: () => reportSheet(post, () => foldAway(card, () => wall.left(post))) },
+    ]);
 
     card.append(...[
       el("div", { class: "amen-card-head" }, [kindTag(post), el("span", { class: "amen-when", text: sinceText(post.created_at) }), report]),
@@ -2460,7 +2473,7 @@
   const HOW_AMENS_WORKS = [
     ["Share anonymously", "Choose \"Pray for me\" for something you're carrying, or \"Rejoice with me\" for good news. Share as much or as little as you like. Names and places are up to you, but links and contact details can't be posted."],
     ["Checked as it goes up", "Every post is checked as it's shared. Most go on the wall straight away; anything the check isn't sure of waits for a person to look at it first. A report sends a post to a person to look at, and usually takes it down while they do. Nobody, not even the people who check, is shown who wrote it."],
-    ["Everyone gets prayed for", "There are no followers. Your wall holds only what you haven't prayed for yet, starting with posts the fewest people have, so every request gets carried, not just the newest. Once you pray or rejoice, the post moves to Prayed, where you can come back to it."],
+    ["Everyone gets prayed for", "There are no followers. Your wall holds only what you haven't prayed for yet, starting with posts the fewest people have, so every request gets carried, not just the newest. Once you pray or rejoice, the post moves to Prayed, where you can come back to it. If one isn't for you, remove it from your wall in its ⋯ menu. It stays up for others, and its writer is never told."],
     ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
     ["How long it stays", HOW_LONG],
     ["See what came back", "Your posts sit under Yours with how many prayed or rejoiced, and any kind words. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
@@ -2590,10 +2603,24 @@
         paintCounts();
         settle();
       },
-      reported() {
+      // Reported or removed: gone from this view without being prayed for.
+      left() {
         counts.carry = Math.max(0, counts.carry - 1);
         paintCounts();
         settle();
+      },
+      // Undo for "Remove from my wall": the card comes back at the top.
+      async restore(post) {
+        try {
+          await api(`/me/refuge/posts/${post.id}/remove`, { method: "DELETE" });
+        } catch (err) {
+          return toast(err.message, { tone: "error" });
+        }
+        if (post.reacted) return rerender(); // prayed for before it left, so it belongs under Prayed
+        stream.querySelector(".amen-empty")?.remove();
+        stream.prepend(carryCard(post, wall));
+        counts.carry += 1;
+        paintCounts();
       },
     };
     const addCards = (posts) => {

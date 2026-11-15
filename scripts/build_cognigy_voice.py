@@ -93,12 +93,15 @@ Ending
 GREETING = "Hi, I'm Aquila. I'm here to listen. What's on your heart today?"
 STILL_HERE = "I'm still here, whenever you're ready."
 # Speech for the call, through the shared trial Voice Gateway's own Deepgram
-# credential. Plain Deepgram, not Flux: the gateway has no Flux credential,
-# and a call set to Flux (in en-IE) was hung up within a second.
+# credential. The gateway finds a credential by vendor and label together, so
+# both are named: without the label, or with Flux (it has no Flux credential),
+# the gateway hung up the moment the call tried to speak or listen.
 SPEECH = {
     "sttVendor": "deepgram",
+    "sttLabel": "deepgram",
     "sttLanguage": "en-US",
     "ttsVendor": "deepgram",
+    "ttsLabel": "deepgram",
     "ttsLanguage": "en-US",
     "ttsVoice": "aura-2-ophelia-en",  # calm and clear; the gateway's default is aura-2-andromeda-en
 }

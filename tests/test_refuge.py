@@ -324,6 +324,22 @@ class TestWallRoutes:
         use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", **LIVE}]}))
         assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 400
 
+    def test_removing_a_post_changes_only_this_persons_wall(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "approved", **LIVE}]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/remove", headers=HEADERS).json() == {"status": "removed"}
+        assert ("refuge_wall_removals", "upsert", {"user_id": USER.id, "post_id": POST_ID}) in db.written
+        # Not a report and not a change to the post itself.
+        assert not [w for w in db.written if w[0] in ("refuge_posts", "refuge_reports")]
+
+    def test_undo_brings_a_removed_post_back_for_this_person_only(self, monkeypatch):
+        db = use_db(monkeypatch, FakeDb())
+        assert client.delete(f"/me/refuge/posts/{POST_ID}/remove", headers=HEADERS).json() == {"status": "restored"}
+        assert db.filtered("refuge_wall_removals", "user_id", USER.id) and db.filtered("refuge_wall_removals", "post_id", POST_ID)
+
+    def test_nobody_removes_their_own_post_from_their_wall(self, monkeypatch):
+        use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": USER.id, "kind": "burden", "status": "approved", **LIVE}]}))
+        assert client.post(f"/me/refuge/posts/{POST_ID}/remove", headers=HEADERS).status_code == 400
+
     def test_posts_waiting_on_the_desk_cant_be_responded_to(self, monkeypatch):
         use_db(monkeypatch, FakeDb(rows={"refuge_posts": [{"id": POST_ID, "user_id": "someone", "kind": "burden", "status": "pending"}]}))
         assert client.post(f"/me/refuge/posts/{POST_ID}/react", headers=HEADERS).status_code == 404
