@@ -2,7 +2,6 @@ services:
   - type: web
     name: adullum
     runtime: python
-    plan: free
     buildCommand: pip install -e .
     # Trust Render's proxy headers, so request.base_url is https:// and magic
     # links ask Supabase to return to the https address (app/cave.py::_redirect_to).
@@ -32,7 +31,7 @@ services:
       - key: SUPPORT_MONTHLY_URL
         sync: false
       - key: SUPPORT_MONTHLY_AMOUNT
-        value: $3
+        value: $5
       # Push notifications (scripts/make_vapid_keys.py makes the pair) and the
       # secret the reminders workflow sends. See app/reminders.py.
       - key: VAPID_PUBLIC_KEY

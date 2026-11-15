@@ -118,7 +118,8 @@ def test_podcast_feed_cut_off_part_way_keeps_the_whole_episodes():
 
 def test_an_old_feed_is_answered_at_once_and_read_again_behind():
     from app import churches
-    churches._feed_cache["t:feed"] = (0.0, [{"id": "old"}])  # long past FEED_CACHE_SECONDS
+    # Stamped relative to now, since monotonic time counts from boot and a fresh CI runner is young.
+    churches._feed_cache["t:feed"] = (time.monotonic() - churches.FEED_CACHE_SECONDS - 1, [{"id": "old"}])
     reads = []
     done = threading.Event()
 

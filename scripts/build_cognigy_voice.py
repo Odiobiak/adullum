@@ -130,7 +130,12 @@ def node_defaults(api: Cognigy, flow_id: str) -> dict:
 class FlowBuilder:
     """Adds nodes to one flow. `add` returns the new node's id; children that
     Cognigy creates on its own (a Once node's two branches, an AI Agent job's
-    Default) are found afterwards with `child`."""
+    Default) are found afterwards with `child`.
+
+    A branch's first node goes "append" after the branch head (On First Time,
+    Afterwards), never "appendChild" under it: the runtime follows the head's
+    `next`, so a child there is silently skipped and the flow says nothing.
+    "appendChild" is only for the job's tools, which really are its children."""
 
     def __init__(self, api: Cognigy, flow_id: str):
         self.api, self.flow_id = api, flow_id
@@ -217,7 +222,7 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
 
     # Session settings for the whole call. Speech vendors are left empty, so
     # the endpoint's own speech settings apply.
-    session = b.add("setSessionConfig", first, "appendChild", "Call settings", extension="@cognigy/voicegateway2", config={
+    session = b.add("setSessionConfig", first, "append", "Call settings", extension="@cognigy/voicegateway2", config={
         # The caller can talk over her; two words, so a "mm" doesn't cut her off.
         "bargeInOnSpeech": True,
         "bargeInMinWordCount": 2,
@@ -232,7 +237,7 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
     b.add("say", session, "append", "Greeting", config={"say": {"type": "text", "text": [GREETING], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
 
     # The agent's job for this call.
-    job = b.add("aiAgentJob", afterwards, "appendChild", "Aquila", config={
+    job = b.add("aiAgentJob", afterwards, "append", "Aquila", config={
         "aiAgent": agent["referenceId"],
         "name": JOB_NAME,
         "description": JOB_DESCRIPTION,
