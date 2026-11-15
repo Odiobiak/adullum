@@ -25,7 +25,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 from starlette.responses import PlainTextResponse
 
-from app import account, answer_cache, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, notes, one_another, prayers, quota, reading_plans, reflections, refuge, reminders, saved, sermons, support, voice
+from app import account, answer_cache, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, monitoring, notes, one_another, prayers, quota, reading_plans, reflections, refuge, reminders, saved, sermons, support, voice
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -57,6 +57,7 @@ async def _lifespan(_app: FastAPI):
     yield
 
 
+monitoring.init()  # before the app is made, so Sentry can wrap it
 app = FastAPI(title="Adullam", lifespan=_lifespan)
 
 # Dev-only: lets the static test page in web/index.html (opened via file:// or a

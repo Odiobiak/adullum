@@ -5,6 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Adullam, ask Aquila</title>
 <meta name="description" content="Study the Bible with Aquila. Every answer comes from Scripture, cites chapter and verse, and is checked against the text." />
+<!-- What a shared link shows in messages and social posts. -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="Adullam" />
+<meta property="og:title" content="Adullam, ask Aquila" />
+<meta property="og:description" content="Study the Bible with Aquila. Every answer comes from Scripture and cites chapter and verse. Free, with no ads." />
+<meta property="og:url" content="https://www.adullamapp.com/" />
+<meta property="og:image" content="https://www.adullamapp.com/icons/og-image.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Adullam: study the Bible with Aquila." />
+<meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23A84E1B'/%3E%3Cpath d='M7 26C7 15 11 8 16 8s9 7 9 18' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M13 26c0-3.6 1.3-6 3-6s3 2.4 3 6' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E" />
 <script>
   // Theme before first paint, so nobody sees a flash of the wrong one. The
@@ -72,6 +83,7 @@
           <a role="menuitem" href="#cave">Your cave</a>
           <a role="menuitem" href="#settings">Settings</a>
           <a role="menuitem" href="#support" class="menu-support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>Support Adullam</a>
+          <a role="menuitem" href="mailto:hello@adullamapp.com?subject=Adullam%20feedback" data-feedback>Send feedback</a>
           <a role="menuitem" href="#desk" id="menuDesk" hidden>Admin desk</a>
           <button type="button" role="menuitem" class="menu-item danger" data-sign-out>Sign out</button>
         </div>
@@ -393,7 +405,7 @@
 
     <footer class="wrap site-foot">
       <span>Aquila is an AI study companion, not a pastor or counselor. In crisis, call or text 988 (US).</span>
-      <span class="row" style="gap:10px"><a href="#privacy">Privacy</a> <a href="#terms">Terms</a></span>
+      <span class="row" style="gap:10px"><a href="#privacy">Privacy</a> <a href="#terms">Terms</a> <a href="mailto:hello@adullamapp.com?subject=Adullam%20feedback" data-feedback>Feedback</a></span>
       <span class="row" style="gap:10px">Theme <span data-themes></span></span>
     </footer>
   </section>
@@ -653,7 +665,7 @@
           <button type="button" class="btn btn-ghost" id="exportData">Download your data</button>
           <button type="button" class="btn btn-ghost danger-text" id="closeAccount">Delete account</button>
         </div>
-        <p class="muted" style="margin:12px 0 0;font-size:15px"><a href="#privacy">Privacy</a> · <a href="#terms">Terms</a></p>
+        <p class="muted" style="margin:12px 0 0;font-size:15px"><a href="#privacy">Privacy</a> · <a href="#terms">Terms</a> · <a href="mailto:hello@adullamapp.com?subject=Adullam%20feedback" data-feedback>Send feedback</a></p>
       </section>
     </div>
   </section>
@@ -673,8 +685,8 @@
   <section data-view="privacy" hidden>
     <article class="wrap page legal">
       <h1 class="page-title">Privacy</h1>
-      <p class="muted">Last updated 7 November 2026</p>
-      <p>People bring very personal things to Adullam: prayers, grief, marriages, money, doubts. This page says plainly what happens to what you write here. Adullam is run by [operator name], who is responsible for your data. Questions go to <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>.</p>
+      <p class="muted">Last updated 14 November 2026</p>
+      <p>People bring very personal things to Adullam: prayers, grief, marriages, money, doubts. This page says plainly what happens to what you write here. Adullam is run on a not-for-profit basis by a team of two, who are responsible for your data. Questions go to <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>.</p>
 
       <h2>The short version</h2>
       <ul>
@@ -710,7 +722,8 @@
         <li><strong>Resend:</strong> delivers sign-in emails, so it receives your email address and the sign-in link.</li>
         <li><strong>Render:</strong> runs our server.</li>
         <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
-        <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after [retention period].</li>
+        <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after 30 days.</li>
+        <li><strong>Sentry:</strong> tells us when something breaks on our server. It receives the error and where in our code it happened. What you sent, your email and your network address are removed before it goes.</li>
         <li><strong>Deepgram:</strong> only if you tap Speak in Refuge's talk. Your voice goes to them to become words, and Aquila's replies to be read aloud. We ask them not to keep your voice to improve their models.</li>
         <li><strong>Cognigy and its speech providers:</strong> only if you use "Talk out loud". Your voice and its transcript go to them to hold the call. The call isn't confidential the way a talk with clergy would be.</li>
         <li><strong>Google:</strong> serves the fonts this site uses (which shares your IP address with Google), and handles sign-in if you choose "Continue with Google".</li>
@@ -719,25 +732,25 @@
         <li><strong>Giving:</strong> if you give, you do it through the service you pick on the Support page (Stripe, PayPal, Venmo, Cash App, Zelle or your bank), under its own privacy policy. Your card and account details go to that service, never to us. If you put your email in a gift's note so we can thank you, we use it only to mark your account as a friend of the cave.</li>
         <li><strong>Apple, Google or Mozilla:</strong> deliver notifications to your device, if you turn them on.</li>
       </ul>
-      <p>Some of these providers process data outside your country, including in the United States. [Describe the transfer safeguards that apply, for example the providers' standard contractual clauses.]</p>
+      <p>Some of these providers process data outside your country, including in the United States. Where the law asks for it, these transfers rely on the providers' standard contractual clauses.</p>
 
       <h2>Why we use it</h2>
-      <p>We use your data only to give you Adullam: to answer you, keep what you keep, send the reminders you ask for, keep the Amens wall safe, and fix what goes wrong. [Legal basis, for example: performing our agreement with you, and your consent for optional features such as memory and notifications.] We never use it for advertising or to build a profile for anyone else.</p>
+      <p>We use your data only to give you Adullam: to answer you, keep what you keep, send the reminders you ask for, keep the Amens wall safe, and fix what goes wrong. We do this to keep our agreement with you, out of a legitimate interest in keeping Adullam safe and working, and with your consent for optional features such as memory and notifications. We never use it for advertising or to build a profile for anyone else.</p>
 
       <h2>Your choices</h2>
       <ul>
         <li><strong>Download your data:</strong> Settings, then Account. You get one file with everything you keep here.</li>
-        <li><strong>Delete your account:</strong> Settings, then Account. This removes everything at once and can't be undone. Copies in our database provider's backups expire within [backup window], and records held by OpenAI and Langfuse expire on the schedules above.</li>
+        <li><strong>Delete your account:</strong> Settings, then Account. This removes everything at once and can't be undone. Copies in our database provider's backups expire within 7 days, and records held by OpenAI and Langfuse expire on the schedules above.</li>
         <li><strong>Memory:</strong> switch it off, or remove any note, in Settings.</li>
         <li><strong>Notifications:</strong> turn them off from any bell, or in your browser. Signing out stops them on that device.</li>
-        <li>You can also ask us to see, correct or delete your data, or object to how we use it, at <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>. [If you are in the UK or EU, you can complain to your data protection authority.]</li>
+        <li>You can also ask us to see, correct or delete your data, or object to how we use it, at <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a>. If you are in the UK or EU, you can also complain to your data protection authority.</li>
       </ul>
 
       <h2>Keeping it safe</h2>
       <p>Everything travels over encrypted connections. The keys to our database stay on our server and never reach your browser. Every request for your data is checked to be yours, and only the few people named to look after the Amens wall can open the admin desk, which never shows who wrote a post. If something ever goes wrong that puts your data at risk, we will tell you and, where the law requires it, the authorities.</p>
 
       <h2>Age</h2>
-      <p>Adullam is for people aged [13] and over.</p>
+      <p>Adullam is for people aged 13 and over.</p>
 
       <h2>Changes</h2>
       <p>If this page changes in a way that matters, we'll say so in the app before it takes effect.</p>
@@ -748,14 +761,14 @@
   <section data-view="terms" hidden>
     <article class="wrap page legal">
       <h1 class="page-title">Terms of use</h1>
-      <p class="muted">Last updated 7 November 2026</p>
-      <p>These terms are an agreement between you and [operator name] about using Adullam. By creating an account or using Adullam, you agree to them. How we handle your data is on the <a href="#privacy">Privacy</a> page.</p>
+      <p class="muted">Last updated 14 November 2026</p>
+      <p>These terms are an agreement between you and the team that runs Adullam ("we") about using Adullam. By creating an account or using Adullam, you agree to them. How we handle your data is on the <a href="#privacy">Privacy</a> page.</p>
 
       <h2>Aquila is an AI</h2>
       <p>Aquila is an AI study companion, not a pastor, counselor, doctor or lawyer. She quotes Scripture from the verses in our database and is built never to invent a reference, but she can still be wrong or miss what matters. Read the passages for yourself. Nothing here is professional advice. If you are in crisis, contact local emergency services or a helpline; Adullam can't respond to emergencies.</p>
 
       <h2>Your account</h2>
-      <p>You must be [13] or older. Keep your sign-in to yourself; you are responsible for what's done with your account. You can delete it at any time in Settings.</p>
+      <p>You must be 13 or older. Keep your sign-in to yourself; you are responsible for what's done with your account. You can delete it at any time in Settings.</p>
 
       <h2>What you write</h2>
       <p>What you write here stays yours. You let us store and process it only to run Adullam for you, as the Privacy page describes. If you share a sermon note's link, anyone with the link can read that note until you stop sharing.</p>
@@ -782,7 +795,7 @@
       <p>We work to keep Adullam available and correct, but it's provided as it is, without guarantees. To the extent the law allows, we aren't liable for indirect losses from using it. Nothing in these terms limits rights you have by law.</p>
 
       <h2>Changes and ending</h2>
-      <p>We may update these terms and will say so in the app before a change that matters takes effect. We may stop offering Adullam; if we do, we'll give you notice and time to download your data. These terms are governed by the laws of [jurisdiction].</p>
+      <p>We may update these terms and will say so in the app before a change that matters takes effect. We may stop offering Adullam; if we do, we'll give you notice and time to download your data. These terms are governed by the laws of the State of Delaware, USA.</p>
       <p class="muted">Questions: <a href="mailto:hello@adullamapp.com">hello@adullamapp.com</a></p>
     </article>
   </section>
@@ -1015,6 +1028,17 @@ function currentRoute() {
   if (VIEWS[r]) return r;
   return window.Cave.signedIn() ? "home" : "welcome";
 }
+
+// "Send feedback" opens an email with a short shape to fill and the page and
+// browser beneath it, so a bug report says where it happened. Only the route's
+// name goes in (never an id or a shared note's token, nor what's on the page),
+// and the person sees all of it before sending.
+document.addEventListener("click", (e) => {
+  const link = e.target.closest("[data-feedback]");
+  if (!link) return;
+  const body = `What happened, or what you'd like:\n\n\nWhat you expected:\n\n\n---\nPage: #${routeParts()[0]}\nBrowser: ${navigator.userAgent}`;
+  link.href = `mailto:hello@adullamapp.com?subject=${encodeURIComponent("Adullam feedback")}&body=${encodeURIComponent(body)}`;
+});
 
 function render() {
   let route = currentRoute();

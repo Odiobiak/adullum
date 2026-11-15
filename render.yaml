@@ -48,6 +48,9 @@ services:
         sync: false
       - key: LANGFUSE_HOST
         value: https://cloud.langfuse.com
+      # Error reports (app/monitoring.py). Left empty, nothing is sent.
+      - key: SENTRY_DSN
+        sync: false
       # Only Cognigy may open the MCP server once this is set (app/main.py::_guard_mcp).
       - key: MCP_SECRET
         sync: false

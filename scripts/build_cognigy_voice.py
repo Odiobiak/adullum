@@ -19,10 +19,10 @@ widget, and the call is answered by what this script builds:
 
 Running it again rebuilds the flow from scratch and updates the agent in
 place, so this file is the source of truth: change the words here, not in
-the Cognigy editor. Three things stay manual in the Cognigy website (the API
-has no way to set them), listed in docs/cognigy-voice.md: the Voice Gateway
-account, the endpoint's speech settings, and turning off debug messages once
-testing is done.
+the Cognigy editor (a rerun wipes editor changes). Speech is set for the
+call by the Call settings node (SPEECH), since the trial endpoint can't hold
+speech settings. Turning off debug messages once testing is done stays manual
+(docs/cognigy-voice.md).
 
 Reads from .env: COGNIGY_API_URL, COGNIGY_API_KEY, and MCP_SECRET (optional;
 when set, the MCP tool sends it as a Bearer header).
@@ -92,6 +92,17 @@ Ending
 
 GREETING = "Hi, I'm Aquila. I'm here to listen. What's on your heart today?"
 STILL_HERE = "I'm still here, whenever you're ready."
+# Speech for the call, through the shared trial Voice Gateway's own Deepgram
+# credential. Plain Deepgram, not Flux: the gateway has no Flux credential,
+# and a call set to Flux (in en-IE) was hung up within a second.
+SPEECH = {
+    "sttVendor": "deepgram",
+    "sttLanguage": "en-US",
+    "ttsVendor": "deepgram",
+    "ttsLanguage": "en-US",
+    "ttsVoice": "aura-2-ophelia-en",  # calm and clear; the gateway's default is aura-2-andromeda-en
+}
+
 GOODBYE = "Thank you for sharing this time with me. Go gently. Refuge is here whenever you need it."
 ERROR_LINE = "I'm sorry, I lost my words for a moment. Could you say that again?"
 
@@ -181,7 +192,7 @@ def ensure_agent(api: Cognigy, project_id: str) -> dict:
         # Refuge promises a talk is never remembered, so no contact profile reaches her.
         "contactProfilesOption": "none",
         "enableAutoLanguageDetection": False,
-        # The voice comes from the endpoint's speech settings (docs/cognigy-voice.md).
+        # The voice is set for the call by the flow's Call settings (SPEECH).
         "enableVoiceConfigs": False,
         "safetySettings": {
             "avoidHarmfulContent": True,
@@ -220,9 +231,11 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
                  comment="The first execution is the call connecting. Every later one is the caller speaking.")
     first, afterwards = b.child(once, "onFirstExecution"), b.child(once, "afterwards")
 
-    # Session settings for the whole call. Speech vendors are left empty, so
-    # the endpoint's own speech settings apply.
+    # Session settings for the whole call, speech included: on the trial the
+    # endpoint can't hold speech settings (no Voice Gateway account of our
+    # own), so without these the call can neither speak nor hear.
     session = b.add("setSessionConfig", first, "append", "Call settings", extension="@cognigy/voicegateway2", config={
+        **SPEECH,
         # The caller can talk over her; two words, so a "mm" doesn't cut her off.
         "bargeInOnSpeech": True,
         "bargeInMinWordCount": 2,
@@ -233,7 +246,7 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
         "userNoInputTimeout": 20000,
         "userNoInputRetries": 2,
         "userNoInputSpeech": STILL_HERE,
-    }, comment="Barge-in on, and a gentle line after 20 quiet seconds. Speech vendors come from the endpoint.")
+    }, comment="Deepgram speech, barge-in on, and a gentle line after 20 quiet seconds. Set in scripts/build_cognigy_voice.py.")
     b.add("say", session, "append", "Greeting", config={"say": {"type": "text", "text": [GREETING], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
 
     # The agent's job for this call.

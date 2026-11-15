@@ -26,6 +26,8 @@ dependencies = [
     "youtube-transcript-api>=1.0.0",
     # Push notifications for reminders (app/push.py).
     "pywebpush>=2.0.0",
+    # Error reports from the server, off until SENTRY_DSN is set (app/monitoring.py).
+    "sentry-sdk[fastapi]>=2.0.0",
 ]
 
 [project.optional-dependencies]

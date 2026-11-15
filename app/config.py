@@ -56,6 +56,10 @@ class Settings(BaseSettings):
     langfuse_secret_key: str | None = None
     langfuse_host: str = "https://cloud.langfuse.com"
 
+    # Error reports from the server (app/monitoring.py). Left unset, nothing is sent.
+    sentry_dsn: str | None = None
+    sentry_environment: str = "production"
+
     # Comma-separated Host-header values the /mcp endpoint accepts (see
     # app/main.py) — the MCP SDK's SSE transport rejects any other Host as a
     # DNS-rebinding defense, which also blocks it by default from anywhere
