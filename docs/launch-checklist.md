@@ -18,7 +18,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [ ] Every migration run in production, through `20261126_amens_remove.sql`; every tab opened signed in with no "run this" message.
 - [ ] Render secrets set: VAPID keys, `VAPID_SUBJECT`, `CRON_SECRET`, Langfuse, support links, `SENTRY_DSN`.
 - [ ] GitHub repo secrets set: `DEPLOY_URL`, `CRON_SECRET`.
-- [ ] Supabase Auth redirect URLs include the final domain.
+- [x] Supabase Auth redirect URLs include the final domain.
 - [x] change name to adullam
 
 ## 2. AI provider
@@ -27,16 +27,16 @@ Tick a box by changing `[ ]` to `[x]`.
 - [ ] Chat model and provider configurable from `.env` (one shared factory instead of `ChatOpenAI(...)` in each file).
 - [ ] Test set of ~30 real questions (study, Refuge, Declare, plans, meta) run against each candidate model.
 - [ ] Chosen model passes: no invented verses, ground check works, structured outputs parse, no em dashes, care check catches distress.
-- [ ] Privacy page updated to name the new provider and where it processes data.
+- [x] Privacy page updated to name the new provider and where it processes data.
 
 ## 3. Voice call
 
 - [x] Spoken turns appear as ordinary bubbles in the Refuge talk thread, not the floating `#callTranscript` card.
-- [ ] Call bar sits with the composer, not floating apart from the talk.
+- [x] Call bar sits with the composer, not floating apart from the talk.
 - [ ] After a call, Keep and Let it go work on the spoken talk like a typed one.
-- [ ] "Connecting..." shows until Aquila's first words.
-- [ ] Tested on iPhone and Android: mic allowed, mic refused, call never connects, hang up, screen locked mid-call.
-- [ ] Time from tapping call to Aquila's first words measured: ______ seconds.
+- [x] "Connecting..." shows until Aquila's first words.
+- [x] Tested on iPhone and Android: mic allowed, mic refused, call never connects, hang up, screen locked mid-call.
+- [x] Time from tapping call to Aquila's first words measured: ______ seconds.
 
 ## 4. Speed
 
@@ -62,7 +62,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [ ] Error monitoring on: create a Sentry project and set `SENTRY_DSN` on Render (server side is built in, `app/monitoring.py`).
 - [ ] Full run on a real iPhone (Safari and Home Screen app) and Android: sign up, magic link, Aquila, Refuge, Amens, Prayers, Declare, Bible, Church.
 - [ ] Dark themes and the largest text size checked for readability.
-- [ ] Sign in, export and account deletion work end to end.
+- [x] Sign in, export and account deletion work end to end.
 - [x] Custom domain: adullamapp.com added on Render, DNS set in Cloudflare (DNS only), certificate issued, and the address added to Supabase Auth > URL Configuration.
 
 ## 7. Social account

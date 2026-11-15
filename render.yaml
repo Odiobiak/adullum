@@ -26,6 +26,9 @@ services:
       # "false" sends every post to the admin desk first.
       - key: AMENS_AUTO_APPROVE
         value: "true"
+      # The "Beta" tag and the one-time beta note for testers; "false" when the beta ends.
+      - key: BETA
+        value: "true"
       - key: SUPPORT_ONCE_URL
         sync: false
       - key: SUPPORT_MONTHLY_URL

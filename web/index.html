@@ -60,6 +60,8 @@
 <header class="topbar" id="topbar">
   <div class="wrap topbar-inner">
     <a class="logo" href="#" data-home-link><span data-logo></span>Adullam</a>
+    <!-- While Adullam is in beta, this reopens the note on what that means (web/welcome.js::openBeta). -->
+    <button type="button" class="beta-tag" data-beta-note data-beta-only hidden aria-label="About the beta"><span>Beta</span></button>
     <nav class="appnav" aria-label="Main">
       <a href="#home" data-nav="home" data-auth="in">Home</a>
       <a href="#cave" data-nav="cave" data-auth="in">Cave</a>
@@ -638,7 +640,10 @@
       </section>
       <section class="card">
         <h2 class="section-title" data-info="A minute's walk through the five tabs and what's in each.">Find your way</h2>
-        <button type="button" class="btn btn-ghost" data-welcome-tour>Take the tour again</button>
+        <div class="row" style="gap:8px">
+          <button type="button" class="btn btn-ghost" data-welcome-tour>Take the tour again</button>
+          <button type="button" class="btn btn-ghost" data-beta-note data-beta-only hidden>About the beta</button>
+        </div>
       </section>
       <section class="card">
         <h2 class="section-title" data-info="Choose the light you read by. It's kept on this device.">Appearance</h2>

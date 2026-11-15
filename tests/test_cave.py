@@ -203,3 +203,16 @@ class TestProfileRow:
 
     def test_welcomed_false_changes_nothing(self):
         assert cave.profile_row(cave.ProfilePatch(welcomed=False, display_name="Ruth")) == {"display_name": "Ruth"}
+
+
+class TestBetaFlag:
+    """/me tells the page whether Adullam is in beta (web/welcome.js::openBeta)."""
+
+    def test_me_reports_the_beta_setting(self, monkeypatch):
+        monkeypatch.setattr(auth, "_verify", lambda token: USER)
+        monkeypatch.setattr(cave, "_ensure_profile", lambda user: {"display_name": "Ruth"})
+        monkeypatch.setattr(cave, "_db_call", lambda fn: 0)
+        headers = {"Authorization": "Bearer good"}
+        for beta in (True, False):
+            monkeypatch.setattr(cave.settings, "beta", beta)
+            assert client.get("/me", headers=headers).json()["beta"] is beta

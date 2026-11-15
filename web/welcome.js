@@ -11,6 +11,9 @@
 // again" in Settings and under the start list opens it whenever wanted.
 // No verse text appears here: examples are references and made-up names.
 //
+// While Adullam is in beta, the tour is followed by the beta note (openBeta):
+// what beta means and where feedback goes, shown once to every tester.
+//
 // Loaded after web/cave.js, whose helpers it borrows through window.Cave.
 (function () {
   const cave = () => window.Cave;
@@ -38,6 +41,8 @@
     check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.4),
     back: svg('<path d="M15 6l-6 6 6 6"/>', 1.9),
     next: svg('<path d="M9 6l6 6-6 6"/>', 1.9),
+    mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
+    sprout: svg('<path d="M12 21v-9"/><path d="M12 12c0-4 3-6.5 7.5-6.5 0 4.5-3 6.5-7.5 6.5z"/><path d="M12 14.5C12 11 9.5 9 5.5 9c0 3.5 2.5 5.5 6.5 5.5z"/>'),
     arch: '<svg viewBox="0 0 132 110" fill="none" aria-hidden="true"><path d="M6 106C6 52 32 8 66 8s60 44 60 98" stroke="currentColor" stroke-width="10" stroke-linecap="round"/><path d="M44 106c0-22 10-38 22-38s22 16 22 38" stroke="currentColor" stroke-width="10" stroke-linecap="round"/></svg>',
   };
 
@@ -381,6 +386,7 @@
 
   function open({ name = cave().displayName() } = {}) {
     if (node) return;
+    closeBeta();
     returnFocus = document.activeElement;
     picked = new Set();
     build(name);
@@ -412,16 +418,99 @@
     if (quiet) return;
     cave().redrawStart();
     if (skipped) cave().toast("The tour is in Settings whenever you want it.", { tone: "info" });
-    if (returnFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
+    // A beta tester hears about the beta straight after the tour.
+    if (betaDue()) openBeta(returnFocus);
+    else if (returnFocus && returnFocus.isConnected) returnFocus.focus({ preventScroll: true });
   }
 
+  // On the home screen: the tour for someone new, or else the beta note for
+  // anyone who hasn't had it (someone welcomed before the beta began).
   function maybeShow(profile) {
     if (shouldShow(profile)) open({ name: profile.display_name || "" });
+    else if (betaDue()) openBeta();
+  }
+
+  // ---------------------------------------------------------------------
+  // The beta note
+  // ---------------------------------------------------------------------
+  // While Adullam is in beta (settings.beta, sent by /me), everyone signed in
+  // is told once what that means and where feedback goes, in the tour's own
+  // card. The account chip is lit in the top bar meanwhile, since "Send
+  // feedback" lives in its menu. The Beta tag by the logo and "About the
+  // beta" in Settings bring it back. Seen is kept on this device, per account.
+  const BETA_SEEN = "adullumBetaNoted";
+  const betaKey = () => `${BETA_SEEN}:${cave().account().id || ""}`;
+  const FEEDBACK = "mailto:hello@adullamapp.com?subject=Adullam%20feedback";
+  let note = null; // the open beta note, or null
+  let noteFocus = null;
+
+  // The drawing: the top bar with its Beta tag, and the account menu open on Send feedback.
+  const BETA_ART = `<div class="wl-device">
+      <div class="wl-device-bar"><span class="wl-device-logo">${ICON.arch}Adullam<em class="wl-beta">Beta</em></span><span class="wl-device-me is-lit" data-initial></span></div>
+      <div class="wl-device-body">
+        <div class="wl-menu"><span>Your cave</span><span>Settings</span><span>Support Adullam</span><span class="is-lit">${ICON.mail}Send feedback</span></div>
+        <div class="wl-mini">${bars(90, 64)}</div>
+        <div class="wl-mini">${bars(78)}</div>
+      </div>
+    </div>`;
+
+  const BETA_COPY = `<span class="wl-kicker">${ICON.sprout}Beta</span>
+    <h2 id="wlBetaTitle">You're here early</h2>
+    <p class="wl-lead">Adullam is in beta: it works, and it's still being shaped. As one of its first testers, what you notice decides what changes next.</p>
+    ${parts([
+      ["Expect rough edges.", "Something may break, look odd or run slow. That's just what we need to hear about."],
+      ["Expect change.", "Parts may move, be renamed or go as we learn what helps."],
+      ["Check Aquila.", "She can make mistakes. If an answer or a verse seems off, tell us. That matters most."],
+      ["What you keep is yours.", "It's private to you, and you can download or delete all of it from Settings."],
+    ])}
+    ${tip(ICON.mail, "<b>Found something broken, confusing or lovely?</b> Tap your initials at the top, then <b>Send feedback</b>. It opens an email that already says which page you were on. Say what you were doing, and add a screenshot if you can.")}
+    <p class="wl-aside">Or write to hello@adullamapp.com any time. The Beta tag by the logo brings this note back.</p>`;
+
+  function betaDue() {
+    return cave().signedIn() && cave().inBeta() && !readLocal(betaKey(), false);
+  }
+
+  function onBetaKey(e) {
+    if (e.key === "Escape") closeBeta();
+  }
+
+  function openBeta(returnTo = document.activeElement) {
+    if (note || node || !cave().signedIn()) return;
+    noteFocus = returnTo;
+    writeLocal(betaKey(), true); // once shown, it's had
+    note = document.createElement("div");
+    note.className = "welcome";
+    note.innerHTML = `<section class="wl-card is-note" role="dialog" aria-labelledby="wlBetaTitle">
+        <div class="wl-panel"><div class="wl-art" aria-hidden="true">${BETA_ART}</div><div class="wl-copy">${BETA_COPY}</div></div>
+        <div class="wl-foot">
+          <a class="btn btn-ghost" href="${FEEDBACK}" data-feedback>${ICON.mail}Send feedback</a>
+          <button type="button" class="btn btn-ember" data-close>Got it</button>
+        </div>
+      </section>`;
+    // The drawing wears the person's own initials, as the real chip does.
+    note.querySelector("[data-initial]").textContent = (document.getElementById("meInitials") || {}).textContent || "A";
+    note.querySelector("[data-close]").addEventListener("click", closeBeta);
+    document.addEventListener("keydown", onBetaKey);
+    window.addEventListener("hashchange", closeBeta);
+    document.body.classList.add("is-noting");
+    document.body.append(note);
+    note.querySelector("[data-close]").focus({ preventScroll: true });
+  }
+
+  function closeBeta() {
+    if (!note) return;
+    document.removeEventListener("keydown", onBetaKey);
+    window.removeEventListener("hashchange", closeBeta);
+    document.body.classList.remove("is-noting");
+    note.remove();
+    note = null;
+    if (noteFocus && noteFocus.isConnected) noteFocus.focus({ preventScroll: true });
   }
 
   document.addEventListener("click", (e) => {
     if (e.target.closest("[data-welcome-tour]")) open();
+    else if (e.target.closest("[data-beta-note]")) openBeta();
   });
 
-  window.Welcome = { maybeShow, open, startFirst };
+  window.Welcome = { maybeShow, open, startFirst, openBeta };
 })();

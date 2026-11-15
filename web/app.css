@@ -3088,6 +3088,28 @@ body.is-welcoming .tabbar a.is-lit svg { background: var(--ember); color: var(--
 .wl-want[aria-pressed="true"] .wl-want-icon { background: var(--ember); color: var(--ember-ink); }
 .wl-looks { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
 
+/* ---------- The beta note (welcome.js::openBeta) ----------
+   One panel in the tour's card, while the real account chip beckons in the
+   top bar, since "Send feedback" lives in its menu. */
+.wl-card.is-note { width: min(780px, 100%); }
+.wl-card.is-note .wl-panel { min-height: 0; padding-top: 24px; }
+.wl-card.is-note .wl-art { min-height: 300px; place-items: center; }
+.wl-aside { margin: 0; color: var(--muted); font-size: 13px; }
+.wl-beta { padding: 2px 6px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font: normal 600 9.5px/1.2 var(--body); }
+.wl-device-me.is-lit { box-shadow: 0 0 0 3px var(--ring); animation: wl-beckon 2s ease infinite; }
+.wl-menu { justify-self: end; width: 72%; display: grid; gap: 1px; padding: 4px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface); box-shadow: 0 14px 28px -18px var(--shadow); color: var(--soft); font-size: 11px; }
+.wl-menu span { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: 8px; }
+.wl-menu .is-lit { background: var(--ember-bg); color: var(--ember-hi); font-weight: 600; box-shadow: inset 0 0 0 1px var(--ember-line); }
+.wl-menu svg { width: 13px; height: 13px; }
+body.is-noting { overflow: hidden; }
+body.is-noting #meBtn { border-color: var(--ember); box-shadow: 0 0 0 4px var(--ring); animation: wl-beckon 2s ease infinite; }
+
+/* The Beta tag beside the logo: a small pill inside a full-height tap target,
+   pulled in against the top bar's gap so it reads as part of the name. */
+.beta-tag { margin-left: -14px; height: var(--h-chip); padding: 0 4px; border: 0; background: none; }
+.beta-tag span { display: block; padding: 3px 8px; border-radius: var(--pill); border: 1px solid var(--ember-line); background: var(--ember-bg); color: var(--ember-hi); font-size: 11.5px; font-weight: 600; line-height: 1.2; transition: border-color 0.15s ease; }
+.beta-tag:hover span { border-color: var(--ember); }
+
 /* Under the start list on the home screen. */
 .start-tour { justify-self: start; padding: 2px 0; border: 0; background: none; color: var(--muted); font-size: 13.5px; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 .start-tour:hover { color: var(--text); }
@@ -3105,11 +3127,14 @@ body.is-welcoming .tabbar a.is-lit svg { background: var(--ember); color: var(--
   .wl-top { padding: 12px 16px 0; }
   .wl-foot { padding: 12px 16px 16px; }
   .wl-keys { display: none; }
+  .wl-card.is-note .wl-art { min-height: 0; }
+  .wl-card.is-note .wl-device-body .wl-mini { display: none; }
+  .beta-tag { margin-left: -8px; }
 }
 @media (max-width: 420px) {
   .wl-wants { grid-template-columns: minmax(0, 1fr); }
   .wl-tabmap small { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .welcome, .wl-card, .wl-panel > *, .wl-live::before, body.is-welcoming .appnav a.is-lit { animation: none; }
+  .welcome, .wl-card, .wl-panel > *, .wl-live::before, body.is-welcoming .appnav a.is-lit, body.is-noting #meBtn, .wl-device-me.is-lit { animation: none; }
 }

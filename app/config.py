@@ -82,6 +82,11 @@ class Settings(BaseSettings):
     # every post to the admin desk first, as Amens did at the start.
     amens_auto_approve: bool = True
 
+    # Whether Adullam is in beta. While it is, the top bar carries a "Beta"
+    # tag and everyone signed in is shown, once, a note on what that means and
+    # where feedback goes (web/welcome.js::openBeta). Set false when it ends.
+    beta: bool = True
+
     # Giving, shown on the Support page (#support) and everywhere that links to
     # it. Both are Stripe Payment Links (or any checkout page). Left empty, the
     # page still explains why Adullam asks, and says giving opens soon, so the

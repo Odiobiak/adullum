@@ -668,7 +668,7 @@
     if (!signedIn()) return null;
     try {
       const me = await api("/me");
-      profile = { ...me.profile, email: me.user.email, is_admin: !!me.is_admin, desk_waiting: me.desk_waiting };
+      profile = { ...me.profile, email: me.user.email, is_admin: !!me.is_admin, desk_waiting: me.desk_waiting, beta: !!me.beta };
       if (session && !session.user) writeSession({ ...session, user: me.user });
       // Keep the person's time zone, so Amens' evening digest arrives in their
       // evening (app/one_another.py::run_digest). Quietly, and only when it moved.
@@ -689,6 +689,10 @@
 
   function displayName() {
     return (profile && profile.display_name) || "";
+  }
+  // Whether Adullam is in beta (settings.beta, from /me), for web/welcome.js's note.
+  function inBeta() {
+    return !!(profile && profile.beta);
   }
   function email() {
     return (profile && profile.email) || (session && session.user && session.user.email) || "";
@@ -732,6 +736,8 @@
     // Friends of the cave carry a small ember on their chip, and the menu says so.
     if (me) me.classList.toggle("supporter", isFriend());
     if ($("#menuFriend")) $("#menuFriend").hidden = !isFriend();
+    // The Beta tag and "About the beta" show only while settings.beta is on.
+    $$("[data-beta-only]").forEach((node) => { node.hidden = !inBeta(); });
     // The admin desk link is only there for the people in ADMIN_EMAILS.
     const desk = $("#menuDesk");
     if (desk) {
@@ -2416,6 +2422,7 @@
     signOut,
     account,
     displayName,
+    inBeta,
     redrawStart,
     supporterSince,
     isFriend,

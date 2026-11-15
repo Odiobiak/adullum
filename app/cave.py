@@ -263,6 +263,7 @@ def me(user: AuthUser = Depends(require_user)) -> dict:
         "counts": counts,
         "is_admin": admin,
         "desk_waiting": desk_waiting,
+        "beta": settings.beta,
     }
 
 
