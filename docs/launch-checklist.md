@@ -31,7 +31,7 @@ Tick a box by changing `[ ]` to `[x]`.
 
 ## 3. Voice call
 
-- [ ] Spoken turns appear as ordinary bubbles in the Refuge talk thread, not the floating `#callTranscript` card.
+- [x] Spoken turns appear as ordinary bubbles in the Refuge talk thread, not the floating `#callTranscript` card.
 - [ ] Call bar sits with the composer, not floating apart from the talk.
 - [ ] After a call, Keep and Let it go work on the spoken talk like a typed one.
 - [ ] "Connecting..." shows until Aquila's first words.

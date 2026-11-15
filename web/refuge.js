@@ -120,6 +120,7 @@
   // wasn't kept vanishes here, as Refuge promises.
   function hide() {
     document.body.classList.remove("in-refuge", "write-focus");
+    callList = callRun = null;
     endSpeech();
     stopSpeaking();
     talk = null;
@@ -683,7 +684,35 @@
   function messageNode(m) {
     if (m.role === "user") return el("div", { class: "msg-me", text: m.content });
     const links = (m.verses || []).map((v) => el("a", { class: "verse-ref", href: `#${window.Reader.href(`${v.book} ${v.chapter}:${v.verse}`)}`, text: `Read ${v.book} ${v.chapter}:${v.verse} in context` }));
-    return aquilaBubble(m.content, m.care ? careCard() : links.length ? el("p", {}, links) : null, { listen: m.content !== OPENING });
+    return aquilaBubble(m.content, m.care ? careCard() : links.length ? el("p", {}, links) : null, { listen: m.content !== OPENING && !m.spoken });
+  }
+
+  // A live call's lines (index.html::openVoice) join the talk as ordinary
+  // bubbles, so the call reads like the rest of it and Keep keeps it too.
+  // Lines in a row from one speaker go into one bubble. `callList` is the
+  // open talk's thread, set by talkRoom and cleared when Refuge is left.
+  let callList = null;
+  let callRun = null; // { message, node }: the bubble the last line went into
+  function callLine(speaker, text) {
+    if (!talk || !callList) return;
+    panel?.querySelector(".starters")?.remove();
+    const role = speaker === "caller" ? "user" : "aquila";
+    if (callRun && callRun.message.role === role && talk.messages.at(-1) === callRun.message) {
+      callRun.message.content += ` ${text}`;
+      const node = messageNode(callRun.message);
+      callRun.node.replaceWith(node);
+      callRun.node = node;
+    } else {
+      const message = { role, content: text, spoken: true };
+      talk.messages.push(message);
+      callRun = { message, node: messageNode(message) };
+      callList.append(callRun.node);
+    }
+    callRun.node.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+  function callEnded() {
+    callRun = null;
+    saveKept();
   }
 
   // Only role and content go to the server; verses and care are for drawing.
@@ -712,16 +741,18 @@
     endSpeech(); // a redrawn talk starts quiet
     if (!talk) talk = { messages: [{ role: "aquila", content: OPENING }], keptId: null };
     const list = el("div", { class: "soft-thread", "aria-live": "polite" }, talk.messages.map(messageNode));
+    callList = list;
+    callRun = null;
     const box = el("textarea", { rows: "1", maxlength: "4000", placeholder: "Say as much or as little as you want", "aria-label": "Message to Aquila" });
     // Send stays quiet until there's something to send.
     const sendBtn = el("button", { class: "iconbtn", type: "button", "aria-label": "Send", html: ICON.send, disabled: true });
     const ready = () => { sendBtn.disabled = busy || !!speech || !box.value.trim(); };
     // The live call lives only here. It's a call of its own over Cognigy, so
-    // its warning comes first (index.html::openVoice) and nothing from it
-    // joins this written talk.
+    // its warning comes first (index.html::openVoice); what's said on it
+    // joins this talk as bubbles (callLine).
     const voiceBtn = el("button", {
       class: "iconbtn soft-mic", type: "button", "aria-label": "Call Aquila (live call)", title: "Call Aquila (live call)", html: ICON.phone,
-      onclick: () => app().openVoice(),
+      onclick: () => app().openVoice({ onLine: callLine, onEnd: callEnded }),
     });
     // Speak: hands-free turns inside this talk (see "Speaking in the talk"),
     // shown once the server says it offers it.

@@ -851,11 +851,11 @@
   <a href="#church" data-nav="church" data-auth="in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5v5M10 4.5h4"/><path d="M5 21V11.5l7-4.5 7 4.5V21"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/></svg>Church</a>
 </nav>
 
-<!-- Voice call -->
-<div class="call-transcript" id="callTranscript" hidden></div>
-<div class="callbar" id="callBar" hidden>
+<!-- Voice call: the bar is its one control from the moment it dials; what's
+     said shows in the Refuge talk (refuge.js::callLine) -->
+<div class="callbar" id="callBar" role="status" hidden>
   <span class="callbar-dot"></span>
-  <span>Talking with Aquila<span class="callbar-time" id="callTime">0:00</span></span>
+  <span><span id="callLabel">Talking with Aquila</span><span class="callbar-time" id="callTime"></span></span>
   <button class="callbar-end" id="callEnd" type="button">End call</button>
 </div>
 <div class="disclaimer-overlay" id="disclaimerOverlay" hidden>
@@ -1426,6 +1426,7 @@ const VOICE_END_BUTTON = ".webrtc_widget_end_call_button, .voice_connect_widget_
 // The widget mounts idle behind its own call button and documents no method to
 // place a call, so the button is pressed for it once it appears.
 function pressWidgetCallButton(attempt = 0) {
+  if (!inCall()) return; // ended before the widget was ready
   const btn = document.querySelector(VOICE_CALL_BUTTON);
   if (btn) {
     btn.click();
@@ -1435,56 +1436,63 @@ function pressWidgetCallButton(attempt = 0) {
 }
 
 const callBar = $("#callBar");
+const callLabel = $("#callLabel");
 const callTime = $("#callTime");
-const callTranscript = $("#callTranscript");
 let voiceWidget = null;
 let activeSession = null;
 let callTimer = null;
 let connectTimeout = null;
+let answeredAt = 0;
+// Who hears about this call: Refuge's talk shows each line as a bubble and
+// keeps the talk when it ends (openVoice's `onLine` and `onEnd`).
+let callHandlers = {};
 // How long a call may run, from /me/voice (app/quota.py keeps calls to a few
 // a day, since voice costs the most of anything Aquila does). null for an
 // admin: no length at all.
 let callMinutes = 10;
 
-// The widget's own transcript lives inside the card this page hides, so this
-// is the only place a caller can read along. Cleared when the next call
-// starts, so it stays on screen as a record after hanging up.
-function appendTranscriptLine(speaker, text) {
-  if (!text) return;
-  const line = document.createElement("p");
-  line.className = `call-transcript-line ${speaker === "caller" ? "caller" : "aquila"}`;
-  const who = document.createElement("span");
-  who.className = "who";
-  who.textContent = speaker === "caller" ? "You" : "Aquila";
-  line.appendChild(who);
-  line.appendChild(document.createTextNode(` ${text}`));
-  callTranscript.appendChild(line);
-  callTranscript.hidden = false;
-  callTranscript.scrollTop = callTranscript.scrollHeight;
+const inCall = () => document.body.classList.contains("voice-active");
+
+// The bar shows from the moment the call dials, so it can always be ended.
+function setCallState(label) {
+  callLabel.textContent = label;
+  callBar.hidden = false;
 }
 
 function handleTranscription(transcription) {
   // Confirmed against a live call: the widget sends the literal string "bot",
   // not "remote" as its own docs' example implies.
   const speaker = transcription.originator === "bot" ? "aquila" : "caller";
-  for (const message of transcription.messages || []) appendTranscriptLine(speaker, message.text);
+  for (const message of transcription.messages || []) {
+    if (message.text) callHandlers.onLine?.(speaker, message.text);
+  }
 }
 
-// Hanging up through the widget's own end button is the verified path: it is
-// what actually tears the peer connection down.
+// Ends the call at whatever stage it's in. The widget's own end button tears
+// down the most, but it stays disabled until the call rings; before that the
+// session is ended directly, and before there's a session the widget itself
+// is taken down, which stops it dialling.
 function hangUp() {
   const btn = document.querySelector(VOICE_END_BUTTON);
-  if (btn) {
-    btn.click();
-    return;
-  }
-  if (activeSession && typeof activeSession.terminate === "function") {
+  if (btn && !btn.disabled) return btn.click();
+  if (activeSession) {
     try {
-      activeSession.terminate();
+      return activeSession.terminate();
     } catch {
-      /* already gone; endCallUI still tidies up */
+      /* already gone */
     }
   }
+  removeWidget();
+}
+
+function removeWidget() {
+  try {
+    window.destroyWebRTCWidget?.();
+  } catch {
+    /* nothing was standing up to tear down */
+  }
+  voiceWidget = null;
+  document.body.classList.remove("voice-mounted");
 }
 
 function showCallBar() {
@@ -1493,9 +1501,9 @@ function showCallBar() {
   if (callTimer) return;
   clearTimeout(connectTimeout);
   connectTimeout = null;
-  const startedAt = Date.now();
+  const startedAt = (answeredAt = Date.now());
+  setCallState("Talking with Aquila");
   callTime.textContent = "0:00";
-  callBar.hidden = false;
   countCall();
   let warned = false;
   callTimer = setInterval(() => {
@@ -1535,8 +1543,13 @@ function endCallUI() {
   callTimer = null;
   connectTimeout = null;
   activeSession = null;
+  answeredAt = 0;
   callBar.hidden = true;
+  callTime.textContent = "";
   document.body.classList.remove("voice-active");
+  const { onEnd } = callHandlers;
+  callHandlers = {};
+  onEnd?.();
 }
 
 // The widget emits nothing when a call fails to connect, so without this a
@@ -1551,17 +1564,27 @@ function armConnectTimeout() {
   }, 30000);
 }
 
-// Of the events the widget documents, only `answered`, `active`,
-// `transcription` and `terminated` fire against this endpoint.
+// The session's events: `ringing`, `answered` and `active` as it connects,
+// `transcription` for each line said, then `failed` when it never connected
+// (or was cancelled) or `terminated` when it ended. A session that ended here,
+// by End call, is no longer the active one, so its last events are ignored.
 function watchSession(session) {
   activeSession = session;
-  callTranscript.textContent = "";
-  callTranscript.hidden = true;
+  const mine = () => activeSession === session;
+  session.on("ringing", () => mine() && !callTimer && setCallState("Ringing"));
   session.on("answered", showCallBar);
   session.on("active", showCallBar);
   session.on("transcription", handleTranscription);
+  session.on("failed", () => {
+    if (!mine()) return;
+    endCallUI();
+    window.Cave.toast("The call didn't go through. Please try again in a moment.", { tone: "error" });
+  });
   session.on("terminated", () => {
-    if (activeSession === session) endCallUI();
+    if (!mine()) return;
+    const dropped = answeredAt && Date.now() - answeredAt < 3000;
+    endCallUI();
+    if (dropped) window.Cave.toast("The call dropped as it connected. Please try again in a moment.", { tone: "error" });
   });
 }
 
@@ -1600,6 +1623,7 @@ async function startVoiceWidget() {
     return;
   }
   document.body.classList.add("voice-active");
+  setCallState("Connecting to Aquila");
   if (voiceWidget) {
     armConnectTimeout();
     pressWidgetCallButton();
@@ -1613,20 +1637,15 @@ async function startVoiceWidget() {
       window.initWebRTCWidget(VOICE_CONFIG_URL),
       new Promise((_, reject) => setTimeout(() => reject(new Error("the voice service didn't respond")), 15000)),
     ]);
+    if (!inCall()) return removeWidget(); // ended while the widget loaded
     if (voiceWidget && typeof voiceWidget.on === "function") voiceWidget.on("newRTCSession", watchSession);
     armConnectTimeout();
     pressWidgetCallButton();
   } catch (err) {
-    if (typeof window.destroyWebRTCWidget === "function") {
-      try {
-        window.destroyWebRTCWidget();
-      } catch {
-        /* nothing was standing up to tear down */
-      }
-    }
-    voiceWidget = null;
-    document.body.classList.remove("voice-active", "voice-mounted");
-    window.Cave.toast(`Couldn't start the call: ${err.message}. Please try again.`, { tone: "error" });
+    const wanted = inCall(); // not when End call was pressed while it loaded
+    removeWidget();
+    endCallUI();
+    if (wanted) window.Cave.toast(`Couldn't start the call: ${err.message}. Please try again.`, { tone: "error" });
   }
 }
 
@@ -1634,7 +1653,11 @@ $("#callEnd").addEventListener("click", () => {
   hangUp();
   endCallUI();
 });
-function openVoice() {
+// `handlers.onLine(speaker, text)` hears each line said on the call ("caller"
+// or "aquila"), and `handlers.onEnd()` hears that it ended.
+function openVoice(handlers = {}) {
+  if (inCall()) return;
+  callHandlers = handlers;
   let accepted = false;
   try {
     accepted = sessionStorage.getItem("aquilaVoiceDisclaimerAccepted") === "1";
