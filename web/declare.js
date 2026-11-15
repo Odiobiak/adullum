@@ -14,7 +14,6 @@
 (function () {
   const svg = (path) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
   const ICON = {
-    declare: svg('<path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/>'),
     back: svg('<path d="M15 18l-6-6 6-6"/>'),
     speak: svg('<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>'),
     close: svg('<path d="M6 6l12 12M18 6L6 18"/>'),
@@ -73,15 +72,6 @@
 
   function hide() {
     closeAloud();
-  }
-
-  // The home screen's one line, with the explanation behind its info button.
-  // Declare's card on the home screen, beside Amens (cave.js::showHome), with
-  // what Declare is behind its info button.
-  function homeLine() {
-    const note = cave().homeNote({ href: "#declare", icon: ICON.declare, title: "Declare", detail: "God's word over what you face" });
-    note.addEventListener("click", () => { context = { from: "home" }; current = null; });
-    return el("div", { class: "home-tile" }, [note, cave().info(ABOUT, { label: "About Declare" })]);
   }
 
   function backTo(label, onclick) {
@@ -525,5 +515,5 @@
     wrap.focus();
   }
 
-  window.Declare = { open, show, hide, homeLine };
+  window.Declare = { open, show, hide };
 })();

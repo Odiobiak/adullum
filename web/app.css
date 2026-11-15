@@ -1752,76 +1752,130 @@ body.still-open { overflow: hidden; }
 .how-steps li::before { content: counter(how); grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--ember-bg); color: var(--ember-hi); font-size: 13px; font-weight: 700; }
 .how-steps strong { font-size: 15px; font-weight: 600; }
 .how-steps span { font-size: 14px; color: var(--muted); }
-/* The Amens wall (web/refuge.js::amensRoom). A line and a bar for how much
-   of the wall this person has stood with, three tabs (To pray for, Prayed,
-   Yours), and cards: ember for a prayer request, sage for good news. */
-.amens-pulse { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 4px 14px; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--ember-line); background: radial-gradient(120% 160% at 0% 0%, var(--glow) 0%, var(--card-warm) 60%, var(--surface) 100%); }
-.amens-pulse[hidden] { display: none; }
-.amens-pulse.is-done { border-color: var(--sage-line); background: radial-gradient(120% 160% at 0% 0%, var(--sage-bg) 0%, var(--surface) 75%); }
-.amens-pulse-icon { grid-row: span 2; display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen), 0 8px 20px -10px var(--ember-glow); }
-.amens-pulse.is-done .amens-pulse-icon { background: var(--sage); color: var(--surface); box-shadow: none; }
-.amens-pulse-icon svg { width: 21px; height: 21px; }
-.amens-pulse-text { display: grid; gap: 1px; min-width: 0; }
-.amens-pulse-text strong { font-size: 16px; font-weight: 600; }
-.amens-pulse-text span { font-size: 13.5px; color: var(--muted); }
-.amens-pulse-bar { height: 6px; border-radius: var(--pill); background: var(--well); overflow: hidden; }
-.amens-pulse-bar span { display: block; height: 100%; border-radius: inherit; background: var(--ember-grad); transition: width 0.5s ease; }
-.amens-pulse.is-done .amens-pulse-bar span { background: var(--sage); }
-.amens-tabs { margin: 0; }
-.amens-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+/* The Amens wall (web/refuge.js::amensRoom). The whole wall's week under the
+   title, "Since you last looked" when something came back, three tabs that
+   stay in reach while scrolling (To pray for, Prayed, Yours), and in each a
+   short head (a bar, or a few numbers) over its posts: ember for a prayer
+   request, sage for good news and answered prayers. A little wider than the
+   other rooms, so the wall can hold two cards side by side. */
+.refuge:has(> .amens-room) { max-width: 880px; }
+.amens-room { gap: 16px; }
+.amens-week { display: flex; align-items: center; gap: 8px; margin: -10px 0 0; font-size: 13.5px; color: var(--muted); }
+.amens-week-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: week-pulse 2.8s ease-in-out infinite; }
+@keyframes week-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--sage-line); } 50% { box-shadow: 0 0 0 5px transparent; } }
+
+/* Since you last looked: one line per kind of news, each opening its view. */
+.amens-news { display: grid; gap: 6px; padding: 12px; border-radius: var(--radius); border: 1px solid var(--ember-line); background: radial-gradient(120% 160% at 0% 0%, var(--glow-strong) 0%, var(--card-warm) 55%, var(--surface) 100%); box-shadow: 0 18px 40px -32px var(--ember-glow); }
+.amens-news-kicker { display: flex; align-items: center; gap: 8px; margin: 0 4px 2px; font-size: 12.5px; font-weight: 600; color: var(--ember-hi); }
+.amens-news-kicker .amen-face { width: 18px; height: 18px; border-color: var(--card-warm); }
+.amens-news-line { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: color-mix(in srgb, var(--surface) 72%, transparent); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; }
+.amens-news-line:hover { background: var(--surface); }
+.amens-news-line:active { transform: scale(0.99); }
+.amens-news-line:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.amens-news-icon { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen), 0 8px 18px -10px var(--ember-glow); }
+.amens-news-icon svg { width: 20px; height: 20px; display: block; }
+.amens-news-line.is-answered .amens-news-icon { background: var(--sage); color: var(--surface); box-shadow: none; }
+.amens-news-text { display: grid; gap: 1px; flex: 1; min-width: 0; }
+.amens-news-text strong { font-size: 15.5px; font-weight: 600; }
+.amens-news-text small { font-size: 13px; color: var(--muted); }
+.amens-news-go { flex: none; color: var(--faint); }
+.amens-news-go svg { width: 18px; height: 18px; display: block; }
+
+/* The tabs, held under the top bar while the wall scrolls. */
+.amens-tabs { position: sticky; top: 69px; z-index: 6; margin: 0; box-shadow: 0 8px 20px -16px var(--shadow); }
+.amens-tabs button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
 .amens-tab-count { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 11.5px; font-weight: 700; line-height: 20px; font-variant-numeric: tabular-nums; }
 .amens-tab-count:empty { display: none; }
-.amens-panel { display: grid; gap: 12px; }
+.amens-tab-new { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 3px var(--ember-bg); }
+.amens-panel { display: grid; gap: 14px; }
 .amens-panel[hidden] { display: none; }
 
-/* To pray for: one card per post, read like a letter, its ask at the foot. */
-.amen-stream { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); gap: 12px; align-items: start; }
+/* To pray for: a line and a bar for how much of the wall they've stood with. */
+.amens-pulse { display: grid; gap: 8px; padding: 2px 2px 0; }
+.amens-pulse[hidden] { display: none; }
+.amens-pulse-text { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 2px 12px; }
+.amens-pulse-text strong { font-size: 15px; font-weight: 600; }
+.amens-pulse-text span { font-size: 13px; color: var(--muted); }
+.amens-pulse-bar { height: 6px; border-radius: var(--pill); background: var(--well); overflow: hidden; }
+.amens-pulse-bar span { display: block; height: 100%; border-radius: inherit; background: var(--ember-grad); transition: width 0.5s ease; }
+.amens-pulse.is-done .amens-pulse-text strong { color: var(--sage); }
+.amens-pulse.is-done .amens-pulse-bar span { background: var(--sage); }
+
+/* A post to pray for: who's asking (never who), the words, then the people
+   and the two ways to answer, ruled off along the foot. */
+.amen-stream { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: stretch; }
 .amen-stream .amen-empty { grid-column: 1 / -1; }
-.amen-card { position: relative; display: grid; gap: 12px; padding: 18px 18px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: radial-gradient(130% 90% at 0% 0%, var(--glow) 0%, var(--surface) 55%); box-shadow: 0 14px 34px -28px var(--shadow); overflow: hidden; transition: border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease, height 0.4s ease, opacity 0.3s ease, padding 0.4s ease; }
-.amen-card::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 3px; background: var(--ember-grad); }
-.amen-card-rejoice { background: radial-gradient(130% 90% at 0% 0%, var(--sage-bg) 0%, var(--surface) 55%); }
-.amen-card-rejoice::before { background: var(--sage); }
-.amen-card.is-carried { border-color: var(--sage-line); box-shadow: 0 0 0 3px var(--sage-bg), 0 14px 34px -26px var(--shadow); }
+.amen-card { position: relative; display: flex; flex-direction: column; gap: 12px; padding: 16px 18px 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); box-shadow: 0 16px 36px -30px var(--shadow); overflow: hidden; transition: border-color 0.3s ease, box-shadow 0.3s ease, height 0.4s ease, opacity 0.3s ease, padding 0.4s ease; }
+.amen-card::before { content: ""; position: absolute; inset: 0 0 auto; height: 110px; background: radial-gradient(110% 100% at 0% 0%, var(--glow) 0%, transparent 70%); pointer-events: none; }
+.amen-card-rejoice::before { background: radial-gradient(110% 100% at 0% 0%, var(--sage-bg) 0%, transparent 70%); }
+.amen-card > * { position: relative; }
+.amen-card:hover { border-color: var(--line-2); box-shadow: 0 20px 40px -28px var(--shadow); }
+.amen-card.is-carried { border-color: var(--sage-line); box-shadow: 0 0 0 3px var(--sage-bg), 0 16px 36px -28px var(--shadow); }
 .amen-card.is-leaving { opacity: 0; padding-top: 0; padding-bottom: 0; border-width: 0; }
-.amen-card-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.amen-kind { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
-.amen-kind-icon { display: grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--surface); }
-.amen-kind-icon svg { width: 13px; height: 13px; }
-.amen-kind-rejoice { background: var(--sage-bg); color: var(--sage); }
-.amen-when { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
+.amen-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .amen-card-head .more { margin-left: auto; }
+.amen-byline { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.amen-avatar { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 50%; background: var(--ember-grad); color: var(--ember-ink); box-shadow: var(--sheen), 0 6px 16px -8px var(--ember-glow); }
+.amen-avatar svg { width: 19px; height: 19px; display: block; }
+.amen-avatar.is-rejoice { background: var(--sage); color: var(--surface); box-shadow: 0 6px 16px -10px var(--sage); }
+.amen-byline-text { display: grid; gap: 1px; min-width: 0; }
+.amen-byline-text strong { font-size: 14.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.amen-byline-text small { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--faint); }
+.amen-new { display: inline-flex; align-items: center; flex: none; height: 18px; padding: 0 7px; border-radius: var(--pill); background: var(--ember-bg); color: var(--ember-hi); font-size: 11px; font-weight: 700; }
+.amen-when { font-size: 12.5px; color: var(--faint); white-space: nowrap; }
 .amen-card-text { margin: 0; font-size: 17px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--text); }
 .amen-card .answered-note { margin: 0; }
-.amen-card-foot { display: grid; gap: 10px; }
-.amen-card-foot .amen-people { font-size: 13.5px; }
-.amen-card-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.amen-card-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 12px; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--divider); }
+.amen-card-foot .amen-people { flex: 1 1 160px; min-width: 0; font-size: 13px; }
+.amen-card-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .amen-card-rejoice .amen-btn:not(.is-done) { background: var(--sage); color: var(--surface); box-shadow: 0 8px 22px -12px var(--sage); }
 .amen-words { display: inline-flex; align-items: center; gap: 6px; min-height: var(--h-btn-sm); padding: 0 12px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); color: var(--soft); font: 500 13.5px/1 var(--body); cursor: pointer; transition: border-color 0.15s ease, color 0.15s ease; }
 .amen-words svg { width: 15px; height: 15px; flex: none; }
 .amen-words:hover:not(:disabled) { border-color: var(--ember-line); color: var(--text); }
 .amen-words.is-done { border-color: transparent; background: none; color: var(--sage); cursor: default; }
 
-/* Prayed: quieter rows with a tick; a tap on the words shows all of them. */
-.amen-done-list { display: grid; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
-.amen-done-list .amen-empty { border: 0; border-radius: 0; }
+/* A view's head: a few numbers side by side. */
+.amens-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.amens-stat { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); }
+.amens-stat strong { font-size: 22px; font-weight: 700; line-height: 1.15; color: var(--text); font-variant-numeric: tabular-nums; }
+.amens-stat:first-child strong { color: var(--ember-hi); }
+.amens-stat.is-answered strong { color: var(--sage); }
+.amens-stat span { font-size: 12.5px; color: var(--muted); }
+
+/* Prayed and Yours, in labelled groups. */
+.amens-groups { display: grid; gap: 18px; }
+.amens-group { display: grid; gap: 8px; }
+.amens-group-title { display: flex; align-items: center; gap: 8px; margin: 0 2px; font-size: 13.5px; font-weight: 600; color: var(--muted); }
+.amens-group-title span { min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--pill); background: var(--well); color: var(--muted); font-size: 11.5px; font-weight: 700; line-height: 20px; text-align: center; font-variant-numeric: tabular-nums; }
+.amens-group.is-answered .amens-group-title { color: var(--sage); }
+.amens-group.is-answered .amens-group-title span { background: var(--sage-bg); color: var(--sage); }
+.amens-group-rows:has(> .amen-done) { border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); overflow: hidden; }
+.amens-group.is-answered .amens-group-rows:has(> .amen-done) { border-color: var(--sage-line); background: radial-gradient(120% 140% at 0% 0%, var(--sage-bg) 0%, var(--surface) 70%); }
+
+/* Prayed: one row per post, quieter, with a tick (a sun once answered). */
 .amen-done { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 12px; padding: 14px 16px; }
 .amen-done + .amen-done { border-top: 1px solid var(--divider); }
-.amen-done-mark { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--sage-bg); color: var(--sage); }
-.amen-done-mark svg { width: 15px; height: 15px; }
+.amen-done-mark { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--sage-bg); color: var(--sage); }
+.amen-done-mark svg { width: 16px; height: 16px; }
+.amen-done.is-answered .amen-done-mark { background: var(--sage); color: var(--surface); }
 .amen-done-body { display: grid; gap: 4px; min-width: 0; }
 .amen-done-meta { margin: 0; font-size: 12.5px; color: var(--faint); }
+.amen-done-meta strong { font-weight: 600; color: var(--soft); }
 .amen-done-text { margin: 0; font-size: 15px; line-height: 1.5; color: var(--soft); cursor: pointer; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 .amen-done-text.is-open { display: block; white-space: pre-wrap; }
+.amen-done .answered-note { margin: 2px 0 0; font-size: 14px; }
 .amen-done-people { display: flex; align-items: center; gap: 8px; margin: 2px 0 0; font-size: 13px; color: var(--sage); }
 .amen-done-people .amen-face { width: 18px; height: 18px; }
 .amen-done .amen-words { align-self: center; }
 
-/* Yours: each post with where it stands and what came back. */
+/* Yours: each post with where it stands, what came back, and what's new. */
 .amen-mine-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); gap: 10px; }
 .amen-mine { display: grid; gap: 8px; align-content: start; padding: 14px 16px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--text); text-align: left; font: inherit; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
 .amen-mine:hover { border-color: var(--ember-line); transform: translateY(-1px); box-shadow: 0 12px 26px -20px var(--ember-glow); }
 .amen-mine:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
-.amen-mine-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.amen-mine.has-news { border-color: var(--ember-line); background: radial-gradient(130% 120% at 100% 0%, var(--glow) 0%, var(--surface) 60%); }
+.amen-mine-top { display: flex; align-items: center; gap: 8px; }
+.amen-mine-top .amen-when { margin-left: auto; }
 .amen-status { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; color: var(--muted); }
 .amen-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
 .amen-status.is-shared { color: var(--ember-hi); }
@@ -1830,7 +1884,8 @@ body.still-open { overflow: hidden; }
 .amen-status.is-answered::before { background: var(--sage); }
 .amen-status.is-waiting::before { background: var(--ember-line); animation: waiting-pulse 2.4s ease-in-out infinite; }
 .amen-mine-text { font-size: 15px; line-height: 1.5; color: var(--soft); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
-.amen-mine-back { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; color: var(--muted); }
+.amen-mine-back { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 13px; color: var(--muted); }
+.amen-mine-back .amen-face { width: 18px; height: 18px; }
 .amen-mine-back.has-amens { color: var(--sage); font-weight: 500; }
 .amen-mine-stat { display: inline-flex; align-items: center; gap: 5px; }
 .amen-mine-stat svg { width: 14px; height: 14px; flex: none; }
@@ -1843,12 +1898,16 @@ body.still-open { overflow: hidden; }
 .amen-empty strong { font-size: 16px; font-weight: 600; }
 .amen-empty span:last-child { max-width: 360px; font-size: 14px; color: var(--muted); }
 @keyframes waiting-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--ring); } 50% { box-shadow: 0 0 0 4px var(--ring); } }
-@media (prefers-reduced-motion: reduce) { .amen-status.is-waiting::before { animation: none; } .amens-pulse-bar span { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .amen-status.is-waiting::before, .amens-week-dot { animation: none; } .amens-pulse-bar span { transition: none; } }
+@media (max-width: 720px) { .amens-tabs { top: 64px; } }
+@media (max-width: 420px) { .amens-tabs button { gap: 4px; padding: 5px 4px; font-size: 13.5px; } .amens-tab-count { min-width: 18px; height: 18px; padding: 0 5px; line-height: 18px; } }
 @media (max-width: 560px) {
   .amen-card { padding: 16px 14px 14px; }
   .amen-card-text { font-size: 16px; }
-  .amen-card-actions { justify-content: stretch; }
+  .amen-card-actions { flex: 1 1 100%; margin-left: 0; }
   .amen-card-actions .amen-btn { flex: 1; justify-content: center; }
+  .amens-stat { padding: 10px 12px; }
+  .amens-stat strong { font-size: 19px; }
   .amen-done { grid-template-columns: auto minmax(0, 1fr); }
   .amen-done .amen-words { grid-column: 2; justify-self: start; }
 }
@@ -2713,21 +2772,23 @@ body.has-player #churchPage { padding-bottom: calc(var(--player-room, 0px) + 16p
 .ask-lg-send:active { transform: scale(0.94); }
 .ask-lg:has(input:placeholder-shown) .ask-lg-send { background: var(--raised); color: var(--faint); box-shadow: none; }
 
-/* Amens and Declare side by side; one alone takes the row. On a phone each
-   is a small tile: icon on top, then its title and one line. */
-.home-tiles { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; margin: 0 0 14px; }
-.home-tiles:empty { display: none; }
-.home-tile { position: relative; min-width: 0; display: grid; }
-.home-tile > .info-btn { position: absolute; top: 50%; right: 40px; transform: translateY(-50%); margin: 0; }
-.home-tile .home-note { height: 100%; }
+/* Shortcuts (cave.js::shortcuts): the flagship places, one tap each. Six
+   tiles across on a wide screen, three by two on a phone; tiles, not pills. */
+.shortcuts { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 0 0 16px; }
+.shortcut { display: grid; justify-items: center; align-content: start; gap: 8px; min-width: 0; padding: 14px 6px 12px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; text-align: center; text-decoration: none; cursor: pointer; transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease; }
+.shortcut:hover { border-color: var(--ember-line); color: var(--text); transform: translateY(-1px); box-shadow: 0 12px 24px -20px var(--shadow); }
+.shortcut:active { transform: scale(0.98); }
+.shortcut:focus-visible { outline: 2px solid var(--ember); outline-offset: 2px; }
+.shortcut-icon { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--ember-bg); color: var(--ember); }
+.shortcut-icon svg { width: 20px; height: 20px; display: block; }
+.shortcut-name { font-size: 13px; font-weight: 600; line-height: 1.25; }
 @media (max-width: 720px) {
-  .home-tile:not(:only-child) .home-note { flex-direction: column; align-items: flex-start; gap: 10px; padding: 12px 14px 14px; }
-  .home-tile:not(:only-child) .home-note-go { display: none; }
-  .home-tile:not(:only-child) .home-note-text strong { white-space: normal; line-height: 1.3; }
-  .home-tile:not(:only-child) > .info-btn { top: 6px; right: 6px; transform: none; }
+  .shortcuts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .shortcut { padding: 12px 4px 10px; }
 }
 .home-notes { display: grid; gap: 8px; margin: 0 0 14px; }
-.home-notes:empty { display: none; }
+.home-notes > div { display: contents; }
+.home-notes:not(:has(.home-note)) { display: none; }
 [data-view="home"] .cols, [data-view="home"] .maincol, [data-view="home"] .sidecol { gap: 16px; }
 
 /* A notification line (cave.js::homeNote): Amens, or a church going live. */
@@ -3057,6 +3118,9 @@ body.is-welcoming .tabbar a.is-lit svg { background: var(--ember); color: var(--
 .wl-bars { display: grid; gap: 6px; }
 .wl-bars i { display: block; height: 7px; border-radius: 4px; background: var(--raised); }
 .wl-row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wl-shortcuts { position: relative; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.wl-shortcuts > span:not(.wl-mark) { display: grid; place-items: center; aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); color: var(--ember); }
+.wl-shortcuts svg { width: 14px; height: 14px; }
 .wl-line { display: flex; align-items: center; gap: 8px; color: var(--soft); font-size: 12px; }
 .wl-line svg { flex: none; width: 15px; height: 15px; color: var(--ember); }
 .wl-mini-hero { position: relative; display: grid; gap: 8px; padding: 12px 13px; border-radius: 14px; border: 1px solid var(--ember-line); background: radial-gradient(80% 120% at 100% 0%, var(--glow-strong), transparent 60%), var(--card-warm); }

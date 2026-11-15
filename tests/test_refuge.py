@@ -684,11 +684,12 @@ def test_refuge_requires_sign_in():
 
 
 # ---------------------------------------------------------------------------
-# The home screen's Amens card
+# The home screen's Amens line
 # ---------------------------------------------------------------------------
 class TestAmensGlance:
-    """The home card is the one place the wall reaches outside Refuge, so it
-    must only ever show the wall's public side, never the person's own posts.
+    """The home line is the one place the wall reaches outside Refuge, so
+    what it carries about the person's own posts is counts only: never a
+    post, its words, or who said amen.
     """
 
     def test_glance_counts_the_week_and_whats_waiting(self, monkeypatch):
@@ -697,7 +698,7 @@ class TestAmensGlance:
             "rpc:amens_waiting": 3,
         }))
 
-        assert one_another.amens_glance(USER) == {"this_week": 12, "waiting": 3}
+        assert one_another.amens_glance(USER) == {"this_week": 12, "waiting": 3, "news": None}
         # The count reads the wall as this person sees it: other people's
         # posts only (amens_waiting leaves out the viewer's own).
         assert db.rpc_params("amens_waiting")[0]["viewer"] == USER.id
@@ -705,6 +706,63 @@ class TestAmensGlance:
         # The wall's sorted query is the slowest one there is, and the home
         # waits on its slowest part, so the glance never runs it.
         assert not db.rpc_params("amens_wall") and not db.rpc_params("amens_to_carry")
+
+    def test_glance_says_what_came_back_since_the_last_look(self, monkeypatch):
+        seen = (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat()
+        news = [
+            {"post_id": "a", "kind": "burden", "answered": False, "amens": 4, "kind_words": 1},
+            {"post_id": "b", "kind": "burden", "answered": True, "amens": 2, "kind_words": 0},
+            {"post_id": "c", "kind": "rejoice", "answered": False, "amens": 1, "kind_words": 2},
+        ]
+        db = use_db(monkeypatch, FakeDb(rows={
+            "refuge_wall_visits": [{"seen_at": seen}], "rpc:amens_news": news, "rpc:amens_answered_since": 1,
+        }))
+        glance = one_another.amens_glance(USER)
+        # An answered prayer reads as good news, so its new amens are rejoicing.
+        assert glance["news"] == {"prayed": 4, "rejoiced": 3, "kind_words": 3, "answered": 1}
+        # Both count from when the wall was last opened, for this person.
+        assert db.rpc_params("amens_news")[0] == {"writer": USER.id, "since": seen}
+        assert db.rpc_params("amens_answered_since")[0] == {"viewer": USER.id, "since": seen}
+
+    def test_no_news_until_its_migration_runs(self, monkeypatch):
+        use_db(monkeypatch, FakeDb(rows={"rpc:amens_waiting": 2}))
+        real = one_another._rpc
+
+        def missing(name, params, *rest):
+            if name in ("amens_news", "amens_answered_since"):
+                raise RuntimeError("function amens_news does not exist")
+            return real(name, params, *rest)
+
+        monkeypatch.setattr(one_another, "_rpc", missing)
+        glance = one_another.amens_glance(USER)
+        assert glance["waiting"] == 2 and glance["news"] is None
+
+    def test_tally_news_is_none_when_nothing_came_back(self):
+        assert one_another.tally_news([], 0) is None
+        assert one_another.tally_news([], 2) == {"prayed": 0, "rejoiced": 0, "kind_words": 0, "answered": 2}
+
+    def test_the_wall_marks_whats_new_from_the_look_before_this_one(self, monkeypatch, signed_in):
+        seen = (datetime.now(timezone.utc) - timedelta(hours=5)).isoformat()
+        mine = [{"id": POST_ID, "kind": "burden", "body": "x", "status": "approved", "created_at": "2026-11-01T00:00:00+00:00", "amen_count": 9, **LIVE}]
+        news = [{"post_id": POST_ID, "kind": "burden", "answered": False, "amens": 2, "kind_words": 1}]
+        db = use_db(monkeypatch, FakeDb(rows={
+            "refuge_posts": mine, "refuge_wall_visits": [{"seen_at": seen}], "rpc:amens_news": news,
+            "refuge_amen_days": [{"amens": 30}],
+        }))
+        body = client.get("/me/refuge/wall", headers=HEADERS).json()
+        assert body["last_look"] == seen
+        assert body["news"] == {"prayed": 2, "rejoiced": 0, "kind_words": 1, "answered": 0}
+        assert body["mine"][0]["new_amens"] == 2 and body["mine"][0]["new_kind_words"] == 1
+        assert body["this_week"] == 30
+        # The news was read before this visit moved the last look on.
+        news_at = next(i for i, c in enumerate(db.calls) if c[:2] == ("rpc", "amens_news"))
+        visit_at = next(i for i, c in enumerate(db.calls) if c[0] == "refuge_wall_visits" and c[1] == "upsert")
+        assert news_at < visit_at
+
+    def test_refuges_amens_tile_counts_whats_new(self, monkeypatch, signed_in):
+        use_db(monkeypatch, FakeDb(rows={"rpc:amens_waiting": 4}))
+        body = client.get("/me/refuge", headers=HEADERS).json()
+        assert body["amens"]["waiting"] == 4 and "carried" not in body
 
 
 # ---------------------------------------------------------------------------

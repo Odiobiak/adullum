@@ -37,7 +37,7 @@ from app.cave import _db_call, _now
 from app.config import settings
 from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import gather, get_supabase
-from app.one_another import _db, carried_summary
+from app.one_another import _db, amens_glance
 from app.prayers import normalize_passage
 
 log = logging.getLogger(__name__)
@@ -176,8 +176,8 @@ class TendIn(BaseModel):
 # ---------------------------------------------------------------------------
 @router.get("/me/refuge")
 def overview(user: AuthUser = Depends(require_user)) -> dict:
-    """What Refuge's opening screen shows: what's been kept, and whether
-    anyone has been carrying what this person shared. The first query raises
+    """What Refuge's opening screen shows: what's been kept, and what's new
+    on the Amens wall since the last look. The first query raises
     the setup 503 if the migration hasn't run; the rest fail quietly."""
     db = get_supabase()
     writings = _db(lambda: (
@@ -192,12 +192,13 @@ def overview(user: AuthUser = Depends(require_user)) -> dict:
     except Exception:
         log.warning("refuge talks failed", exc_info=True)
         talks = []
+    # What's new on the wall since the last look, for the Amens tile's count.
     try:
-        carried = carried_summary(user)
+        amens = amens_glance(user)
     except Exception:
-        log.warning("refuge carried summary failed", exc_info=True)
-        carried = None
-    return {"writings": writings, "talks": talks, "carried": carried}
+        log.warning("refuge amens glance failed", exc_info=True)
+        amens = None
+    return {"writings": writings, "talks": talks, "amens": amens}
 
 
 # ---------------------------------------------------------------------------

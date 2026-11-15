@@ -1052,10 +1052,10 @@
   // ---------------------------------------------------------------------
   // Home
   // ---------------------------------------------------------------------
-  // Read top to bottom: what's happening now (a church live, Amens), the ask
-  // box, today's verse, then Today (the few things the person keeps day by
-  // day), with where they left off beside it. Every part is drawn
-  // only when it has something to say, so a quiet day is a short page.
+  // Read top to bottom: what's happening now (a church live, news from
+  // Amens), the ask box, today's verse, then Today (the few things the person
+  // keeps day by day), with where they left off beside it. Every part is
+  // drawn only when it has something to say, so a quiet day is a short page.
   // app/hearth.py gathers it all in one request.
   const HOME_HABITS = 3;
 
@@ -1331,6 +1331,43 @@
     church: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M10 4h4M6 21V11l6-5 6 5v10M3 21h18M10 21v-4h4v4"/></svg>',
   };
 
+  // The shortcuts' own icons; Amens and Declare match their rooms (refuge.js, declare.js).
+  const svg = (d) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
+  const SHORTCUT_ICON = {
+    amens: svg('<path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/>'),
+    declare: svg('<path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/>'),
+    sermon: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h5"/>'),
+  };
+
+  // Shortcuts: the flagship places, one tap each from the home. Each starts
+  // the thing it's for (a sermon note, a journal entry, a prayer) or opens
+  // its room, and Amens carries the count of what's new on the wall.
+  // Six tiles in one row on a wide screen, three by two on a phone.
+  function shortcuts(glance) {
+    // Everything new on the wall since the last look, counted and said the
+    // same way as the Amens line above it (web/refuge.js::newOnWall).
+    const fresh = window.Refuge.newOnWall(glance);
+    const items = [
+      { name: "Amens", hint: fresh.lines.join(", ") || "Pray for others, or ask for prayer", icon: SHORTCUT_ICON.amens, href: "#amens", count: fresh.count },
+      { name: "Declare", hint: "God's word over what you face", icon: SHORTCUT_ICON.declare, go: () => window.Declare.open({ from: "home" }) },
+      { name: "Sermon note", hint: "Start notes on a sermon", icon: SHORTCUT_ICON.sermon, go: () => window.Sermons.newNote() },
+      { name: "Journal", hint: "Write a journal entry", icon: ICON.edit, go: () => openJournal({}, showHome) },
+      { name: "Prayer", hint: "Add to your prayer list", icon: ICON.heart, go: () => window.Prayers.openSheet({}, showHome) },
+      { name: "Refuge", hint: "Talk it through, write it out or be still", icon: START_ICON.refuge, href: "#refuge" },
+    ];
+    return el("nav", { class: "shortcuts", "aria-label": "Shortcuts" }, items.map((s) => {
+      const attrs = { class: "shortcut", title: s.hint, "aria-label": `${s.name}: ${s.hint}` };
+      const body = [
+        el("span", { class: "shortcut-icon", "aria-hidden": "true" }, [
+          el("span", { html: s.icon }),
+          s.count ? el("span", { class: "home-note-count", text: s.count > 9 ? "9+" : String(s.count) }) : null,
+        ]),
+        el("span", { class: "shortcut-name", text: s.name }),
+      ];
+      return s.href ? el("a", { ...attrs, href: s.href }, body) : el("button", { ...attrs, type: "button", onclick: s.go }, body);
+    }));
+  }
+
   function readStore(key, fallback) {
     try {
       return JSON.parse(localStorage.getItem(key)) ?? fallback;
@@ -1461,26 +1498,22 @@
     setGreeting();
     $("#dayLine").textContent = new Date().toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
     const main = $("#homeMain");
-    $("#homeTiles").replaceChildren(window.Declare.homeLine());
+    // Amens' count isn't tied to a day, so an older copy holds its place until the reply lands.
+    $("#homeShortcuts").replaceChildren(shortcuts((keptHome() || {}).amens));
 
     // The verse and a church going live are requests of their own, drawn as
     // each arrives rather than after the home request.
     verseOfTheDay().catch(() => null).then((v) => $("#homeVerse").replaceChildren(...(v ? [verseCard(v)] : [])));
-    const notes = $("#homeNotes");
-    notes.replaceChildren();
-    window.Church.homeLive().then((live) => {
-      if (live && notes.isConnected) notes.replaceChildren(live);
+    const live = $("#homeLive");
+    live.replaceChildren();
+    window.Church.homeLive().then((note) => {
+      if (note && live.isConnected) live.replaceChildren(note);
     }).catch(() => {});
 
     // Draw the home kept from last time at once, then the fresh one over it.
     const kept = readHome();
     if (kept) drawHome(kept);
-    else {
-      // Amens isn't tied to a day, so on the day's first open an older copy
-      // holds its place and Declare doesn't jump aside when the reply lands.
-      drawAmens((keptHome() || {}).amens);
-      if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
-    }
+    else if (!main.children.length) main.append(el("div", { class: "empty", text: "Opening your cave..." }));
     const edits = homeEdits;
     let data;
     try {
@@ -1504,13 +1537,6 @@
     if (kept) $$('[data-view="home"] .fade-in').forEach((node) => node.classList.remove("fade-in"));
   }
 
-  function drawAmens(glance) {
-    const tiles = $("#homeTiles");
-    tiles.querySelectorAll(".home-tile.is-amens").forEach((old) => old.remove());
-    const amens = glance ? window.Refuge.homeCard(glance) : null;
-    if (amens) tiles.prepend(el("div", { class: "home-tile is-amens" }, amens));
-  }
-
   function drawHome(data) {
     // /me may still be loading on a fresh visit, so the home payload's profile
     // fills in the name rather than waiting for it.
@@ -1519,11 +1545,12 @@
     updateChrome();
     $("#homeEmbers").replaceChildren(...[data.embers ? emberChip(data.embers) : null].filter(Boolean));
 
-    // Amens sits beside Declare. It's null until the Refuge migration has run,
-    // and homeCard returns null itself when there's nothing to tell, which
-    // leaves Declare the whole row. A church going live gets the full-width
-    // line above (showHome); nothing else about churches shows here.
-    drawAmens(data.amens);
+    // Amens' glance is null until the Refuge migration has run, which leaves
+    // no line and its shortcut without a count. While something is new on
+    // the wall it gets a line like a notification, beside a church going
+    // live (showHome); nothing else about churches shows here.
+    $("#homeAmens").replaceChildren(...[window.Refuge.homeNote(data.amens)].filter(Boolean));
+    $("#homeShortcuts").replaceChildren(shortcuts(data.amens));
     $("#homeStart").replaceChildren(...[startCard(data)].filter(Boolean));
     // Today and the last conversation, with what's quieter beside them. The
     // halfway check-in on a reflection's plan leads the side while it lasts

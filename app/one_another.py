@@ -40,8 +40,9 @@ shuffle of their own, a page at a time, so prayer spreads across every
 request instead of piling onto the newest. Saying amen moves a post to
 `amens_carried`, their "Prayed" list, so it leaves the wall without being lost. Counts
 live on the post (`amen_count`, kept by a trigger), amens per day in
-`refuge_amen_days`, and the home notice counts what's gone up since someone
-last opened the wall (`refuge_wall_visits`). Once a day, in their evening, a
+`refuge_amen_days`, and the home's Amens line counts what's new since someone
+last opened the wall (`refuge_wall_visits`): posts gone up that they haven't
+said amen to, and what came back to their own (`amens_news`, counts only). Once a day, in their evening, a
 writer with new amens is sent one quiet notification (`run_digest`).
 
 What others can do is deliberately small: say they prayed (or are rejoicing),
@@ -84,7 +85,6 @@ SETUP_HINT = (
 
 MAX_POST_LENGTH = 280
 POSTS_PER_DAY = 5
-WALL_DAYS = 30  # Refuge's "came back to you" looks this far back
 
 # How long a post stays on the wall, from when it goes up.
 LIFETIME_DAYS = {"burden": 14, "rejoice": 7}
@@ -346,42 +346,74 @@ def _others_post(post_id: uuid.UUID, user: AuthUser) -> dict:
     return post
 
 
-def carried_summary(user: AuthUser) -> dict | None:
-    """For Refuge's opening screen: how many people prayed or rejoiced, and
-    how many kind words arrived, across what this person shared lately."""
-    posts = (
-        get_supabase().table("refuge_posts").select("kind, created_at, amen_count, kind_word_count")
-        .eq("user_id", user.id).eq("status", "approved").gte("created_at", _ago(days=WALL_DAYS))
-        .order("created_at", desc=True).limit(50).execute().data
-    )
-    if not posts:
-        return None
-    reactions = sum(p.get("amen_count") or 0 for p in posts)
-    words = sum(p.get("kind_word_count") or 0 for p in posts)
-    if not reactions and not words:
-        return None
-    return {"reactions": reactions, "kind_words": words, "kind": posts[0]["kind"], "latest": posts[0]["created_at"]}
-
-
 AMENS_WEEK_DAYS = 7
 
 
-def amens_glance(user: AuthUser) -> dict:
-    """For the home screen's Amens notice: the wall's public side only.
-
-    Refuge promises that what someone keeps or shares there never follows
-    them onto another screen, so nothing here is about this person's own
-    posts. It's how many amens the whole wall said this week and how many
-    posts by other people have gone up since they last looked that they
-    haven't said amen to. Both are cheap counts: the home waits on its slowest
-    part, so the wall's own sorted query (`amens_wall`) stays off this path.
-    """
+def _amens_this_week() -> int:
+    """Amens said across the whole wall in the last seven days."""
     week_start = (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat()
-    days, waiting = gather(
-        lambda: get_supabase().table("refuge_amen_days").select("amens").gte("day", week_start).execute().data,
-        lambda: _rpc("amens_waiting", {"viewer": user.id, "since": _since_last_look(user)}) or 0,
-    )
-    return {"this_week": sum(d["amens"] for d in days), "waiting": waiting}
+    days = get_supabase().table("refuge_amen_days").select("amens").gte("day", week_start).execute().data
+    return sum(d["amens"] for d in days)
+
+
+def tally_news(rows: list[dict], answered: int) -> dict | None:
+    """What came back since the last look, summed for a screen: how many
+    prayed and rejoiced, the kind words, and how many prayers this person
+    prayed for were answered. None when nothing did.
+
+    `rows` is amens_news, a row per post. A prayer request marked answered
+    reads as good news on the wall, so its new amens are rejoicing.
+    """
+    prayed = sum(r["amens"] for r in rows if r["kind"] == "burden" and not r.get("answered"))
+    rejoiced = sum(r["amens"] for r in rows) - prayed
+    words = sum(r["kind_words"] for r in rows)
+    if not (prayed or rejoiced or words or answered):
+        return None
+    return {"prayed": prayed, "rejoiced": rejoiced, "kind_words": words, "answered": answered}
+
+
+def amens_news(user: AuthUser, since: str) -> dict:
+    """What came back since `since`: the news summed, and the new amens and
+    kind words on each of the person's own posts, for the wall's marks.
+
+    Never who: only counts leave the database. Until the migration that adds
+    these functions has run, there is simply no news, so neither the home
+    nor the wall is held up by it.
+    """
+    try:
+        rows, answered = gather(
+            lambda: _rpc("amens_news", {"writer": user.id, "since": since}) or [],
+            lambda: _rpc("amens_answered_since", {"viewer": user.id, "since": since}) or 0,
+        )
+    except Exception:
+        log.warning("Amens news unavailable (has 20261127_amens_news.sql run?)", exc_info=True)
+        return {"summary": None, "posts": {}}
+    posts = {r["post_id"]: {"amens": r["amens"], "kind_words": r["kind_words"]} for r in rows}
+    return {"summary": tally_news(rows, answered), "posts": posts}
+
+
+def amens_glance(user: AuthUser) -> dict:
+    """For the home screen's Amens line: what's new since the person last
+    opened the wall.
+
+    Two sides, both counts only. `waiting` is how many posts by other people
+    went up that they haven't said amen to, and `this_week` how many amens
+    the whole wall said. `news` is what came back to their own posts (how
+    many prayed or rejoiced, the kind words) and how many prayers they prayed
+    for were answered. Nothing names a post or its words, so the home can say
+    "5 people prayed for you" without carrying what was shared. Everything
+    here is a cheap count: the home waits on its slowest part, so the wall's
+    own sorted query (`amens_to_carry`) stays off this path.
+    """
+    def since_last_look():
+        since = _since_last_look(user)
+        return gather(
+            lambda: _rpc("amens_waiting", {"viewer": user.id, "since": since}) or 0,
+            lambda: amens_news(user, since)["summary"],
+        )
+
+    this_week, (waiting, news) = gather(_amens_this_week, since_last_look)
+    return {"this_week": this_week, "waiting": waiting, "news": news}
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +462,8 @@ def wall(
     into `carried`, the posts they've prayed for that are still up, newest
     amen first, so it leaves the wall without being lost. `counts` sizes both.
     The first page also brings `mine`, everything they've shared with what
-    came back, and whether their evening digest is on.
+    came back (and how much of it is new since the last look), whether their
+    evening digest is on, `news` (see `amens_glance`) and `last_look`.
 
     "Show more" sends `skip`, the posts still unprayed for that it already
     holds: praying moves posts out of this view, so a page number would
@@ -467,19 +500,33 @@ def wall(
         except Exception:
             return None  # the setting isn't there yet; the page leaves the switch out
 
-    def opened_now():
-        # The wall is open now: what's new on the home notice counts from here.
-        # Only bookkeeping, so a failure here never keeps the wall from opening.
+    def news_then_opened():
+        # What came back since the last look, read before the look moves on,
+        # so the page can mark what's new. Then the wall is open now, and the
+        # home's line counts from here. That part is only bookkeeping, so a
+        # failure in it never keeps the wall from opening.
+        try:
+            since = _since_last_look(user)
+        except Exception:
+            since = _ago(days=NEW_DAYS)
+        news = amens_news(user, since)
         try:
             db.table("refuge_wall_visits").upsert({"user_id": user.id, "seen_at": _now()}, on_conflict="user_id").execute()
         except Exception:
             log.warning("Couldn't note when the wall was opened", exc_info=True)
+        return {**news, "since": since}
+
+    def this_week():
+        try:
+            return _amens_this_week()
+        except Exception:
+            return None
 
     if not first:
         rows = page_to_carry()
     else:
         # The first page brings everything at once, side by side.
-        rows, done, sizes, (mine, tally), digest, _ = gather(page_to_carry, carried, counts, shared, digest_on, opened_now)
+        rows, done, sizes, (mine, tally), digest, news, week = gather(page_to_carry, carried, counts, shared, digest_on, news_then_opened, this_week)
     out = {"posts": [_wall_post(r, reacted=False) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
     if not first:
         return out
@@ -496,12 +543,20 @@ def wall(
             for w in [kind_word(t["choice"], translation)] if w
         ]
         p.update(lifetime(p, now))
+        # What came back to it since the last look, for its "new" mark.
+        fresh = news["posts"].get(p["id"], {})
+        p["new_amens"], p["new_kind_words"] = fresh.get("amens", 0), fresh.get("kind_words", 0)
         # The desk's own words never reach the writer, only where it stands.
         p["status"] = WRITER_STATUS[p["status"]]
         if p["status"] == "shared" and not p["on_wall"]:
             p["status"] = "ended"
     out["mine"] = mine
     out["digest"] = digest
+    # When they last looked (posts newer than it are marked new), what came
+    # back since then, and the whole wall's week, for the room's top lines.
+    out["last_look"] = news["since"]
+    out["news"] = news["summary"]
+    out["this_week"] = week
     return out
 
 

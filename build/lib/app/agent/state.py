@@ -1,0 +1,47 @@
+"""The state LangGraph threads through every node in app/agent/graph.py.
+
+Each node in nodes.py receives the full state and returns a partial dict of the
+keys it updates — LangGraph merges that into the running state before calling
+the next node. `total=False` reflects that the state is built up incrementally:
+`intent` doesn't exist until classify_intent has run, `answer` doesn't exist
+until synthesize has run, and so on.
+"""
+
+from typing import Literal, TypedDict
+
+from app.schemas import Verse
+
+Intent = Literal["reference_lookup", "thematic", "devotional", "cross_reference", "meta"]
+
+
+class AgentState(TypedDict, total=False):
+    query: str  # set by the caller (app/main.py) when the graph run starts
+    translation: str  # set by retrieve(), defaulting from settings if the caller omitted it
+    intent: Intent  # set by classify_intent()
+    verses: list[Verse]  # set by retrieve() — the context synthesize() is allowed to use
+    answer: str  # set by synthesize()
+    grounded: bool  # set by ground_check() — whether answer is judged fully supported by verses
+    retries: int  # incremented by ground_check(); caps the retrieve<->synthesize retry loop
+    citations: list[Verse]  # set by format_citations() — the subset of verses actually cited
+    # Set by the caller. Follow-ups are a reading affordance: you skim three of
+    # them and click one. Read aloud they turn into a menu the caller has to
+    # hold in their head, so the voice path (app/mcp_server.py) leaves this
+    # false and skips the node altogether, which also spares it an LLM call on
+    # the surface where latency hurts most.
+    want_followups: bool
+    followups: list[str]  # set by suggest_followups(): questions to carry the study further
+    # Set by the caller for signed-in people with memory on (app/memory.py::recall):
+    # short notes about the person, never Scripture. synthesize/answer_meta may
+    # let them shape tone; ground_check is told they can't support a claim.
+    memories: list[str]
+
+    # Refuge (app/refuge.py) runs the graph in "listen" mode: a gentler
+    # Aquila who listens before she says anything, over the whole exchange in
+    # `history` ([{role: "user" | "aquila", content}]) rather than one study
+    # question. graph.py sends it straight to listen(); the study path never
+    # sees these keys. Left unset, the mode is "study".
+    # "pray" is Pray with Aquila on the prayer list: pray_with() gives verses,
+    # a prayer and encouragement for the request in `query`, and nothing else.
+    mode: Literal["study", "listen", "pray"]
+    history: list[dict]
+    care: bool  # set by listen(): the person may not be safe, so the client shows helplines

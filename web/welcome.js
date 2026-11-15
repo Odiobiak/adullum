@@ -41,6 +41,9 @@
     check: svg('<path d="M5 12.5l4.5 4.5L19 7.5"/>', 2.4),
     back: svg('<path d="M15 6l-6 6 6 6"/>', 1.9),
     next: svg('<path d="M9 6l6 6-6 6"/>', 1.9),
+    together: svg('<path d="M12 4.5c-.9-1.6-2.9-1.4-3.3.3L7.2 11.5l-2.4 3.2a1.6 1.6 0 0 0 .2 2.1l3.4 3.2"/><path d="M12 4.5c.9-1.6 2.9-1.4 3.3.3l1.5 6.7 2.4 3.2a1.6 1.6 0 0 1-.2 2.1l-3.4 3.2"/><path d="M12 4.5V16"/><path d="M8.4 20l3.6-4 3.6 4"/>'),
+    declare: svg('<path d="M3 11v2M7 8v8M11 5v14M15 8v8M19 10v4"/>'),
+    sermon: svg('<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M9 12h7M9 16h5"/>'),
     mail: svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 6 9-6"/>'),
     sprout: svg('<path d="M12 21v-9"/><path d="M12 12c0-4 3-6.5 7.5-6.5 0 4.5-3 6.5-7.5 6.5z"/><path d="M12 14.5C12 11 9.5 9 5.5 9c0 3.5 2.5 5.5 6.5 5.5z"/>'),
     arch: '<svg viewBox="0 0 132 110" fill="none" aria-hidden="true"><path d="M6 106C6 52 32 8 66 8s60 44 60 98" stroke="currentColor" stroke-width="10" stroke-linecap="round"/><path d="M44 106c0-22 10-38 22-38s22 16 22 38" stroke="currentColor" stroke-width="10" stroke-linecap="round"/></svg>',
@@ -70,6 +73,8 @@
   const bars = (...widths) => `<span class="wl-bars">${widths.map((w) => `<i style="width:${w}%"></i>`).join("")}</span>`;
   const parts = (items) => `<ol class="wl-parts">${items.map(([b, t], i) => `<li><span class="wl-num">${i + 1}</span><span><b>${b}</b> ${t}</span></li>`).join("")}</ol>`;
   const tip = (icon, text, privacy = false) => `<p class="wl-tip${privacy ? " is-private" : ""}">${icon}<span>${text}</span></p>`;
+  // The home's shortcuts (cave.js::shortcuts), drawn as their icons in a row.
+  const shortcutRow = (n = 0) => `<div class="wl-shortcuts">${n ? mark(n) : ""}${[ICON.together, ICON.declare, ICON.sermon, ICON.pen, ICON.heart, ICON.refuge].map((i) => `<span>${i}</span>`).join("")}</div>`;
   const kicker = (key) => {
     const t = TABS.find((x) => x.key === key);
     return `<span class="wl-kicker">${t.icon}${t.name} tab</span>`;
@@ -83,10 +88,7 @@
           <div class="wl-device-body">
             <div class="wl-mini-hero"><span class="wl-sub" data-today></span><strong data-greeting></strong><span class="wl-mini-ask">Ask Aquila anything<i></i></span></div>
             <div class="wl-mini"><span class="wl-sub">Verse for today · Psalm 23:1</span>${bars(92, 58)}</div>
-            <div class="wl-row2">
-              <div class="wl-mini"><span class="wl-line">${ICON.heart}Amens</span><span class="wl-sub">3 to pray for</span></div>
-              <div class="wl-mini"><span class="wl-line">${ICON.speak}Declare</span><span class="wl-sub">Words for today</span></div>
-            </div>
+            ${shortcutRow()}
           </div>
           <div class="wl-device-tabs">${TABS.map((t) => `<span>${t.icon}${t.name}</span>`).join("")}</div>
         </div>`,
@@ -100,19 +102,16 @@
       tab: "home",
       art: `<div class="wl-mini-hero">${mark(1)}<strong>Good evening</strong><span class="wl-mini-ask">Ask Aquila anything<i></i></span></div>
         <div class="wl-mini">${mark(2)}<span class="wl-sub">Verse for today</span>${bars(92, 60)}</div>
-        <div class="wl-mini">${mark(3)}<span class="wl-title">Today</span>
-          <span class="wl-ticks"><span class="done">Read John 4</span><span>Pray for Mum's recovery</span><span>Walk and pray · 2 of 3 this week</span></span></div>
-        <div class="wl-row2">
-          <div class="wl-mini">${mark(4)}<span class="wl-line">${ICON.heart}3 waiting for your amen</span></div>
-          <div class="wl-mini"><span class="wl-line">${ICON.speak}Declare</span></div>
-        </div>`,
+        ${shortcutRow(3)}
+        <div class="wl-mini">${mark(4)}<span class="wl-title">Today</span>
+          <span class="wl-ticks"><span class="done">Read John 4</span><span>Pray for Mum's recovery</span><span>Walk and pray · 2 of 3 this week</span></span></div>`,
       copy: `${kicker("home")}<h2>Your day, at a glance</h2>
         <p class="wl-lead">Home is where you land each time. It gathers what's yours for today.</p>
         ${parts([
           ["The ask box.", "Type a question and Aquila answers it in her tab."],
           ["Verse for today.", 'Sit with it, or save it from the "⋯" beside it.'],
+          ["Shortcuts.", "One tap to Amens, Declare, a new sermon note, journal entry or prayer, or Refuge."],
           ["Today.", "Your plan's reading, a prayer to pray and your habits, each a tick."],
-          ["Amens and Declare.", "Prayers others asked for, and words for what you're facing."],
         ])}
         ${tip(ICON.person, "Your initials at the top right open the menu, with Settings, your theme and Support.")}`,
     },

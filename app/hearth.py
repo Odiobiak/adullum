@@ -246,8 +246,8 @@ def home(today: str | None = Query(default=None), user: AuthUser = Depends(requi
             s for s in pebbles if s["status"] == "growing" and s["kind"] == "habit"
         ][:HOME_HABITS],
         "goal": goal_coming_up(pebbles, day) if pebbles else None,
-        # The wall's public side only, never this person's own posts; see
-        # app/one_another.py::amens_glance.
+        # What's new on the wall since the last look, as counts only: never a
+        # post's words. See app/one_another.py::amens_glance.
         "amens": got["amens"],
         "revisit": (got["revisit"] or {}).get("entry"),
         # An answered prayer from a while back, to look back on.

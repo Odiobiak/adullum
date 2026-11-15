@@ -68,30 +68,21 @@
     ui.root.remove();
     document.removeEventListener("keydown", ui.onKey);
     window.removeEventListener("hashchange", close);
-    markTab(false);
+    watchTabs(false);
     document.body.style.overflow = "";
     ui = null;
   }
 
   // On phones the graph stops short of the tab bar (app.css), so the tabs
-  // stay in reach. While it's open, Connections is the lit tab; tapping any
-  // other tab, or anything else that changes the route, closes it.
-  function markTab(open) {
+  // stay in reach: tapping one, or anything else that changes the route,
+  // closes it. Connections has no tab of its own, so the open one stays lit.
+  function watchTabs(open) {
     const bar = document.getElementById("tabbar");
     if (!bar || !ui) return;
-    const mapTab = bar.querySelector("[data-open-map]");
     if (open) {
-      ui.prevTab = bar.querySelector("[aria-current]");
-      if (ui.prevTab) ui.prevTab.removeAttribute("aria-current");
-      if (mapTab) mapTab.setAttribute("aria-current", "page");
       ui.onTab = (e) => e.target.closest("a") && close();
       bar.addEventListener("click", ui.onTab);
-      return;
-    }
-    bar.removeEventListener("click", ui.onTab);
-    if (mapTab) mapTab.removeAttribute("aria-current");
-    // A route change has already lit its own tab; otherwise light the old one again.
-    if (ui.prevTab && !bar.querySelector("[aria-current]")) ui.prevTab.setAttribute("aria-current", "page");
+    } else bar.removeEventListener("click", ui.onTab);
   }
 
   function build() {
@@ -639,7 +630,7 @@
     close();
     ui = build();
     window.addEventListener("hashchange", close);
-    markTab(true);
+    watchTabs(true);
     if (!seeds.length) {
       showStarters();
       return;

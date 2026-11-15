@@ -14,9 +14,12 @@
 //   Amens           posts, amens and kind words (app/one_another.py)
 // Nothing anyone writes, talks through or shares here appears on the home
 // screen or in Aquila's memory. Home shows only the person's own active
-// habits (web/cave.js::todayCard) and, through homeCard below,
-// the wall's public side: this week's amens and how many posts wait for theirs.
-// #amens and #pebbles open the cave straight into that room.
+// habits (web/cave.js::todayCard) and, from Amens, counts of what's new since
+// they last looked (`homeNote` below and the Amens shortcut): how many prayed
+// for or rejoiced with them, kind words, answered prayers they prayed for and
+// posts waiting for their amen. Never a post's words.
+// #amens and #pebbles open the cave straight into that room; #amens/yours
+// and #amens/prayed open the wall on that view.
 //
 // Loaded after web/cave.js, whose helpers it borrows through window.Cave.
 (function () {
@@ -165,8 +168,16 @@
   // The opening screen
   // ---------------------------------------------------------------------
   // `route` is the hash that opened the cave; #amens and #pebbles go straight
-  // to that room (the home screen links to both).
-  const ROOM_ROUTES = { amens: () => amensRoom(), pebbles: () => pebblesRoom() };
+  // to that room (the home screen links to both). #amens/yours and
+  // #amens/prayed open the wall on that view, as the home's Amens line does.
+  const WALL_ROUTES = { yours: "mine", prayed: "carried" };
+  const ROOM_ROUTES = {
+    amens: () => {
+      wallView = WALL_ROUTES[location.hash.split("/")[1]] || "carry";
+      return amensRoom();
+    },
+    pebbles: () => pebblesRoom(),
+  };
   async function renderTab(p, route) {
     enter(p);
     await (ROOM_ROUTES[route] || threshold)();
@@ -202,7 +213,7 @@
       if (panel) panel.replaceChildren(el("div", { class: "empty" }, [el("strong", { text: "Refuge isn't open yet" }), err.message]));
       return;
     }
-    const back = carried(overview.carried);
+    const fresh = newOnWall(overview.amens);
     show(
       el("section", { class: "refuge-home fade-in" }, [
         el("div", { class: "refuge-bar" }, [
@@ -214,7 +225,7 @@
           tile(ICON.pen, "Write it out", () => writeRoom()),
           tile(ICON.still, "Be still", stillRoom),
           tile(ICON.pebbles, "Pebbles", pebblesRoom),
-          tile(ICON.together, "Amens", amensRoom, back ? { badge: back.count, label: `Amens. ${back.line}` } : {}),
+          tile(ICON.together, "Amens", () => { wallView = "carry"; amensRoom(); }, fresh.count ? { badge: fresh.count > 99 ? "99+" : String(fresh.count), label: `Amens. ${fresh.lines.join(". ")}.` } : {}),
         ]),
         // Kept in plain sight: reaching a person should never be hidden.
         el("button", { class: "refuge-help", type: "button", html: `${ICON.person}<span>Talk to a person</span>`, onclick: helpRoom }),
@@ -222,18 +233,6 @@
       growingToday(seeds),
       keptList(overview)
     );
-  }
-
-  // What came back to the person's posts on the Amens wall: a count for the
-  // Amens tile, and the same news as a sentence for screen readers.
-  function carried(c) {
-    const total = c ? (c.reactions || 0) + (c.kind_words || 0) : 0;
-    if (!total) return null;
-    const words = plural(c.kind_words, "kind word", "kind words");
-    const line = c.reactions
-      ? `${plural(c.reactions, "amen", "amens")}${c.kind_words ? ` and ${words}` : ""} came back to you.`
-      : `${words} came back to you.`;
-    return { count: total > 99 ? "99+" : String(total), line };
   }
 
   // Habits not yet done today, as chips: one tap marks a habit done.
@@ -1874,9 +1873,12 @@
   //     yet, a card each. Praying or rejoicing turns the card to Amen, and a
   //     moment later it moves to Prayed, so the wall only ever holds what's
   //     still to carry.
-  //   Prayed: what they've stood with that's still up, newest amen first.
-  //     It leaves the wall without being lost.
-  //   Yours: what they've shared, with what came back.
+  //   Prayed: what they've stood with that's still up, answered prayers
+  //     first, then by when they prayed. It leaves the wall without being lost.
+  //   Yours: what they've shared, grouped by where it stands, with what came
+  //     back and how much of it is new.
+  // Above them, "Since you last looked" says what came back, and the line
+  // under the title how many amens the whole wall said this week.
   // ---------------------------------------------------------------------
   const WALL_VIEWS = [["carry", "To pray for"], ["carried", "Prayed"], ["mine", "Yours"]];
   let wallView = "carry"; // survives the room redrawing
@@ -1896,10 +1898,78 @@
     return days < 7 ? `${plural(days, "day", "days")} ago` : shortDate(iso);
   }
 
-  function kindTag(post) {
-    return el("span", { class: `amen-kind amen-kind-${shownKind(post)}` }, [
-      el("span", { class: "amen-kind-icon", html: REACTIONS[shownKind(post)].icon }),
-      KIND_LABEL[post.answered ? "answered" : post.kind],
+  // The same, to follow a verb: "3 hours ago", "just now", "on Nov 6".
+  function sinceAfter(iso) {
+    const text = sinceText(iso);
+    return /ago$|^Just/.test(text) ? text.toLowerCase() : `on ${text}`;
+  }
+
+  // Rows grouped by when, newest first: Today, This week, Earlier.
+  function byWhen(rows, stamp) {
+    const today = new Date().setHours(0, 0, 0, 0);
+    const label = (iso) => {
+      const days = Math.round((today - new Date(iso).setHours(0, 0, 0, 0)) / 864e5);
+      return days <= 0 ? "Today" : days < 7 ? "This week" : "Earlier";
+    };
+    const groups = new Map();
+    for (const row of rows) {
+      const key = label(stamp(row));
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(row);
+    }
+    return [...groups];
+  }
+
+  // A labelled run of posts inside a view, how many beside the label.
+  // `wrap` lays the rows out (a grid of cards) rather than as a list.
+  function wallGroup(title, rows, { tone = "", wrap = null } = {}) {
+    return el("section", { class: `amens-group${tone ? ` is-${tone}` : ""}` }, [
+      el("h3", { class: "amens-group-title" }, [title, el("span", { text: String(rows.length) })]),
+      el("div", { class: "amens-group-rows" }, wrap ? wrap(rows) : rows),
+    ]);
+  }
+
+  // A few numbers side by side at the top of a view.
+  function wallStats(stats) {
+    return el("div", { class: "amens-stats" }, stats.map(([n, label, tone]) =>
+      el("div", { class: `amens-stat${tone ? ` is-${tone}` : ""}` }, [el("strong", { text: Number(n).toLocaleString() }), el("span", { text: label })])));
+  }
+
+  // What came back since the last look (app/one_another.py::tally_news), as
+  // short sentences. Counts only: never who, and never which post.
+  function newsLines(news) {
+    if (!news) return { back: [], answered: null };
+    const back = [
+      news.prayed ? `${plural(news.prayed, "person", "people")} prayed for you` : null,
+      news.rejoiced ? `${plural(news.rejoiced, "person", "people")} rejoiced with you` : null,
+      news.kind_words ? `${plural(news.kind_words, "kind word", "kind words")} sent to you` : null,
+    ].filter(Boolean);
+    const answered = news.answered
+      ? news.answered === 1 ? "God answered a prayer you prayed for" : `God answered ${news.answered} prayers you prayed for`
+      : null;
+    return { back, answered };
+  }
+
+  // Everything new on the wall for someone, from the home's glance: how many
+  // things (for a badge) and what they are, in sentences.
+  function newOnWall(glance) {
+    if (!glance) return { count: 0, lines: [] };
+    const news = glance.news || {};
+    const { back, answered } = newsLines(glance.news);
+    const waiting = glance.waiting || 0;
+    const lines = [...back, answered, waiting ? `${plural(waiting, "new post", "new posts")} waiting for your amen` : null].filter(Boolean);
+    return { count: (news.prayed || 0) + (news.rejoiced || 0) + (news.kind_words || 0) + (news.answered || 0) + waiting, lines };
+  }
+
+  // Who's asking, as the top of a card says it, with an anonymous face: the
+  // kind's own icon in its colour, never anything about the person.
+  function byline(post, when, { fresh = false } = {}) {
+    return el("div", { class: "amen-byline" }, [
+      el("span", { class: `amen-avatar is-${shownKind(post)}`, "aria-hidden": "true", html: REACTIONS[shownKind(post)].icon }),
+      el("span", { class: "amen-byline-text" }, [
+        el("strong", { text: kindSpec(post).who }),
+        el("small", {}, [when, fresh ? el("span", { class: "amen-new", text: "New" }) : null]),
+      ]),
     ]);
   }
 
@@ -1941,7 +2011,8 @@
     return button;
   }
 
-  // One post still to pray for. `wall` hears when it's carried or reported.
+  // One post still to pray for. `wall` hears when it's carried or reported,
+  // and knows which posts went up since the last look.
   function carryCard(post, wall) {
     const r = REACTIONS[shownKind(post)];
     const people = el("p", { class: "amen-people", "aria-live": "polite" });
@@ -1991,32 +2062,35 @@
       foldAway(card, () => wall.left(post));
       toast("Removed from your wall. It stays up for others.", { tone: "info", action: { label: "Undo", onClick: () => wall.restore(post) } });
     };
-    const report = cave().moreMenu("More", [
+    const menu = cave().moreMenu("More", [
       { label: "Remove from my wall", onClick: remove },
       { label: "Report", danger: true, onClick: () => reportSheet(post, () => foldAway(card, () => wall.left(post))) },
     ]);
 
     card.append(...[
-      el("div", { class: "amen-card-head" }, [kindTag(post), el("span", { class: "amen-when", text: sinceText(post.created_at) }), report]),
+      el("header", { class: "amen-card-head" }, [byline(post, sinceText(post.created_at), { fresh: wall.isNew(post.created_at) }), menu]),
       el("p", { class: "amen-card-text", text: post.body }),
       post.answered && post.answer_note ? el("p", { class: "answered-note" }, [el("strong", { text: "How: " }), post.answer_note]) : null,
-      el("div", { class: "amen-card-foot" }, [people, el("div", { class: "amen-card-actions" }, [words, react])]),
+      el("footer", { class: "amen-card-foot" }, [people, el("div", { class: "amen-card-actions" }, [words, react])]),
     ].filter(Boolean));
     return card;
   }
 
-  // One post already prayed for: quieter, with a tick. A tap shows all of it.
+  // One post already prayed for: quieter, with a tick (or a sun once God
+  // answered it, with the writer's line on how). A tap shows all of it.
   function carriedRow(post) {
     const r = REACTIONS[shownKind(post)];
+    const prayedWord = post.kind === "burden" ? "You prayed" : "You rejoiced";
     const text = el("p", { class: "amen-done-text", text: post.body });
-    const row = el("article", { class: `amen-done amen-done-${shownKind(post)} fade-in` }, [
-      el("span", { class: "amen-done-mark", html: ICON.check }),
+    const row = el("article", { class: `amen-done amen-done-${shownKind(post)}${post.answered ? " is-answered" : ""} fade-in` }, [
+      el("span", { class: "amen-done-mark", html: post.answered ? ICON.rejoice : ICON.check }),
       el("div", { class: "amen-done-body" }, [
         el("p", { class: "amen-done-meta" }, [
-          KIND_LABEL[post.answered ? "answered" : post.kind],
-          post.amened_at ? ` · ${shownKind(post) === "burden" ? "you prayed" : "you rejoiced"} ${sinceText(post.amened_at).toLowerCase()}` : "",
+          el("strong", { text: KIND_LABEL[post.answered ? "answered" : post.kind] }),
+          post.amened_at ? ` · ${prayedWord} ${sinceAfter(post.amened_at)}` : "",
         ]),
         text,
+        post.answered && post.answer_note ? el("p", { class: "answered-note" }, [el("strong", { text: "How: " }), post.answer_note]) : null,
         el("p", { class: "amen-done-people" }, [amenFaces(post.reactions || 0), el("span", { text: r.withYou(post.reactions || 1) })]),
       ]),
       post.sent_kind_word ? null : kindWordsButton(post),
@@ -2025,26 +2099,34 @@
     return row;
   }
 
-  // One of the person's own posts: where it stands and what came back.
-  // Tapping it opens the whole post (mineCard) with what they can do.
+  // Where one of the person's own posts stands, as a short status.
+  function mineStatus(post) {
+    if (post.answered) return ["Answered", "answered"];
+    if (post.status === "shared") return [post.days_left > 0 ? `${plural(post.days_left, "day", "days")} left` : "Last day", "shared"];
+    if (post.status === "waiting") return ["Waiting for approval", "waiting"];
+    return [post.status === "ended" ? "Off the wall" : "Not shared", "ended"];
+  }
+
+  // One of the person's own posts: where it stands, what came back, and how
+  // much of that is new since they last looked. Tapping it opens the whole
+  // post (mineCard) with what they can do.
   function mineRow(post, rerender) {
     const r = REACTIONS[post.kind];
     const n = post.reactions || 0;
     const words = kindWordCount(post);
-    const [statusText, statusClass] = post.answered ? ["Answered", "answered"]
-      : post.status === "shared" ? [post.days_left > 0 ? `On the wall · ${plural(post.days_left, "day", "days")} left` : "On the wall · last day", "shared"]
-      : post.status === "waiting" ? ["Waiting for approval", "waiting"]
-      : post.status === "ended" ? ["Off the wall", "ended"]
-      : ["Not shared", "ended"];
+    const fresh = (post.new_amens || 0) + (post.new_kind_words || 0);
+    const [statusText, statusClass] = mineStatus(post);
     const cameBack = post.status === "shared" || post.status === "ended";
-    return el("button", { class: `amen-mine amen-mine-${post.kind}`, type: "button", onclick: () => openMine(post, rerender) }, [
+    return el("button", { class: `amen-mine amen-mine-${post.kind}${fresh ? " has-news" : ""}`, type: "button", onclick: () => openMine(post, rerender) }, [
       el("span", { class: "amen-mine-top" }, [
         el("span", { class: `amen-status is-${statusClass}`, text: statusText }),
+        fresh ? el("span", { class: "amen-new", text: `${fresh} new` }) : null,
         el("span", { class: "amen-when", text: shortDate(post.created_at) }),
       ]),
       el("span", { class: "amen-mine-text", text: post.body }),
       cameBack ? el("span", { class: `amen-mine-back${n || words ? " has-amens" : ""}` }, [
-        el("span", { class: "amen-mine-stat", html: `${r.icon}<span>${n ? r.forMine(n) : "No amens yet"}</span>` }),
+        n ? amenFaces(n) : null,
+        el("span", { class: "amen-mine-stat", html: `${n ? "" : r.icon}<span>${n ? r.forMine(n) : "No amens yet"}</span>` }),
         words ? el("span", { class: "amen-mine-stat", html: `${ICON.talk}<span>${plural(words, "kind word", "kind words")}</span>` }) : null,
       ]) : null,
     ]);
@@ -2266,7 +2348,7 @@
     ["Everyone gets prayed for", "There are no followers. Your wall holds only what you haven't prayed for yet, starting with posts the fewest people have, so every request gets carried, not just the newest. Once you pray or rejoice, the post moves to Prayed, where you can come back to it. If one isn't for you, remove it from your wall in its ⋯ menu. It stays up for others, and its writer is never told."],
     ["Others stand with you", "People can pray or rejoice with you, and send a few kind words: a verse or a short blessing. They can't write back, and you never see who they are."],
     ["How long it stays", HOW_LONG],
-    ["See what came back", "Your posts sit under Yours with how many prayed or rejoiced, and any kind words. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
+    ["See what came back", "Your posts sit under Yours with how many prayed or rejoiced, and any kind words, and what's new since you last looked is marked. Your home screen says how many people prayed for you, never what you shared. If you allow notifications, you get one quiet note in the evening when people prayed for you. You can take a post down any time."],
     ["If you're not safe", "If what you write sounds like you might be in danger, it isn't posted. You're shown people you can talk to right away instead."],
   ];
 
@@ -2322,6 +2404,24 @@
     ]);
   }
 
+  // "Since you last looked": what came back to their own posts, and any
+  // prayer they prayed for that God answered. Each line opens its view.
+  function newsCard(news, open) {
+    const { back, answered } = newsLines(news);
+    if (!back.length && !answered) return null;
+    const people = (news.prayed || 0) + (news.rejoiced || 0);
+    const line = (icon, title, detail, view, tone) => el("button", { class: `amens-news-line${tone ? ` is-${tone}` : ""}`, type: "button", onclick: () => open(view) }, [
+      el("span", { class: "amens-news-icon", html: icon }),
+      el("span", { class: "amens-news-text" }, [el("strong", { text: title }), detail ? el("small", { text: detail }) : null]),
+      el("span", { class: "amens-news-go", html: ICON.forward }),
+    ]);
+    return el("section", { class: "amens-news fade-in", "aria-label": "Since you last looked" }, [
+      el("p", { class: "amens-news-kicker" }, [people ? amenFaces(people) : null, el("span", { text: "Since you last looked" })]),
+      back.length ? line(ICON.together, back[0], back.slice(1).join(" · "), "mine") : null,
+      answered ? line(ICON.rejoice, answered, "Thank God with them. It's at the top of Prayed.", "carried", "answered") : null,
+    ]);
+  }
+
   async function amensRoom() {
     let data;
     try {
@@ -2331,9 +2431,35 @@
     }
     const rerender = () => amensRoom();
     const counts = { carry: data.counts.to_carry, carried: data.counts.carried, mine: data.mine.length };
+    // Posts that went up after the last look are marked new.
+    const lastLook = Date.parse(data.last_look || "") || Date.now();
+    const newOnMine = data.mine.reduce((n, p) => n + (p.new_amens || 0) + (p.new_kind_words || 0), 0);
 
-    // How much of the wall this person has stood with, as one line and a bar.
-    const pulse = el("section", { class: "amens-pulse", "aria-live": "polite" });
+    // The three views and their tabs, each tab with its count, and Yours
+    // with a mark while something new came back to it.
+    const panels = {}, tabCounts = {};
+    const tabs = el("div", { class: "seg amens-tabs", role: "tablist", "aria-label": "The wall" });
+    const select = (key) => {
+      wallView = key;
+      tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === key)));
+      Object.entries(panels).forEach(([k, panel]) => { panel.hidden = k !== key; });
+      if (key === "mine") tabs.querySelector(".amens-tab-new")?.remove();
+    };
+    // From "Since you last looked": the view, brought into sight.
+    const open = (key) => {
+      select(key);
+      tabs.scrollIntoView({ behavior: calm() ? "auto" : "smooth", block: "start" });
+    };
+    for (const [key, label] of WALL_VIEWS) {
+      tabCounts[key] = el("span", { class: "amens-tab-count" });
+      const fresh = key === "mine" && newOnMine ? el("span", { class: "amens-tab-new", "aria-label": `${newOnMine} new` }) : null;
+      tabs.append(el("button", { type: "button", role: "tab", "data-view": key, "aria-controls": `amens-${key}`, onclick: () => select(key) }, [label, tabCounts[key], fresh]));
+      panels[key] = el("section", { class: "amens-panel", id: `amens-${key}`, role: "tabpanel" });
+    }
+
+    // To pray for, headed by how much of the wall this person has stood
+    // with: one line and a bar.
+    const pulse = el("div", { class: "amens-pulse", "aria-live": "polite" });
     const paintPulse = () => {
       const total = counts.carry + counts.carried;
       pulse.hidden = !total;
@@ -2341,35 +2467,20 @@
       const done = !counts.carry;
       pulse.classList.toggle("is-done", done);
       pulse.replaceChildren(
-        el("span", { class: "amens-pulse-icon", html: done ? ICON.check : ICON.together }),
         el("span", { class: "amens-pulse-text" }, [
           el("strong", { text: done ? "You're all caught up" : `${counts.carry} still to pray for` }),
-          el("span", { text: done ? `You've stood with all ${total} on the wall.` : `You've stood with ${counts.carried} of ${total} on the wall.` }),
+          el("span", { text: done ? `You've stood with all ${total} on the wall` : `You've stood with ${counts.carried} of ${total}` }),
         ]),
         el("span", { class: "amens-pulse-bar", "aria-hidden": "true" }, el("span", { style: `width:${Math.round((100 * counts.carried) / total)}%` })),
       );
     };
-
-    // The three views and their tabs, each tab with its count.
-    const panels = {}, tabCounts = {};
-    const tabs = el("div", { class: "seg amens-tabs", role: "tablist", "aria-label": "The wall" });
-    const select = (key) => {
-      wallView = key;
-      tabs.querySelectorAll("button").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.view === key)));
-      Object.entries(panels).forEach(([k, panel]) => { panel.hidden = k !== key; });
-    };
-    for (const [key, label] of WALL_VIEWS) {
-      tabCounts[key] = el("span", { class: "amens-tab-count" });
-      tabs.append(el("button", { type: "button", role: "tab", "data-view": key, "aria-controls": `amens-${key}`, onclick: () => select(key) }, [label, tabCounts[key]]));
-      panels[key] = el("section", { class: "amens-panel", id: `amens-${key}`, role: "tabpanel" });
-    }
     const paintCounts = () => {
       for (const [key, n] of Object.entries(counts)) tabCounts[key].textContent = n ? String(n) : "";
       paintPulse();
     };
 
-    // To pray for. "Show more" asks for what follows the cards still here,
-    // skipping any it already holds.
+    // "Show more" asks for what follows the cards still here, skipping any
+    // it already holds.
     const stream = el("div", { class: "amen-stream" });
     const shown = new Set();
     const carryEmpty = () => (counts.carried
@@ -2384,12 +2495,12 @@
       else if (!more.disabled) more.click();
     };
     const wall = {
+      isNew: (iso) => Date.parse(iso) > lastLook,
       carried(post) {
         counts.carry = Math.max(0, counts.carry - 1);
         counts.carried += 1;
-        const empty = carriedList.querySelector(".amen-empty");
-        if (empty) empty.remove();
-        carriedList.prepend(carriedRow(post));
+        prayed.unshift(post);
+        drawPrayed();
         paintCounts();
         settle();
       },
@@ -2434,25 +2545,52 @@
       }
     };
     settle();
-    panels.carry.append(stream, more);
+    panels.carry.append(pulse, stream, more);
 
-    // Prayed.
-    const carriedList = el("div", { class: "amen-done-list" }, data.carried.length
-      ? data.carried.map(carriedRow)
-      : [wallEmpty(ICON.pray, "Nothing here yet", "When you pray for someone or rejoice with them, their post moves here, so you can come back to it.")]);
-    panels.carried.append(carriedList);
+    // Prayed: answered prayers first, as the news they are, then the rest
+    // by when they prayed. Redrawn whole as cards move in from the wall.
+    const prayed = [...data.carried];
+    const prayedList = el("div", { class: "amens-groups" });
+    const drawPrayed = () => {
+      if (!prayed.length) {
+        return prayedList.replaceChildren(wallEmpty(ICON.pray, "Nothing here yet", "When you pray for someone or rejoice with them, their post moves here, so you can come back to it."));
+      }
+      const answered = prayed.filter((p) => p.answered);
+      const rest = prayed.filter((p) => !p.answered);
+      prayedList.replaceChildren(...[
+        wallStats([[counts.carried, "Prayed with"], [answered.length, "Answered", "answered"], [prayed.reduce((n, p) => n + (p.sent_kind_word ? 1 : 0), 0), "Kind words sent"]]),
+        answered.length ? wallGroup("God answered", answered.map(carriedRow), { tone: "answered" }) : null,
+        ...byWhen(rest, (p) => p.amened_at || p.created_at).map(([when, rows]) => wallGroup(when, rows.map(carriedRow))),
+      ].filter(Boolean));
+    };
+    drawPrayed();
+    panels.carried.append(prayedList);
 
-    // Yours.
+    // Yours: what came back in all, then each post where it stands.
+    const mine = data.mine;
+    const where = (p) => (p.answered ? "answered" : p.status === "shared" ? "up" : p.status === "waiting" ? "waiting" : "past");
+    const MINE_GROUPS = [["up", "On the wall"], ["waiting", "Waiting for approval"], ["answered", "Answered", "answered"], ["past", "Off the wall"]];
     panels.mine.append(...[
-      data.mine.length
-        ? el("div", { class: "amen-mine-list" }, data.mine.map((p) => mineRow(p, rerender)))
+      mine.length ? wallStats([
+        [mine.reduce((n, p) => n + (p.reactions || 0), 0), "Amens for you"],
+        [mine.reduce((n, p) => n + kindWordCount(p), 0), "Kind words"],
+        [mine.filter((p) => p.status === "shared").length, "On the wall"],
+      ]) : null,
+      mine.length
+        ? el("div", { class: "amens-groups" }, MINE_GROUPS.map(([key, title, tone]) => {
+          const rows = mine.filter((p) => where(p) === key);
+          const wrap = (cards) => el("div", { class: "amen-mine-list" }, cards);
+          return rows.length ? wallGroup(title, rows.map((p) => mineRow(p, rerender)), { tone, wrap }) : null;
+        }).filter(Boolean))
         : wallEmpty(ICON.pen, "Nothing shared yet", "Share a burden or good news above. It goes up without your name."),
       typeof data.digest === "boolean" ? digestSwitch(data.digest) : null,
     ].filter(Boolean));
 
     paintCounts();
     select(wallView);
-    show(room("Amens", {
+    // The whole wall's week, under the title: a sense of people here.
+    const week = data.this_week ? el("p", { class: "amens-week" }, [el("span", { class: "amens-week-dot", "aria-hidden": "true" }), `${plural(data.this_week, "amen", "amens")} on the wall this week`]) : null;
+    const node = room("Amens", {
         text: [
           "Carry each other. Pray for what others are carrying and rejoice in what God is doing, without anyone's name.",
           "Once you pray or rejoice, the post moves to Prayed.",
@@ -2460,33 +2598,49 @@
         more: howAmensWorks,
         moreLabel: "How Amens works",
       },
+      week,
       shareBox(() => { wallView = "mine"; rerender(); }),
+      newsCard(data.news, open),
       keepUpNudge(data.mine, rerender),
-      pulse,
       tabs,
       ...Object.values(panels),
-    ));
+    );
+    node.classList.add("amens-room");
+    show(node);
   }
 
   // ---------------------------------------------------------------------
-  // The Amens notice on the home screen (web/cave.js::showHome)
+  // The Amens line on the home screen (web/cave.js::drawHome)
   // ---------------------------------------------------------------------
-  // `glance` is app/one_another.py::amens_glance: this week's amens across the
-  // whole wall and how many posts by other people have gone up since this
-  // person last opened the wall that they haven't said amen to. Nothing this
-  // person shared ever shows here.
-  //
-  // It reads like a notification rather than a card: one line, a count on
-  // the icon, and the whole thing opens the wall. On a week with nothing
-  // waiting and no amens said there is nothing to tell, so it stays away.
-  function homeCard(glance) {
-    const { waiting, this_week: thisWeek } = glance;
-    if (!waiting && !thisWeek) return null;
-
-    const title = waiting ? `${plural(waiting, "new post", "new posts")} on Amens` : "All caught up on Amens";
-    const detail = thisWeek ? `${plural(thisWeek, "amen", "amens")} this week` : "Open the wall";
-
-    return cave().homeNote({ href: "#amens", icon: ICON.together, count: waiting, title, detail });
+  // One notification-like line while something is new since the last look:
+  // what came back to the person's own posts first (counts only, never a
+  // post's words, so nothing they shared is on the home), then a prayer they
+  // prayed for that God answered, then new posts waiting for their amen. It
+  // opens the wall on the view that holds the news.
+  function homeNote(glance) {
+    const { count, lines } = newOnWall(glance);
+    if (!count) return null;
+    const news = glance.news || {};
+    const { back, answered } = newsLines(glance.news);
+    // The first piece of news is the title, said in full (`lines`, in the
+    // same order as these); after it, up to three more in a few words each,
+    // what asks something of them first, so the line stays short.
+    const short = [
+      news.prayed ? `${plural(news.prayed, "person", "people")} prayed for you` : null,
+      news.rejoiced ? `${news.rejoiced} rejoiced with you` : null,
+      news.kind_words ? plural(news.kind_words, "kind word", "kind words") : null,
+      news.answered ? plural(news.answered, "prayer answered", "prayers answered") : null,
+      glance.waiting ? `${glance.waiting} new to pray for` : null,
+    ].filter(Boolean);
+    const rest = short.slice(1).reverse().slice(0, 3);
+    const week = glance.this_week ? `${plural(glance.this_week, "amen", "amens")} on the wall this week` : null;
+    return cave().homeNote({
+      href: back.length ? "#amens/yours" : answered ? "#amens/prayed" : "#amens",
+      icon: ICON.together,
+      count,
+      title: lines[0],
+      detail: rest.join(" · ") || week,
+    });
   }
 
   // ---------------------------------------------------------------------
@@ -2783,5 +2937,5 @@
   }
 
   // helplineRows is shared with Declare (web/declare.js), which shows them instead of words when a situation sounds unsafe.
-  window.Refuge = { renderTab, hide, renderDesk, homeCard, helplineRows };
+  window.Refuge = { renderTab, hide, renderDesk, helplineRows, homeNote, newOnWall };
 })();

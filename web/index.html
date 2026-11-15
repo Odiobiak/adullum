@@ -68,7 +68,6 @@
       <a href="#aquila" data-nav="aquila">Aquila</a>
       <a href="#bible" data-nav="bible">Bible</a>
       <a href="#church" data-nav="church" data-auth="in">Church</a>
-      <button type="button" data-open-map>Connections</button>
     </nav>
     <div class="head-right">
       <div class="row" data-auth="out" style="gap:4px">
@@ -505,10 +504,12 @@
       </section>
       <!-- Where to start, for someone new until they close it (cave.js::startCard). -->
       <div id="homeStart"></div>
-      <!-- A church live now: one full-width line, only while it's live. -->
-      <div class="home-notes" id="homeNotes"></div>
-      <!-- Amens (only when there's something to tell) and Declare, side by side (cave.js::showHome). -->
-      <div class="home-tiles" id="homeTiles"></div>
+      <!-- Lines that read like notifications, each only while it has news: a
+           church live now (church.js::homeLive) and what's new on the Amens
+           wall (refuge.js::homeNote). -->
+      <div class="home-notes" id="homeNotes"><div id="homeLive"></div><div id="homeAmens"></div></div>
+      <!-- Shortcuts: Amens, Declare, Sermon note, Journal, Prayer and Refuge, one tap each (cave.js::shortcuts). -->
+      <div id="homeShortcuts"></div>
       <div class="cols">
         <div class="maincol" id="homeMain"></div>
         <div class="sidecol" id="homeSide"></div>
@@ -1106,7 +1107,6 @@ document.addEventListener("click", (e) => {
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") $("#menu").hidden = true;
 });
-$$("[data-open-map]").forEach((b) => b.addEventListener("click", () => window.Graph.open([])));
 $$("[data-open-conversations]").forEach((b) => b.addEventListener("click", () => window.Cave.openConversations()));
 
 // Forms that hand a question to Aquila from elsewhere on the site
