@@ -117,6 +117,27 @@
   --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
   color-scheme: dark;
 }
+/* Vellum: paper and black ink, with rubric red (the red scribes kept for
+   headings in old Bibles) for titles and actions. The flattest theme: no glow,
+   and squarer corners, buttons included, for long reading. */
+[data-theme="vellum"] {
+  --ground: #F6F4EF; --surface: #FFFFFF; --raised: #ECE9E1; --line: #DEDAD0; --line-2: #C7C1B4;
+  --text: #121212; --soft: #2C2C2C; --muted: #555350; --faint: #63605B;
+  --ember: #A3161A; --ember-hi: #7A0E12; --ember-ink: #FFFFFF; --ember-bg: #F7E4E2; --ember-line: #E8BFBB;
+  --sage: #2F5E3A; --sage-bg: #E3EFE5; --sage-line: #B9D3BE;
+  --glow: #F6F4EF; --glow-strong: #EFEBE3; --well: #F1EEE8; --hover: #EFECE5; --card-warm: #FBFAF7; --divider: #E6E2D9;
+  --danger: #B3261E; --shadow: rgba(0, 0, 0, 0.08); --ember-glow: rgba(163, 22, 26, 0.18); --ring: rgba(163, 22, 26, 0.16);
+  --art-dim: #C9C1B1;
+  --shine: rgba(255, 255, 255, 0.9);
+  --hl-gold: #FBE7A1; --hl-green: #D9EDC9; --hl-blue: #D6E6F5; --hl-rose: #F7D7DC;
+  --hl-gold-edge: #C9940E; --hl-green-edge: #4F8F3C; --hl-blue-edge: #3F78BA; --hl-rose-edge: #BF4A60;
+  --g-law: #9A4A0B; --g-history: #0F6B63; --g-poetry: #B4235F; --g-prophecy: #6D3FC4; --g-gospel: #1F57C9; --g-epistle: #0C7A55; --g-apocalyptic: #B42318;
+  --radius: 8px; --radius-sm: 6px; --pill: 10px;
+  /* Rubricated titles: the one signature token a free theme sets. */
+  --title-ink: linear-gradient(#A3161A, #A3161A); --title-fill: transparent;
+  --select: #F3D2CF; --select-ink: #121212;
+  color-scheme: light;
+}
 /* The supporter themes, for friends of the cave (app/support.py). Almond is
    light, after Aaron's rod that budded (Numbers 17:8): porcelain white with
    blossom rose running into plum. Cedar is dark, after the cedars of Lebanon
@@ -188,6 +209,43 @@
   --nav-active: linear-gradient(135deg, rgba(235, 197, 126, 0.2) 0%, rgba(140, 211, 177, 0.12) 100%);
   --grad-size: 180%;
   --select: rgba(235, 197, 126, 0.38); --select-ink: #FFFFFF;
+  color-scheme: dark;
+}
+
+/* Refiner (Malachi 3:3), for friends of the cave: brushed steel and chrome,
+   with molten gold where the fire is. */
+[data-theme="refiner"] {
+  --ground: #0D0F12; --surface: #15181D; --raised: #1D2127; --line: #2A2F37; --line-2: #3A414B;
+  --text: #EEF1F4; --soft: #CDD3DA; --muted: #A3ACB7; --faint: #858F9B;
+  --ember: #FF9A4D; --ember-hi: #FFD08A; --ember-ink: #1A0E05; --ember-bg: #2A1E15; --ember-line: #4D3524;
+  --sage: #8FD0B0; --sage-bg: #13241D; --sage-line: #24443A;
+  --glow: #2A2018; --glow-strong: #3A2A1C; --well: #0A0C0E; --hover: #1B1F25; --card-warm: #19171A; --divider: #22272E;
+  --danger: #FFB4A0; --shadow: rgba(0, 0, 0, 0.55); --ember-glow: rgba(255, 154, 77, 0.42); --ring: rgba(255, 154, 77, 0.22);
+  --art-dim: #5A626D;
+  --shine: rgba(255, 255, 255, 0.18);
+  --hl-gold: rgba(242, 196, 80, 0.28); --hl-green: rgba(120, 200, 120, 0.24); --hl-blue: rgba(110, 160, 240, 0.28); --hl-rose: rgba(240, 120, 150, 0.26);
+  --hl-gold-edge: #F2C450; --hl-green-edge: #8FD18F; --hl-blue-edge: #8DB6F5; --hl-rose-edge: #F09AB0;
+  --g-law: #FBBF24; --g-history: #2DD4BF; --g-poetry: #F472B6; --g-prophecy: #C4B5FD; --g-gospel: #7DB4FF; --g-epistle: #4ADE80; --g-apocalyptic: #FB7185;
+  /* Signature: chrome titles and edges, a brushed grain on cards, and the
+     fire's glow rising from below with a few sparks in the corner. */
+  --aura:
+    radial-gradient(44rem 30rem at 50% 112%, rgba(255, 128, 48, 0.24), transparent 70%),
+    radial-gradient(40rem 28rem at 0% -10%, rgba(180, 195, 215, 0.14), transparent 70%);
+  --ember-grad: linear-gradient(135deg, #FFD08A 0%, #FF9A4D 45%, #E0602A 100%);
+  --title-ink: linear-gradient(100deg, #F7F9FB 0%, #9CA6B2 32%, #FFFFFF 52%, #8A939E 78%, #E7EBEF 100%);
+  --title-fill: transparent;
+  --card-tint:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 40%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.014) 0 1px, transparent 1px 3px);
+  --lift: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 22px 46px -28px rgba(0, 0, 0, 0.9);
+  --sheen: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --bar-glass: 68%;
+  --ornament: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='320' height='220' viewBox='0 0 320 220'%3E%3Ccircle cx='300' cy='212' r='2' fill='%23FFB066' fill-opacity='0.55'/%3E%3Ccircle cx='286' cy='182' r='1.4' fill='%23FFD08A' fill-opacity='0.5'/%3E%3Ccircle cx='262' cy='198' r='1.1' fill='%23FF9A4D' fill-opacity='0.45'/%3E%3Ccircle cx='240' cy='152' r='1.6' fill='%23FFD08A' fill-opacity='0.35'/%3E%3Ccircle cx='298' cy='142' r='1' fill='%23FFFFFF' fill-opacity='0.35'/%3E%3Ccircle cx='222' cy='184' r='0.9' fill='%23FF9A4D' fill-opacity='0.4'/%3E%3Ccircle cx='270' cy='114' r='1.2' fill='%23FFD08A' fill-opacity='0.3'/%3E%3Ccircle cx='205' cy='130' r='0.8' fill='%23FFFFFF' fill-opacity='0.25'/%3E%3Ccircle cx='252' cy='82' r='1' fill='%23FF9A4D' fill-opacity='0.25'/%3E%3Ccircle cx='302' cy='62' r='0.8' fill='%23FFD08A' fill-opacity='0.22'/%3E%3Ccircle cx='190' cy='202' r='1.3' fill='%23FF9A4D' fill-opacity='0.35'/%3E%3Ccircle cx='232' cy='42' r='0.7' fill='%23FFFFFF' fill-opacity='0.2'/%3E%3Ccircle cx='160' cy='214' r='1' fill='%23FFD08A' fill-opacity='0.3'/%3E%3Ccircle cx='312' cy='100' r='1.1' fill='%23FF9A4D' fill-opacity='0.3'/%3E%3C/svg%3E") right 12px bottom 12px / 320px auto no-repeat;
+  --aura-motion: aura-drift 30s ease-in-out infinite alternate;
+  --edge: linear-gradient(135deg, #F2F4F7 0%, #6B737D 28%, #DDE2E8 50%, #4A5059 72%, #C8CED6 100%);
+  --nav-active: linear-gradient(135deg, rgba(220, 226, 234, 0.16) 0%, rgba(255, 154, 77, 0.12) 100%);
+  --grad-size: 180%;
+  --select: rgba(255, 154, 77, 0.35); --select-ink: #FFFFFF;
   color-scheme: dark;
 }
 
@@ -369,6 +427,8 @@ svg [stroke="#7A5530"] { stroke: var(--art-dim); }
 .swatch[data-set-theme="hearth"], .swatch[data-swatch="hearth"] { --sw-bg: #1B1511; --sw-accent: #F4A14C; --sw-line: #3F3227; }
 .swatch[data-set-theme="almond"], .swatch[data-swatch="almond"] { --sw-bg: #FAF7F8; --sw-accent: linear-gradient(135deg, #C4356C, #6C2E92); --sw-line: #EFC6D7; }
 .swatch[data-set-theme="cedar"], .swatch[data-swatch="cedar"] { --sw-bg: #08110E; --sw-accent: linear-gradient(135deg, #FFE9B5, #C9974A); --sw-line: #2C463B; }
+.swatch[data-set-theme="vellum"], .swatch[data-swatch="vellum"] { --sw-bg: #F6F4EF; --sw-accent: #A3161A; --sw-line: #C7C1B4; }
+.swatch[data-set-theme="refiner"], .swatch[data-swatch="refiner"] { --sw-bg: #0D0F12; --sw-accent: linear-gradient(135deg, #FFD08A, #E0602A); --sw-line: #6B737D; }
 /* The labelled version in Settings */
 .theme-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
 .theme-option { display: flex; align-items: center; gap: 10px; padding: 6px 14px 6px 7px; border-radius: var(--pill); border: 1px solid var(--line); background: var(--surface); text-align: left; font-size: 14px; font-weight: 500; }

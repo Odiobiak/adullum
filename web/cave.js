@@ -14,11 +14,11 @@
   // Device storage keys keep the old "adullum" spelling on purpose: renaming
   // them would sign everyone out and forget what each device remembers.
   const STORE_KEY = "adullumSession";
-  const THEME_NAMES = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar" };
+  const THEME_NAMES = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", vellum: "Vellum", twilight: "Twilight", hearth: "Hearth", almond: "Almond", cedar: "Cedar", refiner: "Refiner" };
   // Thank-you themes for friends of the cave, people who give monthly
   // (web/support.js, app/support.py). Everyone else sees them in Settings
   // with a way to the Support page.
-  const SUPPORTER_THEMES = new Set(["almond", "cedar"]);
+  const SUPPORTER_THEMES = new Set(["almond", "cedar", "refiner"]);
   // Starting points offered under the plan builder. Tapping one fills the box.
   const PLAN_ABOUT = "Tell Aquila what you'd like to read, or what you're walking through, and how long you have. She'll lay it out day by day.";
   const PLAN_IDEAS = ["The Gospels in a month", "Two weeks on anxiety", "Psalms for hard nights", "Romans, slowly"];
@@ -706,7 +706,7 @@
   // Whether this person is a friend of the cave: a monthly supporter, or one of
   // the admins (ADMIN_EMAILS), who look after Adullam and count as friends
   // without giving. Friends get the ember on their chip, "Friend of the cave"
-  // in the menu and the Almond and Cedar themes, and aren't asked to give.
+  // in the menu and the Almond, Cedar and Refiner themes, and aren't asked to give.
   // supporterSince() stays the giving date alone, so an admin is never told
   // they've supported since a month they didn't.
   function isFriend() {

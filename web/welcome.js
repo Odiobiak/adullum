@@ -58,7 +58,7 @@
     { key: "rest", name: "A quiet place for a hard season", icon: ICON.refuge, places: ["refuge"] },
     { key: "church", name: "Keep up with my church", icon: ICON.church, places: ["church"] },
   ];
-  const LOOKS = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", twilight: "Twilight", hearth: "Hearth" };
+  const LOOKS = { dawn: "Dawn", lily: "Lily", olive: "Olive Grove", vellum: "Vellum", twilight: "Twilight", hearth: "Hearth" };
 
   // Small helpers for the drawings: a numbered ring, a line of placeholder text.
   const mark = (n) => `<span class="wl-mark">${n}</span>`;

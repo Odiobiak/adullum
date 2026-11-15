@@ -31,7 +31,7 @@
   // cave.js::SUPPORTER_THEMES and the mark in cave.js::updateChrome.
   const GIFTS = [
     "A small ember on your account, so you know you're helping keep the lights on.",
-    "Two extra themes, Almond and Cedar, in Settings.",
+    "Three extra themes, Almond, Cedar and Refiner, in Settings.",
     "Our thanks, every month.",
   ];
 
@@ -161,6 +161,7 @@
       el("div", { class: "support-swatches", "aria-hidden": "true" }, [
         el("span", { class: "swatch", "data-swatch": "almond" }),
         el("span", { class: "swatch", "data-swatch": "cedar" }),
+        el("span", { class: "swatch", "data-swatch": "refiner" }),
       ]),
       el("div", { class: "support-option-foot" }, monthlyFoot),
     ]);
