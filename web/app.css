@@ -937,11 +937,19 @@ a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--e
 .journal-preview strong { color: var(--text); display: block; margin-bottom: 2px; font-weight: 600; }
 
 /* ---------- Voice ---------- */
-.callbar { position: fixed; right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(110px + env(safe-area-inset-bottom, 0px)); z-index: 45; display: flex; align-items: center; gap: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 6px 6px 14px; font-size: 14px; box-shadow: 0 16px 36px var(--shadow); }
-.callbar-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 2.4s ease-in-out infinite; }
-.callbar-time { color: var(--faint); margin-left: 6px; font-variant-numeric: tabular-nums; }
+/* The live call: a small glass pill just under the top bar, clear of the
+   talk and its composer, with a round hang-up button. */
+.callbar { position: fixed; top: calc(env(safe-area-inset-top, 0px) + 68px); left: 50%; transform: translateX(-50%); z-index: 45; display: flex; align-items: center; gap: 8px; height: 38px; max-width: calc(100vw - 32px); padding: 0 4px 0 12px; border-radius: var(--pill); border: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 84%, transparent); backdrop-filter: blur(14px) saturate(1.3); -webkit-backdrop-filter: blur(14px) saturate(1.3); box-shadow: 0 10px 28px -14px var(--shadow); font-size: 13px; font-weight: 600; color: var(--soft); white-space: nowrap; }
+.callbar[hidden] { display: none; }
+.callbar-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--sage); animation: pulse 2.4s ease-in-out infinite; }
+.callbar-text { overflow: hidden; text-overflow: ellipsis; }
+.callbar-time { margin-left: 6px; color: var(--faint); font-weight: 500; font-variant-numeric: tabular-nums; }
 .callbar-time:empty { display: none; }
-.callbar-end { font-weight: 600; color: #fff; background: #C2331F; border: 0; border-radius: 999px; padding: 8px 14px; }
+.callbar-end { flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: var(--danger); color: #fff; cursor: pointer; transition: transform 0.12s ease, filter 0.15s ease; }
+.callbar-end:hover { filter: brightness(1.08); }
+.callbar-end:active { transform: scale(0.92); }
+.callbar-end svg { width: 17px; height: 17px; }
+@media (prefers-reduced-motion: reduce) { .callbar-dot { animation: none; } }
 body.voice-mounted .webrtc_widget_outer_wrapper,
 body.voice-mounted .voice_connect_widget_outer_wrapper,
 body.voice-mounted .vc_widget_outer_wrapper { display: none !important; }
@@ -1452,12 +1460,23 @@ body.write-focus .write-room .refuge-page.refuge-page-sm { min-height: 18vh; }
 .soft-composer .soft-mic { border: 0; background: transparent; color: var(--muted); }
 .soft-composer .soft-mic:hover { background: var(--hover); color: var(--ember); }
 /* Speak (refuge.js "Speaking in the talk"): lit while a spoken session runs. */
-.soft-composer .soft-speak[aria-pressed="true"] { background: var(--ember-grad); color: var(--ember-ink); }
 /* What a spoken session is doing, just above the composer. The dot swells
    with the voice it hears (--level, 0 to 1). */
 .voice-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 8px 8px 8px 14px; border-radius: var(--pill); border: 1px solid var(--ember-line); background: var(--card-warm); font-size: 14px; color: var(--soft); }
 .voice-bar[hidden] { display: none; }
 .voice-state { flex: 1; min-width: 0; }
+.voice-close { flex: none; display: grid; place-items: center; width: var(--h-icon); height: var(--h-icon); padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
+.voice-close:hover { background: var(--hover); color: var(--text); }
+.voice-close svg { width: 16px; height: 16px; }
+/* Speak with Aquila (web/speak.js): its status line sits above the composer. */
+.composer .voice-bar { max-width: 720px; margin: 0 auto 8px; }
+
+/* The mic beside Send, on the Aquila composer and the home ask box. */
+.composer-mic, .ask-lg-mic { flex: none; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
+.composer-mic:hover, .ask-lg-mic:hover { background: var(--hover); color: var(--ember); }
+.composer-mic[aria-pressed="true"] { background: var(--ember-bg); color: var(--ember); }
+.composer-mic[hidden], .ask-lg-mic[hidden] { display: none; }
+.composer-mic svg, .ask-lg-mic svg { width: 20px; height: 20px; }
 .voice-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 calc(var(--level, 0) * 10px) var(--ember-bg); transition: box-shadow 0.08s linear; }
 .voice-bar[data-step="hearing"] .voice-dot, .voice-bar[data-step="thinking"] .voice-dot { animation: pulse 1.4s ease-in-out infinite; }
 .voice-bar[data-step="speaking"] .voice-dot { background: var(--sage); box-shadow: 0 0 0 4px var(--sage-bg); }
@@ -1927,7 +1946,7 @@ body.still-open { overflow: hidden; }
   /* Aquila fills exactly the space between the 57px top bar and the tab bar,
      so an empty conversation doesn't scroll into blank space. */
   .ask-layout { min-height: calc(100dvh - 57px - 60px - env(safe-area-inset-bottom, 0px)); }
-  .callbar { bottom: calc(140px + env(safe-area-inset-bottom, 0px)); }
+  .callbar { top: calc(env(safe-area-inset-top, 0px) + 62px); }
   .reader-bar { top: 56px; }
   .verse-bar { bottom: calc(68px + env(safe-area-inset-bottom, 0px)); left: 8px; right: 8px; transform: none; width: auto; }
   .verse-bar-actions .act span { display: none; }

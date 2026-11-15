@@ -1,13 +1,13 @@
-"""Speaking in Refuge's Talk with Aquila, through Deepgram.
+"""Speak with Aquila, through Deepgram: a voice conversation with the study
+Aquila on the Aquila page and from the home screen (web/speak.js).
 
-The person speaks, `transcribe` turns it into words, the page sends those as
-an ordinary talk message (app/refuge.py::talk, so it's the same Aquila, with
-the same care check and the same rule against invented verses), and `speak`
-reads her reply aloud. Nothing here is stored: the audio and the words pass
-through to Deepgram and back, and the talk lives in the browser as it always
-has. The Deepgram key never leaves this server.
+The person speaks, `transcribe` turns it into words, the page asks them as an
+ordinary question (/chat/stream, so it's the same grounded Aquila with her
+citations on screen), and `speak` reads the answer aloud, a piece at a time.
+Nothing here is stored: the audio and the words pass through to Deepgram and
+back. The Deepgram key never leaves this server.
 
-This sits beside the Cognigy call ("Call Aquila"), not instead of it.
+Refuge doesn't use this; its voice is the Cognigy call (docs/cognigy-voice.md).
 """
 
 import asyncio
@@ -28,7 +28,8 @@ router = APIRouter()
 DEEPGRAM = "https://api.deepgram.com/v1"
 # A minute of speech is well under a megabyte in the browser's formats.
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
-# Deepgram reads up to 2,000 characters a request; a Refuge reply is far shorter.
+# Deepgram reads up to 2,000 characters a request; the page sends an answer in
+# smaller pieces (web/speak.js::pieces), so this only guards against misuse.
 MAX_SPEAK_CHARS = 2000
 NOT_SET_UP = "Speaking isn't set up here yet. You can keep typing."
 TRY_AGAIN = "Voice isn't working just now. You can keep typing, or try again in a moment."
@@ -36,14 +37,21 @@ TRY_AGAIN = "Voice isn't working just now. You can keep typing, or try again in 
 # "John 14:27" read aloud as "John chapter 14, verse 27", and "1 John 4:7-8" as
 # "1 John chapter 4, verses 7 to 8", so a reference sounds the way a person says it.
 _REFERENCE_RE = re.compile(r"\b((?:[1-3] )?[A-Z][a-z]+(?: of [A-Z][a-z]+)?) (\d{1,3}):(\d{1,3})(?:\s*[-–]\s*(\d{1,3}))?")
+_HEADING_RE = re.compile(r"^[ \t]*#{1,6}[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
+_BULLET_RE = re.compile(r"^[ \t]*(?:[-*•]|\d+\.)[ \t]+", re.MULTILINE)
 _MARKDOWN_RE = re.compile(r"[*_#`>]+")
 
 
 def speakable(text: str) -> str:
-    """A reply as it should sound: no Markdown, and references in words."""
+    """An answer as it should sound: a heading becomes a short sentence of its
+    own ("The passage."), links read as their words, no Markdown, and
+    references in words."""
     def say(m: re.Match) -> str:
         book, chapter, first, last = m.groups()
         return f"{book} chapter {chapter}, verses {first} to {last}" if last else f"{book} chapter {chapter}, verse {first}"
+    text = _HEADING_RE.sub(lambda m: f"{m.group(1).rstrip('.:')}.", text)
+    text = _BULLET_RE.sub("", _LINK_RE.sub(r"\1", text))
     text = _MARKDOWN_RE.sub("", _REFERENCE_RE.sub(say, text))
     if len(text) <= MAX_SPEAK_CHARS:
         return text.strip()

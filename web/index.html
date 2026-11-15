@@ -497,6 +497,7 @@
             <span class="ask-lg-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
             <label for="homeQuery" class="sr">Ask Aquila</label>
             <input id="homeQuery" autocomplete="off" enterkeyhint="send" placeholder="Ask Aquila about Scripture">
+            <button class="ask-lg-mic" type="button" id="homeSpeak" aria-label="Speak with Aquila" title="Speak with Aquila" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
             <button class="ask-lg-send" type="submit" aria-label="Ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
           </form>
         </div>
@@ -544,6 +545,8 @@
           <form class="ask-box" id="form">
             <label for="query" class="sr">Your question</label>
             <textarea id="query" rows="1" placeholder="Ask Aquila about Scripture"></textarea>
+            <!-- Speak with Aquila (web/speak.js), shown once the server offers it -->
+            <button class="composer-mic" type="button" id="speakBtn" aria-label="Speak with Aquila" title="Speak with Aquila" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
             <button class="composer-send" type="submit" id="submit" aria-label="Ask"><span class="spinner"></span><svg class="send-label" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
           </form>
           <div class="error" id="error" role="alert"></div>
@@ -861,8 +864,8 @@
      said shows in the Refuge talk (refuge.js::callLine) -->
 <div class="callbar" id="callBar" role="status" hidden>
   <span class="callbar-dot"></span>
-  <span><span id="callLabel">Talking with Aquila</span><span class="callbar-time" id="callTime"></span></span>
-  <button class="callbar-end" id="callEnd" type="button">End call</button>
+  <span class="callbar-text"><span id="callLabel">Talking with Aquila</span><span class="callbar-time" id="callTime"></span></span>
+  <button class="callbar-end" id="callEnd" type="button" aria-label="End call" title="End call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>
 </div>
 <div class="disclaimer-overlay" id="disclaimerOverlay" hidden>
   <div class="disclaimer-modal" role="dialog" aria-modal="true" aria-labelledby="disclaimerTitle">
@@ -882,6 +885,7 @@
 <div hidden><input id="apiBase" value=""><input id="translation" value="BSB"></div>
 
 <script src="cave.js"></script>
+<script src="speak.js"></script>
 <script src="notify.js"></script>
 <script src="prayers.js"></script>
 <script src="declare.js"></script>
@@ -1074,6 +1078,8 @@ function render() {
   else window.Church.hide();
   if (view === "declare") window.Declare.show(routeParts()[1]);
   else window.Declare.hide();
+  if (view !== "aquila") window.Speak.stop();
+  if (view === "aquila" || view === "home") refreshSpeak();
   if (view !== "aquila" && view !== "bible") window.scrollTo({ top: 0 });
 }
 window.addEventListener("hashchange", render);
@@ -1318,6 +1324,7 @@ async function ask(query, mode = "study") {
     window.Cave.decorateAnswer(msg, { query, answer: answerText, citations: citationList });
     window.Cave.refreshRail();
   }
+  return answerText;
 }
 
 function autoResize() {
@@ -1332,9 +1339,11 @@ queryEl.addEventListener("keydown", (e) => {
   }
 });
 
+// Resolves the answer's text, or null when nothing was asked or it failed
+// (the error is shown under the box either way).
 let busy = false;
 async function submitQuery(query, { mode = "study" } = {}) {
-  if (!query || busy) return;
+  if (!query || busy) return null;
   if (VIEWS[currentRoute()] !== "aquila") go("aquila");
   busy = true;
   submitBtn.disabled = true;
@@ -1344,10 +1353,11 @@ async function submitQuery(query, { mode = "study" } = {}) {
   queryEl.value = "";
   autoResize();
   try {
-    await ask(query, mode);
+    return (await ask(query, mode)) || null;
   } catch (err) {
     errorEl.classList.toggle("is-gentle", !!err.gentle);
     errorEl.textContent = err.gentle ? err.message : `${err.message}. Check your connection and try again.`;
+    return null;
   } finally {
     busy = false;
     submitBtn.disabled = false;
@@ -1359,6 +1369,26 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   submitQuery(queryEl.value.trim());
 });
+
+// Speak with Aquila (web/speak.js): the mic in the composer, and the one on
+// the home screen's ask box, which brings you here to talk. Each spoken turn
+// is an ordinary question, and the answer is read aloud.
+const speakBtn = $("#speakBtn");
+const homeSpeak = $("#homeSpeak");
+function speakWithAquila() {
+  window.Speak.start({ mount: form.parentElement, button: speakBtn, ask: (text) => submitQuery(text) });
+}
+speakBtn.addEventListener("click", speakWithAquila);
+homeSpeak.addEventListener("click", () => {
+  go("aquila");
+  speakWithAquila();
+});
+// Looks the buttons up itself, since the router can run before this script reaches them.
+function refreshSpeak() {
+  window.Speak.available().then((ok) => {
+    $("#speakBtn").hidden = $("#homeSpeak").hidden = !ok;
+  });
+}
 
 function clearThread() {
   $$(".msg-me, .msg-aquila", thread).forEach((m) => m.remove());

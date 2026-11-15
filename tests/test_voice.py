@@ -44,6 +44,10 @@ class TestSpeakable:
     def test_markdown_is_never_read_out(self):
         assert voice.speakable("**Peace** to you") == "Peace to you"
 
+    def test_a_study_answer_reads_as_sentences(self):
+        answer = "## The passage\nJesus speaks to His disciples.\n\n## To think about:\n- What does [rest](#bible/John/14) look like?"
+        assert voice.speakable(answer) == "The passage.\nJesus speaks to His disciples.\n\nTo think about.\nWhat does rest look like?"
+
     def test_a_long_reply_stops_at_a_full_sentence(self):
         text = ("This is a sentence. " * 200).strip()
         out = voice.speakable(text)
