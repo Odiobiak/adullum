@@ -2436,6 +2436,7 @@
           ? "It's on the wall. People can pray and rejoice with you now."
           : "Thank you. A person will look at it first, then people can pray and rejoice with you.");
         rerender();
+        if (window.Notify) window.Notify.offerAfterPost();
       } catch (err) {
         msg.say(err.message, true);
       } finally {

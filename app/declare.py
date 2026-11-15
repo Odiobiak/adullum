@@ -213,7 +213,7 @@ def declare(body: DeclareIn, user: AuthUser = Depends(require_user)) -> dict:
         raise HTTPException(status_code=422, detail="Say a few words about what you're facing.")
     if sounds_unsafe(situation):
         return {"care": True}
-    quota.spend("question", user.id)
+    quota.spend("question", user.id, user)
     translation = (body.translation or settings.default_translation).upper()
     if translation not in TRANSLATIONS:
         translation = settings.default_translation

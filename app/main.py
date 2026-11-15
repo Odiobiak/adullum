@@ -136,7 +136,7 @@ async def chat(
     Good enough for a first web/CLI client; /chat/stream below is what a voice or
     mobile front-end will actually want.
     """
-    await asyncio.to_thread(quota.spend, "question", quota.subject_of(user, http))
+    await asyncio.to_thread(quota.spend, "question", quota.subject_of(user, http), user)
     memories = await _memories_for(user, request.query)
     with trace_attributes(session_id=request.session_id, tags=["chat"], trace_name="chat"):
         result = await agent.ainvoke(_initial_state(request, memories), config=_run_config())
@@ -184,8 +184,8 @@ async def chat_stream(
         cache_key = answer_cache.key(request.query, request.translation or settings.default_translation)
     cached = answer_cache.get(cache_key) if cache_key else None
     if cached is None:
-        await asyncio.to_thread(quota.spend, "question", subject)
-    else:
+        await asyncio.to_thread(quota.spend, "question", subject, user)
+    elif not quota.unlimited(user):
         quota.check_burst(subject)
 
     async def replay() -> AsyncIterator[dict]:

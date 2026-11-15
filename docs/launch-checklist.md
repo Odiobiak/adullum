@@ -4,19 +4,19 @@ Tick a box by changing `[ ]` to `[x]`.
 
 ## 1. Must fix first
 
-- [ ] Custom SMTP in Supabase (Auth > SMTP, e.g. Resend or Postmark). The built-in mailer sends only a few magic links an hour.
+- [x] Custom SMTP in Supabase (Auth > SMTP, e.g. Resend or Postmark). The built-in mailer sends only a few magic links an hour.
 - [x] Render off the free plan (`render.yaml` says `plan: free`). A sleeping server makes the first visitor wait 30 to 60 seconds.
 - [ ] Voice: move off the Cognigy trial endpoint (`web/index.html`, `VOICE_CONFIG_URL`), or confirm its limits and expiry.
-- [ ] Privacy and Terms: fill every [bracketed] part (operator name, retention, backup window, age, jurisdiction).
+- [x] Privacy and Terms: fill every [bracketed] part (operator name, retention, backup window, age, jurisdiction). Operator reads "a team of two, not-for-profit"; put the legal name in once there is one.
 - [x] `hello@adullamapp.com` is a real inbox that reaches me.
-- [ ] Link previews: add `og:title`, `og:description`, `og:image` (1200x630) and `og:url` to `web/index.html`.
+- [x] Link previews: add `og:title`, `og:description`, `og:image` (1200x630) and `og:url` to `web/index.html`.
 - [x] Spending: hard monthly limit set with the model provider.
 - [x] Daily limits live: run `supabase/migrations/20261121_usage_limits.sql`, then ask as a guest 6 times and see the gentle "Sign in" message.
-- [ ] `MCP_SECRET` set on Render and added to Cognigy's MCP node (as `Authorization: Bearer ...` or `?key=...` on the URL); a voice call still answers.
+- [x] `MCP_SECRET` set on Render and added to Cognigy's MCP node (as `Authorization: Bearer ...` or `?key=...` on the URL); a voice call still answers.
 - [ ] Guest counting checked on Render: two phones on different networks each get their own 5 questions (confirms the real address header arrives).
 - [ ] Cognigy's per-minute price known and set as `COST_VOICE_CALL_USD`; a maximum session length set in Cognigy too.
-- [ ] Every migration run in production, through `20261120_admin_desk.sql`; every tab opened signed in with no "run this" message.
-- [ ] Render secrets set: VAPID keys, `VAPID_SUBJECT`, `CRON_SECRET`, Langfuse, support links.
+- [x] Every migration run in production, through `20261125_welcome_tour.sql`; every tab opened signed in with no "run this" message.
+- [ ] Render secrets set: VAPID keys, `VAPID_SUBJECT`, `CRON_SECRET`, Langfuse, support links, `SENTRY_DSN`.
 - [ ] GitHub repo secrets set: `DEPLOY_URL`, `CRON_SECRET`.
 - [ ] Supabase Auth redirect URLs include the final domain.
 - [x] change name to adullam
@@ -50,16 +50,16 @@ Tick a box by changing `[ ]` to `[x]`.
 
 - [ ] Wall seeded: 3 to 5 trusted people post real requests and good news in week one.
 - [ ] A few people commit to praying through the wall daily, so every post gets amens within hours.
-- [ ] "Add to Home Screen" nudge after a first post (iPhone needs it for notifications).
+- [x] "Add to Home Screen" nudge after a first post (iPhone needs it for notifications). Elsewhere it offers notifications instead (`notify.js::offerAfterPost`).
 - [ ] Full loop tested on two accounts: post, amen, kind word, evening notification, mark answered.
 - [ ] Moderation: urgent alerts reach my phone, the desk works on mobile, a report takes a post down at once.
 - [ ] One-sentence description of Amens written for social posts.
 
 ## 6. Beta tester basics
 
-- [ ] "Send feedback" link in the account menu (mailto or a form is enough).
-- [ ] Welcome message for testers: what Adullam is, three things to try, how to report a bug.
-- [ ] Error monitoring on (Sentry or similar), or at least a habit of checking Render logs.
+- [x] "Send feedback" link in the account menu (mailto or a form is enough). Also in Settings and the welcome footer.
+- [x] Welcome message for testers: what Adullam is, three things to try, how to report a bug (`docs/beta-welcome.md`).
+- [ ] Error monitoring on: create a Sentry project and set `SENTRY_DSN` on Render (server side is built in, `app/monitoring.py`).
 - [ ] Full run on a real iPhone (Safari and Home Screen app) and Android: sign up, magic link, Aquila, Refuge, Amens, Prayers, Declare, Bible, Church.
 - [ ] Dark themes and the largest text size checked for readability.
 - [ ] Sign in, export and account deletion work end to end.

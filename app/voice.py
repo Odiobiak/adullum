@@ -128,4 +128,4 @@ async def speak(body: SpeakIn, user: AuthUser = Depends(require_user)) -> Respon
 
 async def _spend(user: AuthUser) -> None:
     """Counts one spoken turn or reply against the day (app/quota.py)."""
-    await asyncio.to_thread(quota.spend, "speech", user.id)
+    await asyncio.to_thread(quota.spend, "speech", user.id, user)

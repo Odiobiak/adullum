@@ -10,6 +10,10 @@ first:
 the last two in one database call (`use_quota`, supabase/migrations/
 20261121_usage_limits.sql), so a refused request is never counted.
 
+Admins (settings.admin_emails, a confirmed email) have no limits at all, so
+whoever runs Adullam can test and care for it freely. Their use is still
+added to the day's spend, so the budget stays true for everyone else.
+
 A guest is counted by a scrambled network address, never the address itself.
 If the database can't be reached, or the migration hasn't run, the request
 goes through: the provider's own monthly limit is the backstop, and a person
@@ -27,7 +31,7 @@ from typing import Literal
 
 from fastapi import HTTPException, Request
 
-from app.auth import AuthUser
+from app.auth import AuthUser, is_admin
 from app.config import settings
 from app.db import get_supabase
 
@@ -98,6 +102,11 @@ def is_guest(subject: str) -> bool:
     return subject.startswith("guest:")
 
 
+def unlimited(user: AuthUser | None) -> bool:
+    """Whether this person is exempt from every limit here (an admin)."""
+    return is_admin(user)
+
+
 # ---------------------------------------------------------------------------
 # Burst limit
 # ---------------------------------------------------------------------------
@@ -136,11 +145,16 @@ def _record(subject: str, kind: str, limit: int, cost: int, budget: int) -> str:
         return "ok"
 
 
-def spend(kind: Kind, subject: str) -> None:
+def spend(kind: Kind, subject: str, user: AuthUser | None = None) -> None:
     """Counts one `kind` for `subject`, or raises a 429 with a gentle message.
-    Blocking (one database call); async routes run it with asyncio.to_thread."""
-    check_burst(subject)
+    `user` is the signed-in person, if any: an admin is counted but never
+    refused. Blocking (one database call); async routes run it with
+    asyncio.to_thread."""
     rule = rules()[kind]
+    if unlimited(user):
+        _record(subject, kind, 0, mills(rule.cost_usd), 0)  # 0 means no limit and no budget
+        return
+    check_burst(subject)
     guest = is_guest(subject)
     limit = rule.guest if guest else rule.signed_in
     if guest and limit <= 0:

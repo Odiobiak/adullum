@@ -127,6 +127,40 @@
     } catch { /* nothing more to do */ }
   }
 
+  // After someone's first Amens post: the evening note saying people prayed
+  // only reaches a device with notifications on, so offer them once, from a
+  // tap. On an iPhone outside the Home Screen that means explaining how to add
+  // it first. Says nothing where notifications are already decided, can't
+  // work here, or aren't set up on the server.
+  const POST_NUDGE = "adullam:post-notify-offered";
+  async function offerAfterPost() {
+    const iphoneOutside = isIOS() && !installed();
+    if (!iphoneOutside && (!supported() || Notification.permission !== "default")) return;
+    try {
+      if (localStorage.getItem(POST_NUDGE)) return;
+      localStorage.setItem(POST_NUDGE, "1");
+    } catch { return; } // private window: never nag on every post
+    if (!(await publicKey())) return;
+    const lede = iphoneOutside
+      ? "Adullam can tell you in the evening when people have prayed for you. On iPhone that needs Adullam on your Home Screen: tap Share, then \"Add to Home Screen\", and open it from there."
+      : "Adullam can tell you in the evening when people have prayed for you. Nothing else, and you can turn it off at the foot of Yours.";
+    const actions = iphoneOutside
+      ? [el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Got it", onclick: () => close() })]
+      : [
+          el("button", { class: "btn btn-quiet btn-sm", type: "button", text: "Not now", onclick: () => close() }),
+          el("button", { class: "btn btn-ember btn-sm", type: "button", text: "Tell me", onclick: async () => {
+            close();
+            if (await enable()) toast("You'll hear when people pray for you.");
+          } }),
+        ];
+    const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "postNotifyTitle" }, [
+      el("h3", { id: "postNotifyTitle", text: "Hear when people pray" }),
+      el("p", { class: "sheet-lede", text: lede }),
+      el("div", { class: "sheet-actions" }, actions),
+    ]);
+    const close = cave().overlay(sheet);
+  }
+
   // Already allowed on this device and signed in: quietly make sure the
   // server has this device, and for this person.
   async function refresh() {
@@ -148,5 +182,5 @@
   }
   document.addEventListener("DOMContentLoaded", () => setTimeout(refresh, 2000));
 
-  window.Notify = { supported, enable, remind, cancel, list, forget };
+  window.Notify = { supported, enable, remind, cancel, list, forget, offerAfterPost };
 })();

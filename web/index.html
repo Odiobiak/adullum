@@ -3,18 +3,18 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Adullam, ask Aquila</title>
-<meta name="description" content="Study the Bible with Aquila. Every answer comes from Scripture, cites chapter and verse, and is checked against the text." />
+<title>Adullam, a dwelling place for your walk with God</title>
+<meta name="description" content="A dwelling place for your walk with God. Study the Bible with Aquila, keep your prayers and journal, rest in Refuge, and pray with others. Free, with no ads." />
 <!-- What a shared link shows in messages and social posts. -->
 <meta property="og:type" content="website" />
 <meta property="og:site_name" content="Adullam" />
-<meta property="og:title" content="Adullam, ask Aquila" />
-<meta property="og:description" content="Study the Bible with Aquila. Every answer comes from Scripture and cites chapter and verse. Free, with no ads." />
+<meta property="og:title" content="Adullam, a dwelling place for your walk with God" />
+<meta property="og:description" content="A dwelling place for your walk with God. Study the Bible with Aquila, keep your prayers and journal, rest in Refuge, and pray with others. Free, with no ads." />
 <meta property="og:url" content="https://www.adullamapp.com/" />
-<meta property="og:image" content="https://www.adullamapp.com/icons/og-image.png" />
+<meta property="og:image" content="https://www.adullamapp.com/icons/og-image.png?v=2" />
 <meta property="og:image:width" content="1200" />
 <meta property="og:image:height" content="630" />
-<meta property="og:image:alt" content="Adullam: study the Bible with Aquila." />
+<meta property="og:image:alt" content="Adullam: a dwelling place for your walk with God." />
 <meta name="twitter:card" content="summary_large_image" />
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23A84E1B'/%3E%3Cpath d='M7 26C7 15 11 8 16 8s9 7 9 18' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M13 26c0-3.6 1.3-6 3-6s3 2.4 3 6' stroke='white' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3C/svg%3E" />
 <script>
@@ -98,8 +98,8 @@
   <section data-view="welcome" hidden>
     <div class="wrap hero">
       <div class="hero-copy">
-        <h1 class="h-hero">A refuge to read, pray and rest in Scripture.</h1>
-        <p class="lede">Ask Aquila anything about the Bible. Every answer comes from Scripture itself, with chapter and verse.</p>
+        <h1 class="h-hero">A dwelling place for your walk with God.</h1>
+        <p class="lede">Study Scripture with Aquila, carry your prayers, rest when you're weary, and keep what God is doing in your life, all in one quiet place.</p>
         <form class="ask-box ask-lg" id="welcomeAsk">
           <span class="ask-lg-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 21V5M9 7h6"/></svg></span>
           <label for="welcomeQuery" class="sr">Your question</label>
@@ -1057,7 +1057,7 @@ function render() {
   $("#menu").hidden = true;
   $$("[data-home-link]").forEach((a) => (a.href = signedIn ? "#home" : "#welcome"));
 
-  const titles = { welcome: "Adullam, ask Aquila", signin: "Sign in, Adullam", home: "Home, Adullam", declare: "Declare, Adullam", aquila: "Aquila, Adullam", bible: "The Bible, Adullam", cave: "Your Cave, Adullam", church: "Church, Adullam", settings: "Settings, Adullam", signedout: "Signed out, Adullam", desk: "Admin desk, Adullam", sermon: "Sermon notes, Adullam", support: "Support Adullam", privacy: "Privacy, Adullam", terms: "Terms of use, Adullam" };
+  const titles = { welcome: "Adullam, a dwelling place for your walk with God", signin: "Sign in, Adullam", home: "Home, Adullam", declare: "Declare, Adullam", aquila: "Aquila, Adullam", bible: "The Bible, Adullam", cave: "Your Cave, Adullam", church: "Church, Adullam", settings: "Settings, Adullam", signedout: "Signed out, Adullam", desk: "Admin desk, Adullam", sermon: "Sermon notes, Adullam", support: "Support Adullam", privacy: "Privacy, Adullam", terms: "Terms of use, Adullam" };
   document.title = titles[view];
   window.Cave.onView(view, route);
   // The reader scrolls itself: to the top of a new chapter, or to a verse.
@@ -1442,7 +1442,8 @@ let activeSession = null;
 let callTimer = null;
 let connectTimeout = null;
 // How long a call may run, from /me/voice (app/quota.py keeps calls to a few
-// a day, since voice costs the most of anything Aquila does).
+// a day, since voice costs the most of anything Aquila does). null for an
+// admin: no length at all.
 let callMinutes = 10;
 
 // The widget's own transcript lives inside the card this page hides, so this
@@ -1500,6 +1501,7 @@ function showCallBar() {
   callTimer = setInterval(() => {
     const secs = Math.floor((Date.now() - startedAt) / 1000);
     callTime.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    if (!callMinutes) return;
     if (!warned && secs >= (callMinutes - 1) * 60) {
       warned = true;
       window.Cave.toast("One minute left on this call.", { tone: "info" });
@@ -1518,7 +1520,7 @@ function showCallBar() {
 async function countCall() {
   try {
     const res = await window.Cave.api("/me/voice/start", { method: "POST" });
-    if (res && res.minutes) callMinutes = res.minutes;
+    if (res && "minutes" in res) callMinutes = res.minutes;
   } catch (err) {
     if (err.status !== 429) return;
     hangUp();
@@ -1587,7 +1589,7 @@ async function startVoiceWidget() {
       window.Cave.toast(allowance.message, { tone: "info" });
       return;
     }
-    callMinutes = allowance.minutes || callMinutes;
+    if ("minutes" in allowance) callMinutes = allowance.minutes;
   } catch (err) {
     window.Cave.toast(err.message, { tone: "error" });
     return;

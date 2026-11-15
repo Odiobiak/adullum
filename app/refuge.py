@@ -229,7 +229,7 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
     messages = [m.model_dump() for m in body.messages]
     if messages[-1]["role"] != "user":
         raise HTTPException(status_code=422, detail="The last message should be yours.")
-    await asyncio.to_thread(quota.spend, "talk", user.id)
+    await asyncio.to_thread(quota.spend, "talk", user.id, user)
     state = {"mode": "listen", "history": messages, "query": messages[-1]["content"], "translation": body.translation}
     result = await agent.ainvoke(state, config={"callbacks": []})
     verses = [
@@ -245,7 +245,10 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
 @router.get("/me/voice")
 def voice_allowance(user: AuthUser = Depends(require_user)) -> dict:
     """Checked before a call is dialled, so someone out of calls is told
-    so instead of hearing a call connect and drop. Counts nothing."""
+    so instead of hearing a call connect and drop. Counts nothing. An admin
+    has no call limit and no length (minutes is None)."""
+    if quota.unlimited(user):
+        return {"calls_left": None, "minutes": None, "message": None}
     left = None
     if settings.quota_voice_calls > 0:
         left = max(0, settings.quota_voice_calls - quota.used_today("voice", user.id))
@@ -260,8 +263,8 @@ def voice_allowance(user: AuthUser = Depends(require_user)) -> dict:
 def voice_started(user: AuthUser = Depends(require_user)) -> dict:
     """Counts a call once it connects, so one that never got through costs
     nothing. A 429 here and the page hangs up."""
-    quota.spend("voice", user.id)
-    return {"minutes": settings.voice_call_minutes}
+    quota.spend("voice", user.id, user)
+    return {"minutes": None if quota.unlimited(user) else settings.voice_call_minutes}
 
 
 def _own_talk(talk_id: str, user: AuthUser) -> dict:

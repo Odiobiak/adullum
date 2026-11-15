@@ -58,6 +58,21 @@ class TestSpend:
         assert seen[0] == ("guest:abc", "question", settings.quota_questions_guest, 3, 3000)
         assert seen[1] == ("u1", "talk", settings.quota_talks, 2, 3000)
 
+    def test_an_admin_is_counted_but_never_refused(self, monkeypatch):
+        admin = AuthUser(id="a1", email="keeper@example.com", email_confirmed=True)
+        monkeypatch.setattr(settings, "admin_emails", admin.email)
+        seen = []
+        monkeypatch.setattr(quota, "_record", lambda *a: seen.append(a) or "budget")
+        monkeypatch.setattr(quota, "check_burst", lambda s: pytest.fail("an admin has no burst limit"))
+        quota.spend("voice", "a1", admin)  # no 429, though the budget is spent
+        assert seen == [("a1", "voice", 0, quota.mills(settings.cost_voice_call_usd), 0)]
+
+    def test_an_unconfirmed_admin_address_is_still_limited(self, monkeypatch):
+        monkeypatch.setattr(settings, "admin_emails", "keeper@example.com")
+        monkeypatch.setattr(quota, "_record", lambda *a: "limit")
+        with pytest.raises(HTTPException):
+            quota.spend("question", "a1", AuthUser(id="a1", email="keeper@example.com", email_confirmed=False))
+
     def test_a_guest_never_reaches_talks_or_calls(self):
         with pytest.raises(HTTPException):
             quota.spend("talk", "guest:abc")
@@ -142,6 +157,16 @@ class TestVoice:
         body = client.post("/me/voice/start", headers=signed_in).json()
         assert body == {"minutes": settings.voice_call_minutes}
         assert seen[0][:3] == ("u1", "voice", settings.quota_voice_calls)
+
+    def test_an_admin_has_no_call_limit_or_length(self, monkeypatch):
+        admin = AuthUser(id="a1", email="keeper@example.com", email_confirmed=True)
+        monkeypatch.setattr(settings, "admin_emails", admin.email)
+        monkeypatch.setattr(auth, "_verify", lambda token: admin)
+        monkeypatch.setattr(quota, "used_today", lambda kind, subject: settings.quota_voice_calls)
+        monkeypatch.setattr(quota, "_record", lambda *a: "limit")
+        headers = {"Authorization": "Bearer t"}
+        assert client.get("/me/voice", headers=headers).json() == {"calls_left": None, "minutes": None, "message": None}
+        assert client.post("/me/voice/start", headers=headers).json() == {"minutes": None}
 
 
 class TestMcpKey:
