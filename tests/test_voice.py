@@ -59,7 +59,7 @@ class TestTranscribe:
         seen = stub_deepgram(monkeypatch, json={"results": {"channels": [{"alternatives": [{"transcript": " I feel tired "}]}]}})
         resp = client.post("/me/voice/transcribe", content=b"audio", headers={**HEADERS, "Content-Type": "audio/webm"})
         assert resp.json() == {"text": "I feel tired"}
-        assert seen["path"] == "/listen" and seen["params"]["mip_opt_out"] == "true"
+        assert seen["path"] == "/v1/listen" and seen["params"]["mip_opt_out"] == "true"
         assert seen["headers"]["Content-Type"] == "audio/webm"
 
     def test_only_audio_is_taken(self, monkeypatch):
@@ -89,6 +89,14 @@ class TestSpeak:
         assert resp.status_code == 200 and resp.headers["content-type"] == "audio/mpeg" and resp.content == b"ID3mp3"
         assert seen["json"] == {"text": "Peace (John chapter 14, verse 27)"}
         assert seen["params"]["model"] == settings.deepgram_tts_voice
+
+    def test_a_flux_voice_goes_to_v2_with_its_speed_and_expressivity(self, monkeypatch):
+        monkeypatch.setattr(settings, "deepgram_tts_voice", "flux-maeve-en")
+        assert voice.speak_request() == ("/v2/speak", {"model": "flux-maeve-en", "speed": 1.0, "expressivity": 0})
+
+    def test_an_aura_voice_stays_on_v1_as_mp3(self, monkeypatch):
+        monkeypatch.setattr(settings, "deepgram_tts_voice", "aura-2-thalia-en")
+        assert voice.speak_request() == ("/v1/speak", {"model": "aura-2-thalia-en", "encoding": "mp3"})
 
     def test_deepgram_failing_is_a_calm_message(self, monkeypatch):
         stub_deepgram(monkeypatch, fail=True)

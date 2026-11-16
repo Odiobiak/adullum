@@ -25,7 +25,7 @@ from app.config import settings
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-DEEPGRAM = "https://api.deepgram.com/v1"
+DEEPGRAM = "https://api.deepgram.com"
 # A minute of speech is well under a megabyte in the browser's formats.
 MAX_AUDIO_BYTES = 8 * 1024 * 1024
 # Deepgram reads up to 2,000 characters a request; the page sends an answer in
@@ -100,7 +100,7 @@ async def transcribe(request: Request, user: AuthUser = Depends(require_user)) -
         raise HTTPException(status_code=413, detail="That was a long one. Try saying it in a shorter piece.")
     await _spend(user)
     response = await _deepgram(
-        "/listen",
+        "/v1/listen",
         # mip_opt_out: Deepgram doesn't keep the audio to improve its models.
         {"model": settings.deepgram_stt_model, "smart_format": "true", "language": "en", "mip_opt_out": "true"},
         headers={"Authorization": f"Token {key}", "Content-Type": kind},
@@ -125,13 +125,19 @@ async def speak(body: SpeakIn, user: AuthUser = Depends(require_user)) -> Respon
     if not words:
         raise HTTPException(status_code=422, detail="There's nothing to read.")
     await _spend(user)
-    response = await _deepgram(
-        "/speak",
-        {"model": settings.deepgram_tts_voice, "encoding": "mp3"},
-        headers={"Authorization": f"Token {key}"},
-        json={"text": words},
-    )
+    path, params = speak_request()
+    response = await _deepgram(path, params, headers={"Authorization": f"Token {key}"}, json={"text": words})
     return Response(content=response.content, media_type="audio/mpeg", headers={"Cache-Control": "no-store"})
+
+
+def speak_request() -> tuple[str, dict]:
+    """Where to send a reply to be read aloud, and how. Flux voices live on
+    /v2/speak, read mp3 by default and take a speed and expressivity; Aura
+    voices are on /v1/speak and are asked for mp3."""
+    voice = settings.deepgram_tts_voice
+    if voice.startswith("flux-"):
+        return "/v2/speak", {"model": voice, "speed": settings.deepgram_tts_speed, "expressivity": settings.deepgram_tts_expressivity}
+    return "/v1/speak", {"model": voice, "encoding": "mp3"}
 
 
 async def _spend(user: AuthUser) -> None:

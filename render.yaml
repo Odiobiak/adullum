@@ -57,7 +57,7 @@ services:
       # Only Cognigy may open the MCP server once this is set (app/main.py::_guard_mcp).
       - key: MCP_SECRET
         sync: false
-      # Speaking in Refuge's talk (app/voice.py). Left empty, Speak doesn't appear.
+      # Speak with Aquila (app/voice.py). Left empty, the mic doesn't appear.
       - key: DEEPGRAM_API_KEY
         sync: false
       # Daily limits (app/quota.py) keep their defaults from app/config.py;

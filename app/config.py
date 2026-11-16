@@ -133,12 +133,17 @@ class Settings(BaseSettings):
     # server stays open as before.
     mcp_secret: str = ""
 
-    # Speaking in Refuge's talk (app/voice.py): Deepgram turns the person's
-    # voice into words and Aquila's reply into speech. The key stays on this
-    # server. Left empty, the talk's Speak button doesn't appear.
+    # Speak with Aquila (app/voice.py): Deepgram turns the person's voice
+    # into words and Aquila's answer into speech. The key stays on this
+    # server. Left empty, the mic doesn't appear.
     deepgram_api_key: str = ""
     deepgram_stt_model: str = "nova-3"
-    deepgram_tts_voice: str = "aura-2-thalia-en"
+    # A Flux voice (flux-<name>-en) takes a speed (0.5 to 1.5) and an
+    # expressivity (-2 calm to 2 animated, 0 the one Deepgram validates);
+    # an Aura voice takes neither.
+    deepgram_tts_voice: str = "flux-maeve-en"
+    deepgram_tts_speed: float = 1.0
+    deepgram_tts_expressivity: int = 0
     # A turn heard and a reply spoken each count once.
     quota_speech: int = 200
     cost_speech_usd: float = 0.002
