@@ -1477,28 +1477,13 @@ body.write-focus .write-room .refuge-page.refuge-page-sm { min-height: 18vh; }
 /* Talk out loud sits quietly beside Send, the only way into the voice call. */
 .soft-composer .soft-mic { border: 0; background: transparent; color: var(--muted); }
 .soft-composer .soft-mic:hover { background: var(--hover); color: var(--ember); }
-/* Speak (refuge.js "Speaking in the talk"): lit while a spoken session runs. */
-/* What a spoken session is doing, just above the composer. The dot swells
-   with the voice it hears (--level, 0 to 1). */
-.voice-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding: 8px 8px 8px 14px; border-radius: var(--pill); border: 1px solid var(--ember-line); background: var(--card-warm); font-size: 14px; color: var(--soft); }
-.voice-bar[hidden] { display: none; }
-.voice-state { flex: 1; min-width: 0; }
-.voice-close { flex: none; display: grid; place-items: center; width: var(--h-icon); height: var(--h-icon); padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; }
-.voice-close:hover { background: var(--hover); color: var(--text); }
-.voice-close svg { width: 16px; height: 16px; }
-/* Speak with Aquila (web/speak.js): its status line sits above the composer. */
-.composer .voice-bar { max-width: 720px; margin: 0 auto 8px; }
-
-/* The mic beside Send, on the Aquila composer and the home ask box. */
+/* The mic beside Send, on the Aquila composer and the home ask box: it calls
+   Aquila (the study route), and is lit while that call runs. */
 .composer-mic, .ask-lg-mic { flex: none; display: grid; place-items: center; width: 42px; height: 42px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--muted); cursor: pointer; transition: background 0.15s ease, color 0.15s ease; }
 .composer-mic:hover, .ask-lg-mic:hover { background: var(--hover); color: var(--ember); }
 .composer-mic[aria-pressed="true"] { background: var(--ember-bg); color: var(--ember); }
 .composer-mic[hidden], .ask-lg-mic[hidden] { display: none; }
 .composer-mic svg, .ask-lg-mic svg { width: 20px; height: 20px; }
-.voice-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--ember); box-shadow: 0 0 0 calc(var(--level, 0) * 10px) var(--ember-bg); transition: box-shadow 0.08s linear; }
-.voice-bar[data-step="hearing"] .voice-dot, .voice-bar[data-step="thinking"] .voice-dot { animation: pulse 1.4s ease-in-out infinite; }
-.voice-bar[data-step="speaking"] .voice-dot { background: var(--sage); box-shadow: 0 0 0 4px var(--sage-bg); }
-@media (prefers-reduced-motion: reduce) { .voice-dot { transition: none; animation: none !important; } }
 .listening { display: flex; gap: 12px; align-items: center; }
 .care-card { padding: 6px 16px; border-radius: 16px; background: var(--surface); border: 1px solid var(--sage-line); display: grid; }
 .care-line { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 10px 0; border-top: 1px solid var(--divider); font-size: 15px; }

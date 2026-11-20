@@ -25,7 +25,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from sse_starlette.sse import EventSourceResponse
 from starlette.responses import PlainTextResponse
 
-from app import account, answer_cache, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, monitoring, notes, numbers, one_another, prayers, quota, reading_plans, reflections, refuge, reminders, saved, sermons, support, voice
+from app import account, answer_cache, bible, cave, churches, connections, declare, desk, fasting, hearth, highlights, listen, monitoring, notes, numbers, one_another, prayers, quota, reading_plans, reflections, refuge, reminders, saved, sermons, support
 from app.agent.graph import agent
 from app.auth import AuthUser, optional_user
 from app.config import settings
@@ -93,7 +93,6 @@ app.include_router(reminders.router)
 app.include_router(reflections.router)
 app.include_router(listen.router)
 app.include_router(support.router)
-app.include_router(voice.router)
 
 
 

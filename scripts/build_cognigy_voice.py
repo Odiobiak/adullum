@@ -1,75 +1,121 @@
-"""Builds Aquila's voice call for Refuge in a Cognigy.AI project, from code.
+"""Builds Aquila's two voice calls in a Cognigy.AI project, from code.
 
-Refuge's "Talk out loud" (web/refuge.js::talkRoom) opens Cognigy's WebRTC
-widget, and the call is answered by what this script builds:
+Each call is its own route, with its own AI Agent, flow and endpoint, so the
+study Aquila never answers as Refuge's listener or the other way round:
 
-    AI Agent "Aquila"        who she is (persona, safety settings, no memory)
-    Flow "Aquila Refuge Voice"
+    refuge   "Talk out loud" in Refuge (web/refuge.js::talkRoom): she listens
+             first, and shares Scripture only when it's wanted.
+    study    Speak with Aquila, the mic on the Aquila page and the home
+             screen: she answers Bible questions, grounded and cited.
+
+Both are built the same way, and both speak in the one voice in SPEECH:
+
+    AI Agent                 who she is on this route (no memory, safety on)
+    Flow
       Start
       Once
-        On first time   Set Session Config (barge-in, gentle no-input)
+        On first time   Set Session Config (SPEECH, barge-in, gentle no-input)
                         Say the greeting
-        Afterwards      AI Agent job "Refuge voice companion"
+        Afterwards      AI Agent job
                           Default            her spoken reply
                           MCP Tool "aquila"  find_verses and ask_aquila on
                             Call MCP Tool    Adullam's /mcp/sse (app/mcp_server.py)
                           Tool "end_call"    Say goodbye, Hang Up
       End
-    Endpoint                 pointed at the flow
+    Endpoint                 found by name (made if missing), pointed at the flow
 
-Running it again rebuilds the flow from scratch and updates the agent in
+Running it again rebuilds each flow from scratch and updates each agent in
 place, so this file is the source of truth: change the words here, not in
-the Cognigy editor (a rerun wipes editor changes). Speech is set for the
-call by the Call settings node (SPEECH), since the trial endpoint can't hold
-speech settings. Turning off debug messages once testing is done stays manual
-(docs/cognigy-voice.md).
+the Cognigy editor (a rerun wipes editor changes). Turning off debug messages
+once testing is done stays manual (docs/cognigy-voice.md).
 
 Reads from .env: COGNIGY_API_URL, COGNIGY_API_KEY, and MCP_SECRET (optional;
 when set, the MCP tool sends it as a Bearer header).
 
-    python scripts/build_cognigy_voice.py --project <projectId> --endpoint <endpointId>
+    python scripts/build_cognigy_voice.py --project <projectId> [--route refuge|study]
 """
 
 import argparse
 import json
 import os
 import sys
+from dataclasses import dataclass
 
 import httpx
 from dotenv import load_dotenv
 
-# ---------------------------------------------------------------------------
-# What Aquila says and how she behaves. House style applies: no em dashes.
-# ---------------------------------------------------------------------------
-AGENT_NAME = "Aquila"
-FLOW_NAME = "Aquila Refuge Voice"
 MCP_URL = "https://adullum.onrender.com/mcp/sse"
 
-AGENT_DESCRIPTION = (
-    "A warm and steadfast companion who loves God. She listens first, and shares "
-    "Scripture only when it's wanted, quoting it word for word."
-)
+# Speech for every call, through the shared trial Voice Gateway's own Deepgram
+# credential, so Aquila sounds the same on both routes. The gateway finds a
+# credential by vendor and label together, so both are named: without the
+# label, or with Flux (it has no Flux credential), the gateway hung up the
+# moment the call tried to speak or listen. The AI Agents are given the same
+# voice (VOICE_CONFIG), so no part of Cognigy names a different one.
+SPEECH = {
+    "sttVendor": "deepgram",
+    "sttLabel": "deepgram",
+    "sttLanguage": "en-US",
+    "ttsVendor": "deepgram",
+    "ttsLabel": "deepgram",
+    "ttsLanguage": "en-US",
+    "ttsVoice": "aura-2-ophelia-en",  # calm and clear; the gateway's default is aura-2-andromeda-en
+}
+VOICE_CONFIG = {k: SPEECH[k] for k in ("ttsVendor", "ttsLabel", "ttsLanguage", "ttsVoice")}
 
-# The AI Agent's own instructions are capped at 1,000 characters by Cognigy,
-# so they hold who she is; how to behave on this call lives on the job below.
-AGENT_INSTRUCTIONS = (
-    "You are Aquila, a warm and steadfast companion who loves God. You're speaking with "
-    "someone in Refuge, a quiet, private room in the Adullam app. People come in every "
-    "kind of season: carrying something heavy, hoping, planning with God, giving thanks, "
-    "or just needing to be heard. Listen first. Speak like a friend sitting beside them: "
-    "plain, gentle and brief, then let them talk. Never tell them how to feel, never "
-    "lecture, and never press a meaning on them. Never claim God told you something, and "
-    "never promise an outcome. You are not a pastor or a counsellor and never pretend to "
-    "be. Never use an em dash."
-)
 
-JOB_NAME = "Refuge voice companion"
-JOB_DESCRIPTION = (
-    "Listen to the caller in Refuge and reply in a few spoken sentences. When they want "
-    "Scripture, look it up with find_verses and quote only what it returns."
-)
+@dataclass(frozen=True)
+class Route:
+    """Everything one call says and is named. House style: no em dashes."""
+    agent_name: str
+    agent_description: str
+    agent_instructions: str  # capped at 1,000 characters by Cognigy
+    flow_name: str
+    flow_description: str
+    endpoint_name: str
+    job_name: str
+    job_description: str
+    job_instructions: str    # how to behave on this call
+    greeting: str
+    still_here: str          # said after 20 quiet seconds, at most twice
+    goodbye: str
+    temperature: float
 
-JOB_INSTRUCTIONS = """This is a voice call. Everything you say is spoken aloud.
+
+ERROR_LINE = "I'm sorry, I lost my words for a moment. Could you say that again?"
+
+# Said the same on both routes: someone in danger comes before anything else.
+CARE = """Care
+- If they might be in danger, or thinking of harming themselves or someone else, set everything else aside. Tell them gently that they deserve a real person with them right now: in an emergency, call the local emergency number; in the US, call or text 988; in the UK or Ireland, call Samaritans on 116 123. Stay with them warmly and never end the call yourself."""
+
+ENDING = """Ending
+- When they say goodbye or that they're finished, call end_call. Don't say goodbye yourself first; the call does that."""
+
+REFUGE = Route(
+    agent_name="Aquila",
+    agent_description=(
+        "A warm and steadfast companion who loves God. She listens first, and shares "
+        "Scripture only when it's wanted, quoting it word for word."
+    ),
+    agent_instructions=(
+        "You are Aquila, a warm and steadfast companion who loves God. You're speaking with "
+        "someone in Refuge, a quiet, private room in the Adullam app. People come in every "
+        "kind of season: carrying something heavy, hoping, planning with God, giving thanks, "
+        "or just needing to be heard. Listen first. Speak like a friend sitting beside them: "
+        "plain, gentle and brief, then let them talk. Never tell them how to feel, never "
+        "lecture, and never press a meaning on them. Never claim God told you something, and "
+        "never promise an outcome. You are not a pastor or a counsellor and never pretend to "
+        "be. Never use an em dash."
+    ),
+    flow_name="Aquila Refuge Voice",
+    flow_description="Aquila's voice call in Refuge. Built by scripts/build_cognigy_voice.py; edit there, not here.",
+    endpoint_name="aquila",
+    job_name="Refuge voice companion",
+    job_description=(
+        "Listen to the caller in Refuge and reply in a few spoken sentences. When they want "
+        "Scripture, look it up with find_verses and quote only what it returns."
+    ),
+    job_instructions=f"""This is a voice call. Everything you say is spoken aloud.
 - Reply in two to four short sentences, then stop and let them talk. Ask at most one gentle question.
 - No lists, headings, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
 - Show you heard them in your own words. Don't rush to fix or explain. When they're hopeful or grateful, be glad with them.
@@ -81,33 +127,73 @@ Scripture
 - For a real Bible study question (what a passage means, who wrote it, its background), call ask_aquila and share the heart of its answer in a few sentences, keeping its references. Tell them it may take a moment.
 - What the text says, say plainly. What it might mean for them, offer as a question, never as a conclusion. Where Christians disagree, give the range of views, not one tradition's.
 
-Care
-- If they might be in danger, or thinking of harming themselves or someone else, set everything else aside. Tell them gently that they deserve a real person with them right now: in an emergency, call the local emergency number; in the US, call or text 988; in the UK or Ireland, call Samaritans on 116 123; and "Talk to a person" in Refuge lists more. Stay with them warmly and never end the call yourself.
+{CARE} "Talk to a person" in Refuge lists more.
 
 Privacy
 - Don't ask for names, places or contact details. Nothing from this call is remembered.
 
-Ending
-- When they say goodbye or that they're finished, call end_call. Don't say goodbye yourself first; the call does that."""
+{ENDING}""",
+    greeting="Hi, I'm Aquila. I'm here to listen. What's on your heart today?",
+    still_here="I'm still here, whenever you're ready.",
+    goodbye="Thank you for sharing this time with me. Go gently. Refuge is here whenever you need it.",
+    temperature=0.5,  # warm, but steady
+)
 
-GREETING = "Hi, I'm Aquila. I'm here to listen. What's on your heart today?"
-STILL_HERE = "I'm still here, whenever you're ready."
-# Speech for the call, through the shared trial Voice Gateway's own Deepgram
-# credential. The gateway finds a credential by vendor and label together, so
-# both are named: without the label, or with Flux (it has no Flux credential),
-# the gateway hung up the moment the call tried to speak or listen.
-SPEECH = {
-    "sttVendor": "deepgram",
-    "sttLabel": "deepgram",
-    "sttLanguage": "en-US",
-    "ttsVendor": "deepgram",
-    "ttsLabel": "deepgram",
-    "ttsLanguage": "en-US",
-    "ttsVoice": "aura-2-ophelia-en",  # calm and clear; the gateway's default is aura-2-andromeda-en
-}
+STUDY = Route(
+    agent_name="Aquila Study",
+    agent_description=(
+        "Aquila on the Aquila page: a Bible study companion who answers questions about "
+        "Scripture by voice, quoting it word for word and naming every reference."
+    ),
+    agent_instructions=(
+        "You are Aquila, the Bible study companion in the Adullam app, speaking with someone "
+        "who wants to look at Scripture together. You know the Bible well and explain it "
+        "plainly, like a friend who has studied it for years. Every verse you quote comes "
+        "from your tools, word for word, with its reference; you never quote or paraphrase "
+        "Scripture from memory. State what the text says as fact, and offer what it might "
+        "mean as something to consider, never as a conclusion. Where Christians disagree, "
+        "give the range of views fairly, not one tradition's. Never claim God told you "
+        "something. You are not a pastor and never pretend to be. Never use an em dash."
+    ),
+    flow_name="Aquila Study Voice",
+    flow_description="Speak with Aquila on the Aquila page. Built by scripts/build_cognigy_voice.py; edit there, not here.",
+    endpoint_name="aquila-study",
+    job_name="Bible study by voice",
+    job_description=(
+        "Answer the caller's Bible questions in a few spoken sentences, from verses looked "
+        "up with find_verses, or from ask_aquila for a deeper study question."
+    ),
+    job_instructions=f"""This is a voice call. Everything you say is spoken aloud.
+- Answer in three to five short sentences, then stop. If it helps, end with one short question about where to go next.
+- No lists, headings, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
+- Answer the question they asked. Don't repeat it back first.
 
-GOODBYE = "Thank you for sharing this time with me. Go gently. Refuge is here whenever you need it."
-ERROR_LINE = "I'm sorry, I lost my words for a moment. Could you say that again?"
+Finding the verses
+- For almost every question, call find_verses first, with the reference they named ("Romans 8") or a short topic ("God's faithfulness"). It answers in about a second.
+- Answer from what it returns. Quote only those verses, word for word, and say each reference. Choose the one or two that answer best.
+- For a question that needs more than the verses (what a hard passage means, who wrote a book, its background or history), call ask_aquila instead and share the heart of its answer, keeping its references. Before calling it, say something short like "Let me look into that."
+- If nothing comes back, say you couldn't find it just now. Never quote or paraphrase Scripture from memory.
+
+What to say
+- What the text says, and what happens in it, say plainly. What it might mean for them, offer as a thought to consider, never as "this means".
+- Where Christians disagree (baptism, the end times, predestination and free will), give the main views fairly.
+
+{CARE}
+
+Privacy
+- Don't ask for names, places or contact details. Nothing from this call is remembered.
+
+{ENDING}""",
+    greeting=(
+        "Hi, I'm Aquila. Ask me anything about the Bible: a verse, a passage, or a "
+        "question you've been wondering about. What would you like to look at?"
+    ),
+    still_here="I'm still here. Ask whenever you're ready.",
+    goodbye="Thanks for studying with me. Come back anytime.",
+    temperature=0.3,  # steady and exact
+)
+
+ROUTES = {"refuge": REFUGE, "study": STUDY}
 
 
 # ---------------------------------------------------------------------------
@@ -185,18 +271,19 @@ class FlowBuilder:
 # ---------------------------------------------------------------------------
 # The build
 # ---------------------------------------------------------------------------
-def ensure_agent(api: Cognigy, project_id: str) -> dict:
-    """Creates Aquila, or updates her in place so the flow's reference holds."""
-    assert len(AGENT_INSTRUCTIONS) <= 1000, "Cognigy caps an AI Agent's instructions at 1,000 characters"
+def ensure_agent(api: Cognigy, project_id: str, route: Route) -> dict:
+    """Creates the route's agent, or updates it in place so the flow's reference holds."""
+    assert len(route.agent_instructions) <= 1000, f"{route.agent_name}: Cognigy caps an AI Agent's instructions at 1,000 characters"
     body = {
-        "name": AGENT_NAME,
-        "description": AGENT_DESCRIPTION,
-        "instructions": AGENT_INSTRUCTIONS,
-        # Refuge promises a talk is never remembered, so no contact profile reaches her.
+        "name": route.agent_name,
+        "description": route.agent_description,
+        "instructions": route.agent_instructions,
+        # Neither call is remembered, so no contact profile reaches her.
         "contactProfilesOption": "none",
         "enableAutoLanguageDetection": False,
-        # The voice is set for the call by the flow's Call settings (SPEECH).
-        "enableVoiceConfigs": False,
+        # The call's own settings (SPEECH) set the voice; the agent names the same one.
+        "enableVoiceConfigs": True,
+        "voiceConfigs": {**VOICE_CONFIG, "ttsModel": "", "ttsDisableCache": False},
         "safetySettings": {
             "avoidHarmfulContent": True,
             "avoidUngroundedContent": True,
@@ -204,7 +291,7 @@ def ensure_agent(api: Cognigy, project_id: str) -> dict:
             "preventJailbreakAndManipulation": True,
         },
     }
-    existing = next((a for a in api.items(f"/aiagents?projectId={project_id}&limit=100") if a["name"] == AGENT_NAME), None)
+    existing = next((a for a in api.items(f"/aiagents?projectId={project_id}&limit=100") if a["name"] == route.agent_name), None)
     if existing:
         api.call("PATCH", f"/aiagents/{existing['_id']}", body)
         return api.call("GET", f"/aiagents/{existing['_id']}")
@@ -212,20 +299,16 @@ def ensure_agent(api: Cognigy, project_id: str) -> dict:
     return api.call("GET", f"/aiagents/{created['_id']}")
 
 
-def fresh_flow(api: Cognigy, project_id: str) -> dict:
-    """The voice flow, deleted and made again so every run starts clean."""
+def fresh_flow(api: Cognigy, project_id: str, route: Route) -> dict:
+    """The route's flow, deleted and made again so every run starts clean."""
     for flow in api.items(f"/flows?projectId={project_id}&limit=100"):
-        if flow["name"] == FLOW_NAME:
+        if flow["name"] == route.flow_name:
             api.call("DELETE", f"/flows/{flow['_id']}")
-    created = api.call("POST", "/flows", {
-        "name": FLOW_NAME,
-        "description": "Aquila's voice call in Refuge. Built by scripts/build_cognigy_voice.py; edit there, not here.",
-        "projectId": project_id,
-    })
+    created = api.call("POST", "/flows", {"name": route.flow_name, "description": route.flow_description, "projectId": project_id})
     return api.call("GET", f"/flows/{created['_id']}")
 
 
-def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret: str | None) -> None:
+def build_flow(api: Cognigy, flow_id: str, route: Route, agent: dict, mcp_url: str, mcp_secret: str | None) -> None:
     b = FlowBuilder(api, flow_id)
     start = b.node_of_type("start")
 
@@ -242,25 +325,25 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
         # The caller can talk over her; two words, so a "mm" doesn't cut her off.
         "bargeInOnSpeech": True,
         "bargeInMinWordCount": 2,
-        # People in Refuge pause to think. After 20 quiet seconds, a gentle
-        # word, at most twice; never a prompt to hurry.
+        # People pause to think. After 20 quiet seconds, a gentle word, at
+        # most twice; never a prompt to hurry.
         "userNoInputTimeoutEnable": True,
         "userNoInputMode": "speech",
         "userNoInputTimeout": 20000,
         "userNoInputRetries": 2,
-        "userNoInputSpeech": STILL_HERE,
+        "userNoInputSpeech": route.still_here,
     }, comment="Deepgram speech, barge-in on, and a gentle line after 20 quiet seconds. Set in scripts/build_cognigy_voice.py.")
-    b.add("say", session, "append", "Greeting", config={"say": {"type": "text", "text": [GREETING], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
+    b.add("say", session, "append", "Greeting", config={"say": {"type": "text", "text": [route.greeting], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
 
     # The agent's job for this call.
-    job = b.add("aiAgentJob", afterwards, "append", "Aquila", config={
+    job = b.add("aiAgentJob", afterwards, "append", route.agent_name, config={
         "aiAgent": agent["referenceId"],
-        "name": JOB_NAME,
-        "description": JOB_DESCRIPTION,
-        "instructions": JOB_INSTRUCTIONS,
+        "name": route.job_name,
+        "description": route.job_description,
+        "instructions": route.job_instructions,
         "toolChoice": "auto",
         "memoryType": "inherit",  # the agent has no contact profile, so nothing is remembered
-        "temperature": 0.5,       # warm, but steady
+        "temperature": route.temperature,
         "maxTokens": 600,         # a few spoken sentences, or a short summary of a study answer
         "storeLocation": "stream",  # speak as it's written, a sentence at a time
         "outputImmediately": True,
@@ -275,7 +358,7 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
         "description": "End the call when the caller says goodbye or that they're finished. The call says goodbye for you.",
         "useParameters": False,
     })
-    goodbye = b.add("say", end_call, "append", "Goodbye", config={"say": {"type": "text", "text": [GOODBYE], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
+    goodbye = b.add("say", end_call, "append", "Goodbye", config={"say": {"type": "text", "text": [route.goodbye], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
     b.add("hangup", goodbye, "append", "Hang up", extension="@cognigy/voicegateway2",
           config={"hangupReason": "Caller finished", "hangupImmediately": False})
 
@@ -299,18 +382,38 @@ def build_flow(api: Cognigy, flow_id: str, agent: dict, mcp_url: str, mcp_secret
           comment="Hands the tool's result straight back to Aquila.")
 
 
-def point_endpoint(api: Cognigy, endpoint_id: str, flow: dict) -> dict:
-    """Points the voice endpoint at the flow instead of an agent. targetType
-    isn't in the published schema, but the API takes it, and without it an
-    endpoint made for an agent keeps answering with that agent."""
-    api.call("PATCH", f"/endpoints/{endpoint_id}", {"targetType": "flow", "flowId": flow["referenceId"]})
-    return api.call("GET", f"/endpoints/{endpoint_id}")
+def ensure_endpoint(api: Cognigy, project_id: str, route: Route, flow: dict) -> dict:
+    """The route's Voice Gateway endpoint, found by name or made, pointed at
+    its flow. targetType isn't in the published schema, but the API takes it,
+    and without it an endpoint made for an agent keeps answering with that agent."""
+    target = {"targetType": "flow", "flowId": flow["referenceId"]}
+    existing = next((e for e in api.items(f"/endpoints?projectId={project_id}&limit=100") if e["name"] == route.endpoint_name), None)
+    if existing:
+        api.call("PATCH", f"/endpoints/{existing['_id']}", target)
+        return api.call("GET", f"/endpoints/{existing['_id']}")
+    locale = api.items(f"/locales?projectId={project_id}&limit=1")[0]
+    created = api.call("POST", "/endpoints", {
+        "name": route.endpoint_name, "channel": "voiceGateway2", "projectId": project_id,
+        "localeId": locale["referenceId"], **target,
+    })
+    return api.call("GET", f"/endpoints/{created['_id']}")
+
+
+def build(api: Cognigy, project_id: str, route: Route, mcp_url: str, mcp_secret: str | None) -> None:
+    agent = ensure_agent(api, project_id, route)
+    print(f"AI Agent  {agent['name']}  {agent['_id']}")
+    flow = fresh_flow(api, project_id, route)
+    print(f"Flow      {flow['name']}  {flow['_id']}")
+    build_flow(api, flow["_id"], route, agent, mcp_url, mcp_secret)
+    print("          nodes built")
+    endpoint = ensure_endpoint(api, project_id, route, flow)
+    print(f"Endpoint  {endpoint['name']}  {endpoint['_id']}  config URL: https://endpoint-trial.cognigy.ai/{endpoint['URLToken']}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--project", required=True, help="Cognigy project id")
-    parser.add_argument("--endpoint", help="voice endpoint id to point at the flow")
+    parser.add_argument("--route", choices=sorted(ROUTES), help="build only this call (both when left out)")
     parser.add_argument("--mcp-url", default=MCP_URL, help="Adullam's MCP SSE address")
     args = parser.parse_args()
 
@@ -319,16 +422,9 @@ def main() -> None:
     if not (url and key):
         sys.exit("Set COGNIGY_API_URL and COGNIGY_API_KEY in .env first.")
     api = Cognigy(url, key)
-
-    agent = ensure_agent(api, args.project)
-    print(f"AI Agent  {agent['name']}  {agent['_id']}")
-    flow = fresh_flow(api, args.project)
-    print(f"Flow      {flow['name']}  {flow['_id']}")
-    build_flow(api, flow["_id"], agent, args.mcp_url, os.environ.get("MCP_SECRET"))
-    print("          nodes built")
-    if args.endpoint:
-        endpoint = point_endpoint(api, args.endpoint, flow)
-        print(f"Endpoint  {endpoint['name']}  flow={endpoint.get('flowId')}  target={endpoint.get('targetType')}")
+    for name in [args.route] if args.route else ROUTES:
+        print(f"-- {name}")
+        build(api, args.project, ROUTES[name], args.mcp_url, os.environ.get("MCP_SECRET"))
 
 
 if __name__ == "__main__":

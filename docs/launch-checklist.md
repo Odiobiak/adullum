@@ -39,13 +39,13 @@ Tick a box by changing `[ ]` to `[x]`.
 - [x] Tested on iPhone and Android: mic allowed, mic refused, call never connects, hang up, screen locked mid-call.
 - [x] Time from tapping call to Aquila's first words measured: ______ seconds.
 
-### Speak with Aquila (Deepgram)
+### Speak with Aquila (the study call)
 
-- [ ] Deepgram account has a spending limit, and its price per turn is checked against `COST_SPEECH_USD` (0.002 now).
-- [x] Mic shows beside Send and on the home ask box only when signed in; the note on where the voice goes appears before the first use.
-- [ ] Tested on iPhone and Android: a full back and forth, Stop, Done when the pause isn't heard, 30 quiet seconds, leaving Aquila, locking the screen.
-- [x] A spoken question shows up in the conversation rail like a typed one, with its citations.
-- [x] A long answer reads aloud with no gap or cut-off between pieces.
+- [x] Mic shows beside Send and on the home ask box only when signed in; the warning appears before the first call.
+- [x] By text: greets saying who she is, quotes find_verses word for word, gives the range of views on a disputed question, hangs up on goodbye.
+- [ ] Tested on iPhone and Android: greeting, a question, barge-in, tapping the mic to end, locking the screen.
+- [ ] What's said shows in the Aquila thread as it's said.
+- [ ] Sounds the same voice as Refuge's call.
 
 ## 4. Speed
 

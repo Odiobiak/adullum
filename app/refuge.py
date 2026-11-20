@@ -280,7 +280,7 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Talk out loud: the voice call's allowance (app/quota.py)
+# Voice calls, Refuge's and the study one: the allowance (app/quota.py)
 # ---------------------------------------------------------------------------
 @router.get("/me/voice")
 def voice_allowance(user: AuthUser = Depends(require_user)) -> dict:

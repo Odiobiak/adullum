@@ -37,7 +37,7 @@ from app.db import get_supabase
 
 log = logging.getLogger(__name__)
 
-Kind = Literal["question", "talk", "voice", "speech"]
+Kind = Literal["question", "talk", "voice"]
 
 # What a person reads when they reach a limit, said gently: nothing is wrong.
 LIMIT_MESSAGES: dict[str, str] = {
@@ -45,7 +45,6 @@ LIMIT_MESSAGES: dict[str, str] = {
     "question_guest": "That's today's questions as a guest. Sign in to keep going, it's free.",
     "talk": "That's a lot of talking for one day. Aquila will be here again tomorrow, and Write it out is always open.",
     "voice": "That's today's calls. You can keep talking with Aquila by typing, and calling opens again tomorrow.",
-    "speech": "That's a lot of speaking for one day. You can keep typing, and speaking opens again tomorrow.",
     "budget": "Aquila is resting for the rest of today. Adullam is free, kept going by people who give, and today's share has been used. Please come back tomorrow.",
     "burst": "That's a lot at once. Give it a moment and try again.",
 }
@@ -64,7 +63,6 @@ def rules() -> dict[str, Rule]:
         "question": Rule(settings.quota_questions_signed_in, settings.quota_questions_guest, settings.cost_question_usd),
         "talk": Rule(settings.quota_talks, 0, settings.cost_talk_usd),
         "voice": Rule(settings.quota_voice_calls, 0, settings.cost_voice_call_usd),
-        "speech": Rule(settings.quota_speech, 0, settings.cost_speech_usd),
     }
 
 

@@ -550,7 +550,7 @@
           <form class="ask-box" id="form">
             <label for="query" class="sr">Your question</label>
             <textarea id="query" rows="1" placeholder="Ask Aquila about Scripture"></textarea>
-            <!-- Speak with Aquila (web/speak.js), shown once the server offers it -->
+            <!-- Call Aquila (the study voice call, openVoice below), shown signed in -->
             <button class="composer-mic" type="button" id="speakBtn" aria-label="Speak with Aquila" title="Speak with Aquila" aria-pressed="false" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></button>
             <button class="composer-send" type="submit" id="submit" aria-label="Ask"><span class="spinner"></span><svg class="send-label" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6"/></svg></button>
           </form>
@@ -738,8 +738,7 @@
         <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you, and in Refuge your open prayers and latest journal entries. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
         <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after 30 days.</li>
         <li><strong>Sentry:</strong> tells us when something breaks on our server. It receives the error and where in our code it happened. What you sent, your email and your network address are removed before it goes.</li>
-        <li><strong>Deepgram:</strong> only if you tap the mic to speak with Aquila. Your voice goes to them to become words, and her answers to be read aloud. We ask them not to keep your voice to improve their models. What you said is then asked like a typed question, and kept with your conversations the same way.</li>
-        <li><strong>Cognigy and its speech providers:</strong> only if you use "Talk out loud". Your voice and its transcript go to them to hold the call. The call isn't confidential the way a talk with clergy would be.</li>
+        <li><strong>Cognigy and its speech providers:</strong> only if you call Aquila, with the mic on the Aquila page or "Talk out loud" in Refuge. Your voice and its transcript go to them to hold the call. A call isn't kept with your conversations or recorded in Langfuse, and it isn't confidential the way a talk with clergy would be.</li>
         <li><strong>Google:</strong> serves the fonts this site uses (which shares your IP address with Google), and handles sign-in if you choose "Continue with Google".</li>
         <li><strong>Cloudflare:</strong> runs our domain's DNS, forwards email sent to hello@adullamapp.com, and (through cdnjs) serves the code that draws Connections.</li>
         <li><strong>YouTube:</strong> plays sermons in Listen when you press play, using its privacy-enhanced player.</li>
@@ -890,7 +889,6 @@
 <div hidden><input id="apiBase" value=""><input id="translation" value="BSB"></div>
 
 <script src="cave.js"></script>
-<script src="speak.js"></script>
 <script src="notify.js"></script>
 <script src="prayers.js"></script>
 <script src="declare.js"></script>
@@ -1084,7 +1082,6 @@ function render() {
   else window.Church.hide();
   if (view === "declare") window.Declare.show(routeParts()[1]);
   else window.Declare.hide();
-  if (view !== "aquila") window.Speak.stop();
   if (view === "aquila" || view === "home") refreshSpeak();
   if (view !== "aquila" && view !== "bible") window.scrollTo({ top: 0 });
 }
@@ -1252,9 +1249,7 @@ function renderCitations(el, citations) {
 
 // `mode` is "study" (an ordinary question) or "pray" (Pray with Aquila on the
 // prayer list, which answers with verses, a prayer and encouragement).
-// `onAnswer(text)` is told the moment the answer is on screen, before the
-// grounding check and follow-ups finish, so Speak can start reading at once.
-async function ask(query, mode = "study", onAnswer = null) {
+async function ask(query, mode = "study") {
   const { msg, stagesEl, thinkingEl, answerEl, citationsEl, followupsEl } = addAquilaMessage();
   scrollToBottom();
 
@@ -1316,7 +1311,6 @@ async function ask(query, mode = "study", onAnswer = null) {
         thinkingEl.remove();
         answerEl.hidden = false;
         answerEl.innerHTML = renderAnswerHtml(data);
-        onAnswer?.(data);
       } else if (event === "citations") {
         citationList = JSON.parse(data);
         renderCitations(citationsEl, citationList);
@@ -1350,7 +1344,7 @@ queryEl.addEventListener("keydown", (e) => {
 // Resolves the answer's text, or null when nothing was asked or it failed
 // (the error is shown under the box either way).
 let busy = false;
-async function submitQuery(query, { mode = "study", onAnswer = null } = {}) {
+async function submitQuery(query, { mode = "study" } = {}) {
   if (!query || busy) return null;
   if (VIEWS[currentRoute()] !== "aquila") go("aquila");
   busy = true;
@@ -1361,7 +1355,7 @@ async function submitQuery(query, { mode = "study", onAnswer = null } = {}) {
   queryEl.value = "";
   autoResize();
   try {
-    return (await ask(query, mode, onAnswer)) || null;
+    return (await ask(query, mode)) || null;
   } catch (err) {
     errorEl.classList.toggle("is-gentle", !!err.gentle);
     errorEl.textContent = err.gentle ? err.message : `${err.message}. Check your connection and try again.`;
@@ -1378,24 +1372,51 @@ form.addEventListener("submit", (e) => {
   submitQuery(queryEl.value.trim());
 });
 
-// Speak with Aquila (web/speak.js): the mic in the composer, and the one on
-// the home screen's ask box, which brings you here to talk. Each spoken turn
-// is an ordinary question, and the answer is read aloud as soon as it shows.
+// Speak with Aquila: the mic in the composer, and the one on the home
+// screen's ask box, which brings you here first. It's a live call to the
+// study Aquila (the "study" route below, not Refuge's), and what's said on
+// it joins this thread as it's said. Tapping the mic again ends the call.
 const speakBtn = $("#speakBtn");
 const homeSpeak = $("#homeSpeak");
 function speakWithAquila() {
-  window.Speak.start({ mount: form.parentElement, button: speakBtn, ask: (text, onAnswer) => submitQuery(text, { onAnswer }) });
+  if (inCall()) {
+    if (callHandlers.route !== "study") return window.Cave.toast("You're already on a call with Aquila in Refuge.", { tone: "info" });
+    hangUp();
+    return endCallUI();
+  }
+  callRun = null;
+  openVoice({ route: "study", button: speakBtn, onLine: threadCallLine, onEnd: () => (callRun = null) });
 }
 speakBtn.addEventListener("click", speakWithAquila);
 homeSpeak.addEventListener("click", () => {
   go("aquila");
   speakWithAquila();
 });
+// Calls need an account (each is counted, app/refuge.py::voice_started).
 // Looks the buttons up itself, since the router can run before this script reaches them.
 function refreshSpeak() {
-  window.Speak.available().then((ok) => {
-    $("#speakBtn").hidden = $("#homeSpeak").hidden = !ok;
-  });
+  const signedIn = !!window.Cave?.signedIn();
+  $("#speakBtn").hidden = $("#homeSpeak").hidden = !signedIn;
+}
+
+// A line said on the study call, as a message in the thread. Lines in a row
+// from one speaker go into one message, as a person hears them.
+let callRun = null; // { speaker, el, text }: the message the last line went into
+function threadCallLine(speaker, text) {
+  if (callRun && callRun.speaker === speaker && callRun.el.isConnected) {
+    callRun.text += ` ${text}`;
+  } else if (speaker === "caller") {
+    addUserMessage(text);
+    callRun = { speaker, el: thread.lastElementChild, text };
+  } else {
+    const { msg, stagesEl, thinkingEl, answerEl } = addAquilaMessage();
+    stagesEl.remove();
+    thinkingEl.remove();
+    answerEl.hidden = false;
+    callRun = { speaker, el: answerEl, text, msg };
+  }
+  callRun.el.textContent = callRun.text;
+  scrollToBottom();
 }
 
 function clearThread() {
@@ -1442,7 +1463,7 @@ function loadConversation(id, messages) {
 // The small surface web/cave.js and web/graph.js call back into.
 window.AdullamApp = {
   submitQuery,
-  // The voice call is offered only in Refuge's Talk with Aquila (web/refuge.js).
+  // Refuge's call (web/refuge.js); the study call is this page's own mic.
   openVoice,
   renderAnswerHtml,
   loadConversation,
@@ -1454,16 +1475,19 @@ window.AdullamApp = {
 };
 
 // =====================================================================
-// Voice, over Cognigy's WebRTC voice gateway: Refuge's Aquila, out loud. Its
-// only way in is the call button in Refuge's Talk with Aquila (web/refuge.js).
-// Speaking with the study Aquila is a different thing: web/speak.js.
+// Voice calls, over Cognigy's WebRTC voice gateway. Two routes, each its own
+// endpoint, flow and AI Agent (scripts/build_cognigy_voice.py), speaking in
+// one voice: "refuge" from the call button in Refuge's Talk with Aquila
+// (web/refuge.js), and "study" from the mic on the Aquila page and home.
 // =====================================================================
 // This must be the plain https Endpoint config URL, NOT the wss:// gateway
 // URL. initWebRTCWidget() fetches it to read the endpoint config and works out
 // its own socket from there; a wss:// address fails silently on the click.
-// The "aquila" endpoint in the Adullam project, answered by the flow that
-// scripts/build_cognigy_voice.py builds (docs/cognigy-voice.md).
-const VOICE_CONFIG_URL = "https://endpoint-trial.cognigy.ai/b9e2c1f64c32ccb170c3e6e8da920050168877e5d7b8baf4a9bc5821113f8e38";
+// The Adullam project's endpoints, "aquila" and "aquila-study" (docs/cognigy-voice.md).
+const VOICE_CONFIG_URLS = {
+  refuge: "https://endpoint-trial.cognigy.ai/b9e2c1f64c32ccb170c3e6e8da920050168877e5d7b8baf4a9bc5821113f8e38",
+  study: "https://endpoint-trial.cognigy.ai/e3c3ddec5746b7f2b2116e357973c3b9486d6c9a9d85390af90b54bdc4fac914",
+};
 const disclaimerOverlay = $("#disclaimerOverlay");
 const VOICE_CALL_BUTTON = ".webrtc_widget_call_button, .voice_connect_widget_call_button, .vc_widget_call_button";
 const VOICE_END_BUTTON = ".webrtc_widget_end_call_button, .voice_connect_widget_end_call_button, .vc_widget_end_call_button";
@@ -1484,12 +1508,14 @@ const callBar = $("#callBar");
 const callLabel = $("#callLabel");
 const callTime = $("#callTime");
 let voiceWidget = null;
+let widgetRoute = null; // which route's endpoint the mounted widget dials
 let activeSession = null;
 let callTimer = null;
 let connectTimeout = null;
 let answeredAt = 0;
-// Who hears about this call: Refuge's talk shows each line as a bubble and
-// keeps the talk when it ends (openVoice's `onLine` and `onEnd`).
+// Who hears about this call (openVoice's handlers): Refuge's talk or the
+// Aquila thread shows each line, and is told when it ends. `button` is the
+// mic that started it, shown pressed while it runs.
 let callHandlers = {};
 // How long a call may run, from /me/voice (app/quota.py keeps calls to a few
 // a day, since voice costs the most of anything Aquila does). null for an
@@ -1536,7 +1562,7 @@ function removeWidget() {
   } catch {
     /* nothing was standing up to tear down */
   }
-  voiceWidget = null;
+  voiceWidget = widgetRoute = null;
   document.body.classList.remove("voice-mounted");
 }
 
@@ -1592,9 +1618,17 @@ function endCallUI() {
   callBar.hidden = true;
   callTime.textContent = "";
   document.body.classList.remove("voice-active");
-  const { onEnd } = callHandlers;
+  const { onEnd, button } = callHandlers;
   callHandlers = {};
+  pressed(button, false);
   onEnd?.();
+}
+
+function pressed(button, on) {
+  if (!button) return;
+  button.setAttribute("aria-pressed", String(on));
+  button.setAttribute("aria-label", on ? "End call" : "Speak with Aquila");
+  button.title = on ? "End call" : "Speak with Aquila";
 }
 
 // The widget emits nothing when a call fails to connect, so without this a
@@ -1649,7 +1683,7 @@ function loadVoiceScript() {
   return voiceScript;
 }
 
-async function startVoiceWidget() {
+async function startVoiceWidget(route) {
   // Asked first, so someone out of calls today is told so before anything dials.
   try {
     const allowance = await window.Cave.api("/me/voice");
@@ -1668,7 +1702,10 @@ async function startVoiceWidget() {
     return;
   }
   document.body.classList.add("voice-active");
+  pressed(callHandlers.button, true);
   setCallState("Connecting to Aquila");
+  // The widget dials the endpoint it was made for, so another route needs a new one.
+  if (voiceWidget && widgetRoute !== route) removeWidget();
   if (voiceWidget) {
     armConnectTimeout();
     pressWidgetCallButton();
@@ -1679,9 +1716,10 @@ async function startVoiceWidget() {
     // If the widget can't reach its config URL its promise never settles, so
     // a timeout guarantees control comes back.
     voiceWidget = await Promise.race([
-      window.initWebRTCWidget(VOICE_CONFIG_URL),
+      window.initWebRTCWidget(VOICE_CONFIG_URLS[route]),
       new Promise((_, reject) => setTimeout(() => reject(new Error("the voice service didn't respond")), 15000)),
     ]);
+    widgetRoute = route;
     if (!inCall()) return removeWidget(); // ended while the widget loaded
     if (voiceWidget && typeof voiceWidget.on === "function") voiceWidget.on("newRTCSession", watchSession);
     armConnectTimeout();
@@ -1698,18 +1736,19 @@ $("#callEnd").addEventListener("click", () => {
   hangUp();
   endCallUI();
 });
-// `handlers.onLine(speaker, text)` hears each line said on the call ("caller"
-// or "aquila"), and `handlers.onEnd()` hears that it ended.
+// `handlers.route` picks the call ("refuge" or "study"), `handlers.onLine(speaker,
+// text)` hears each line said on it ("caller" or "aquila"), `handlers.onEnd()`
+// hears that it ended, and `handlers.button` is lit while it runs.
 function openVoice(handlers = {}) {
   if (inCall()) return;
-  callHandlers = handlers;
+  callHandlers = { route: "refuge", ...handlers };
   let accepted = false;
   try {
     accepted = sessionStorage.getItem("aquilaVoiceDisclaimerAccepted") === "1";
   } catch {
     /* storage blocked: ask every time */
   }
-  if (voiceWidget || accepted) return startVoiceWidget();
+  if (voiceWidget || accepted) return startVoiceWidget(callHandlers.route);
   disclaimerOverlay.hidden = false;
   $("#disclaimerAccept").focus();
 }
@@ -1721,7 +1760,7 @@ $("#disclaimerAccept").addEventListener("click", () => {
     /* storage blocked */
   }
   disclaimerOverlay.hidden = true;
-  startVoiceWidget();
+  startVoiceWidget(callHandlers.route);
 });
 
 render();

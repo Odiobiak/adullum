@@ -2,7 +2,8 @@
 agent platform (Cognigy's MCP Tool Node, in particular) can call her as a
 tool over a standard protocol instead of a bespoke webhook.
 
-Two tools, for the voice call in Refuge (docs/cognigy-voice.md):
+Two tools, for Aquila's voice calls, in Refuge and on the Aquila page
+(docs/cognigy-voice.md):
   find_verses  verses word for word from the database, no model call, about a
                second; what the voice agent quotes from.
   ask_aquila   the full study graph, for a real Bible question.
@@ -55,7 +56,7 @@ PASSAGE_VERSES = 8
 async def find_verses(topic: str, translation: str | None = None) -> dict:
     """Look up Bible verses on a topic, or at a reference, word for word.
 
-    Built for Aquila's voice call in Refuge: it reads the verses straight from
+    Built for Aquila's voice calls: it reads the verses straight from
     the database with no model call, so it answers in about a second. Quote
     only the verses this returns, exactly as written, and name each reference.
     Never quote a verse from memory.
@@ -105,8 +106,8 @@ async def ask_aquila(query: str, translation: str | None = None, session_id: str
             id). Accepted for callers that send one; nothing is traced, so
             it isn't used.
     """
-    # The page offers the voice call only inside Refuge, which promises its
-    # talks are never traced, so these runs pass no Langfuse callback, like
+    # Voice calls are never traced (Refuge promises it, and the study call
+    # keeps the same rule), so these runs pass no Langfuse callback, like
     # app/refuge.py's.
     # A call arrives from Cognigy with no person attached (each call was
     # counted against its caller when it connected, app/refuge.py), so its

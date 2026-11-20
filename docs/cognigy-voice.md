@@ -1,16 +1,23 @@
-# Aquila's voice call in Refuge (Cognigy)
+# Aquila's voice calls (Cognigy)
 
-"Talk out loud" in Refuge (`web/refuge.js::talkRoom`) opens Cognigy's WebRTC
-widget (`web/index.html::VOICE_CONFIG_URL`). Cognigy answers the call with an AI
-Agent that listens like Refuge's Aquila and reaches back into Adullam over MCP
-for Scripture.
+Two calls, each its own route with its own endpoint, flow and AI Agent, both
+speaking in one voice (`SPEECH` in the build script):
+
+| Route | Opened from | Endpoint | Flow | AI Agent |
+|---|---|---|---|---|
+| refuge | "Talk out loud" in Refuge (`web/refuge.js::talkRoom`) | aquila | Aquila Refuge Voice | Aquila |
+| study | the mic on the Aquila page and home (`index.html::speakWithAquila`) | aquila-study | Aquila Study Voice | Aquila Study |
+
+Both open Cognigy's WebRTC widget (`web/index.html::VOICE_CONFIG_URLS`), and
+both reach back into Adullam over MCP for Scripture. Refuge's listens first;
+the study one answers Bible questions.
 
 ```
-Browser (Refuge) --WebRTC--> Cognigy Voice Gateway --> "aquila" endpoint
+Browser --WebRTC--> Cognigy Voice Gateway --> "aquila" / "aquila-study" endpoint
                                                          |
-                                       Flow "Aquila Refuge Voice"
+                                       Flow "Aquila Refuge Voice" / "Aquila Study Voice"
                                          Once: settings + greeting
-                                         Afterwards: AI Agent job "Aquila"
+                                         Afterwards: AI Agent job
                                            |  MCP over SSE, Bearer MCP_SECRET
                                            v
                               Adullam /mcp/sse (app/mcp_server.py)
@@ -24,23 +31,33 @@ Browser (Refuge) --WebRTC--> Cognigy Voice Gateway --> "aquila" endpoint
 |---|---|
 | Tenant | `trial.cognigy.ai` (API `https://api-trial.cognigy.ai/new`) |
 | Project | Adullam `6af5f866e509708910c132fe` |
-| Endpoint | aquila `6af610eab18820d0e42a19d8`, `https://endpoint-trial.cognigy.ai/b9e2c1f6...` |
-| AI Agent, flow, nodes | built by `scripts/build_cognigy_voice.py`; edit the words there, not in the editor |
+| Endpoint (refuge) | aquila `6af610eab18820d0e42a19d8`, `https://endpoint-trial.cognigy.ai/b9e2c1f6...` |
+| Endpoint (study) | aquila-study `6b00b652d1f45ebed7d7eaf3`, `https://endpoint-trial.cognigy.ai/e3c3ddec...` |
+| AI Agents, flows, nodes | built by `scripts/build_cognigy_voice.py`; edit the words there, not in the editor |
 
 ## Rebuild
 
 ```bash
 # .env: COGNIGY_API_URL, COGNIGY_API_KEY (Cognigy > My Profile > API Keys), MCP_SECRET
-python scripts/build_cognigy_voice.py --project 6af5f866e509708910c132fe --endpoint 6af610eab18820d0e42a19d8
+python scripts/build_cognigy_voice.py --project 6af5f866e509708910c132fe            # both routes
+python scripts/build_cognigy_voice.py --project 6af5f866e509708910c132fe --route study
 ```
 
-It updates the AI Agent in place, deletes and rebuilds the flow, and points
-the endpoint at it. Safe to run as often as needed. On a new tenant, create a
-project and a Voice Gateway endpoint first, then pass their ids.
+For each route it updates the AI Agent in place, deletes and rebuilds the
+flow, and points the endpoint (found by name, made if missing) at it, then
+prints the endpoint's config URL. Safe to run as often as needed. On a new
+tenant, create a project first; a new config URL goes in
+`index.html::VOICE_CONFIG_URLS`.
 
 ## Why it's built this way
 
-- **She listens first.** The agent's instructions mirror Refuge's `listen`
+- **One voice.** Both calls set `SPEECH` for the whole call, and both AI
+  Agents name the same voice, so Aquila sounds the same on either route and
+  nothing in Cognigy names another.
+- **Two Aquilas.** The study call answers questions (`find_verses` first,
+  `ask_aquila` for deeper ones) and greets by saying what to ask; Refuge's
+  listens and greets gently. Keeping them apart keeps each one's manner.
+- **In Refuge, she listens first.** The agent's instructions mirror Refuge's `listen`
   node: a few spoken sentences, one gentle question at most, Scripture only
   when it's wanted.
 - **She never quotes from memory.** Verses come from `find_verses`, read from
@@ -61,9 +78,9 @@ project and a Voice Gateway endpoint first, then pass their ids.
    own, with Deepgram speech in English by default. An organisation account
    (an Account SID, linked with `POST /organisations/voicegateway/account`)
    is only needed for a phone number or your own speech credentials.
-2. **A calmer voice (optional).** Deploy > Endpoints > aquila > Voice settings:
-   text to speech Deepgram (connection `Aqu-voice`), speech to text Deepgram
-   Flux (`Aqu-voice2`), English. Left unset, the system default voice speaks.
+2. **The voice** is set by the flow (`SPEECH`), not the endpoint's Voice
+   settings. Leave those empty on both endpoints, or the endpoint could name
+   a different voice from the flow.
 3. **Adullam.** `find_verses` must be live and `MCP_SECRET` set on Render to
    the value in `.env` (both done; `/mcp/sse` refuses a caller without it).
 4. **Once it works:** turn off the MCP tool's debug messages ("Adullam
