@@ -2266,6 +2266,31 @@ body.still-open { overflow: hidden; }
 .give-row-actions { flex: none; display: flex; align-items: center; gap: 6px; }
 .support-monthly-ways { display: flex; flex-wrap: wrap; gap: 8px; }
 .giving-admin { display: grid; gap: 16px; max-width: 760px; margin-top: 16px; }
+/* Five desk tabs don't fit a phone's width, so the bar scrolls instead of wrapping. */
+.desk-tabs { overflow-x: auto; scrollbar-width: none; }
+.desk-tabs button { flex: 1 0 auto; white-space: nowrap; }
+/* The desk's Numbers tab (web/numbers.js). */
+.numbers-admin .desk-stats { margin: 0; }
+.num-card .section-title { margin-bottom: 10px; }
+.num-readout { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.num-bars { display: flex; align-items: flex-end; gap: 2px; height: 120px; border-bottom: 1px solid var(--line); }
+.num-bar { flex: 1; height: 100%; display: flex; align-items: flex-end; border-radius: 4px 4px 0 0; outline-offset: 2px; cursor: default; }
+.num-bar i { display: block; width: 100%; background: var(--ember); border-radius: 4px 4px 0 0; transition: opacity 0.15s ease; }
+.num-bars:hover .num-bar i { opacity: 0.55; }
+.num-bars .num-bar:hover i, .num-bars .num-bar:focus i { opacity: 1; }
+.num-axis { display: flex; justify-content: space-between; font-size: 12px; margin-top: 6px; }
+.num-details { margin-top: 12px; font-size: 14px; }
+.num-details summary { cursor: pointer; color: var(--muted); }
+.num-scroll { overflow-x: auto; }
+.num-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.num-table th, .num-table td { padding: 7px 8px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.num-table thead th { color: var(--muted); font-weight: 500; font-size: 13px; }
+.num-table tbody th { font-weight: 500; }
+.num-table .n { text-align: right; font-variant-numeric: tabular-nums; }
+.num-mem { margin: 0 0 8px; font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.num-mem.high { color: var(--danger); }
+.num-meter { height: 8px; border-radius: var(--pill); background: var(--well); overflow: hidden; margin-bottom: 8px; }
+.num-meter span { display: block; height: 100%; background: var(--ember); border-radius: inherit; }
 .giving-card { display: grid; gap: 10px; }
 .giving-card .card-head { margin: 0; align-items: center; }
 .giving-stripe { margin: 4px 0 0; font-size: 13.5px; }

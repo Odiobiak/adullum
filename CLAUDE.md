@@ -191,6 +191,7 @@ Helplines live in `web/refuge.js::HELPLINES`, chosen by the browser's region and
 - **Every decision goes through `desk_decide`**, which changes the post and writes `refuge_moderation_log` in one call, so the trail never disagrees with the wall. Reports go on the trail as they arrive (`desk.report_received`) with no reporter. A post deleted by its writer leaves its entries with no post.
 - **Urgent**: a report that someone may be in danger, or a check that noticed violence or self-harm. It goes to the top and sends the admins a notification (`desk.alert_admins`, through `desk_admin_ids`).
 - Same rule as the wall: no desk select names `user_id`, of writer or reporter.
+- **Numbers** (`app/numbers.py`, `web/numbers.js`): how many people use Adullam and what they make, from `admin_numbers` (`supabase/migrations/20261128_admin_numbers.sql`), counts only and never who; add a new table people make things in to its `parts` list. It also shows the server's memory against Render's limit, read from the process, so a slow leak is visible before Render's emails. `render.yaml` sets `MALLOC_ARENA_MAX=2` and `reminders.py::_LIVE_POOL` is one pool for the whole process, because the server crept to its 512 MB limit overnight with nobody using it, most likely from new threads every few minutes reading multi-megabyte YouTube pages. Keep work that runs on a timer off fresh threads.
 
 ### The Bible reader, notes and highlights (`app/bible.py`, `app/notes.py`, `app/highlights.py`, `web/reader.js`)
 

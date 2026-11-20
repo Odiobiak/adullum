@@ -2695,8 +2695,10 @@
   const KIND_NAME = { burden: "Prayer request", rejoice: "Good news" };
   const QUEUE_STATUS = { pending: "Flagged by the check", reported: "Reported", held: "Held" };
   const STATUS_NOW = { pending: "waiting", reported: "reported", held: "held", approved: "approved", removed: "removed" };
-  // Giving (ways to give on the Support page) is drawn by web/support.js.
-  const DESK_TABS = [["review", "To review"], ["live", "On the wall"], ["log", "History"], ["giving", "Giving"]];
+  // Giving (ways to give on the Support page) is drawn by web/support.js,
+  // and Numbers (how many people use what, and the server's memory) by web/numbers.js.
+  const DESK_TABS = [["review", "To review"], ["live", "On the wall"], ["log", "History"], ["giving", "Giving"], ["numbers", "Numbers"]];
+  const DESK_PANELS = { giving: ["giving-admin", () => window.Support], numbers: ["giving-admin numbers-admin", () => window.Numbers] };
   const DESK_FILTERS = {
     review: [["all", "Everything"], ["urgent", "Urgent"], ["pending", "Flagged by the check"], ["reported", "Reported"], ["held", "Held"]],
     live: [["all", "Everything on the wall"], ["ending", "Ending in 2 days"], ["burden", "Prayer requests"], ["rejoice", "Good news"], ["answered", "Answered prayers"], ["kept_up", "Kept up"]],
@@ -2922,10 +2924,11 @@
         type: "button", role: "tab", "aria-selected": String(desk.tab === key), onclick: () => openDesk(key),
         text: key === "review" && data.stats.to_review ? `${label} (${data.stats.to_review})` : label,
       })));
-      if (desk.tab === "giving") {
-        const panel = el("div", { class: "giving-admin" });
+      if (DESK_PANELS[desk.tab]) {
+        const [cls, owner] = DESK_PANELS[desk.tab];
+        const panel = el("div", { class: cls });
         box.replaceChildren(el("div", { class: "refuge desk" }, [tabs, panel]));
-        await window.Support.renderAdmin(panel);
+        await owner().renderAdmin(panel);
         return;
       }
       const tab = await deskTab(data, renderDesk);

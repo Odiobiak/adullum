@@ -42,10 +42,10 @@ Tick a box by changing `[ ]` to `[x]`.
 ### Speak with Aquila (Deepgram)
 
 - [ ] Deepgram account has a spending limit, and its price per turn is checked against `COST_SPEECH_USD` (0.002 now).
-- [ ] Mic shows beside Send and on the home ask box only when signed in; the note on where the voice goes appears before the first use.
+- [x] Mic shows beside Send and on the home ask box only when signed in; the note on where the voice goes appears before the first use.
 - [ ] Tested on iPhone and Android: a full back and forth, Stop, Done when the pause isn't heard, 30 quiet seconds, leaving Aquila, locking the screen.
-- [ ] A spoken question shows up in the conversation rail like a typed one, with its citations.
-- [ ] A long answer reads aloud with no gap or cut-off between pieces.
+- [x] A spoken question shows up in the conversation rail like a typed one, with its citations.
+- [x] A long answer reads aloud with no gap or cut-off between pieces.
 
 ## 4. Speed
 
@@ -72,7 +72,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [x] Welcome tour and beta note scroll to their buttons on phones, tablets and laptops.
 - [ ] Error monitoring on: create a Sentry project and set `SENTRY_DSN` on Render (server side is built in, `app/monitoring.py`).
 - [ ] Full run on a real iPhone (Safari and Home Screen app) and Android: sign up, magic link, the welcome tour and beta note, every home shortcut, Aquila (typed and spoken), Refuge, Amens, Prayers, Declare, Bible, Church.
-- [ ] Dark themes and the largest text size checked for readability.
+- [x] Dark themes and the largest text size checked for readability.
 - [x] Sign in, export and account deletion work end to end.
 - [x] Custom domain: adullamapp.com added on Render, DNS set in Cloudflare (DNS only), certificate issued, and the address added to Supabase Auth > URL Configuration.
 

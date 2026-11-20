@@ -188,6 +188,13 @@ def run_due(now: datetime | None = None) -> int:
     return sent
 
 
+# One pool for every live check, kept for the life of the process. A fresh
+# pool each time started new threads every few minutes, and on Linux each new
+# thread's share of a multi-megabyte YouTube page stayed held after it ended,
+# so memory crept up all night with nobody using the app.
+_LIVE_POOL = ThreadPoolExecutor(max_workers=4, thread_name_prefix="live-check")
+
+
 def run_live() -> int:
     """Tell people when one of their churches goes live (once per stream).
     Only churches with "Tell me when it's live" on, of people with a device
@@ -205,8 +212,7 @@ def run_live() -> int:
         .eq("live_alerts", True).not_.is_("youtube_url", "null").in_("user_id", users).limit(500).execute().data
     )
     channels = sorted({c["youtube_url"] for c in churches})
-    with ThreadPoolExecutor(max_workers=4) as pool:
-        live = dict(zip(channels, pool.map(live_video, channels)))
+    live = dict(zip(channels, _LIVE_POOL.map(live_video, channels)))
     told = 0
     for church in churches:
         video = live.get(church["youtube_url"])

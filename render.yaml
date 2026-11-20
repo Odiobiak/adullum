@@ -8,6 +8,11 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips '*'
     healthCheckPath: /health
     envVars:
+      # Python's threads each get their own glibc memory pool, which is seldom
+      # handed back, so a long-running server creeps toward its memory limit.
+      # Two pools keep it flat at a cost too small to notice.
+      - key: MALLOC_ARENA_MAX
+        value: "2"
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
