@@ -4,8 +4,9 @@
 // Tap the mic and ask. When you pause, Deepgram turns what you said into
 // words (app/voice.py), they go in as an ordinary question (the same grounded
 // Aquila, her answer and citations on screen), and the answer is read aloud a
-// piece at a time. Then it listens again, until you tap Stop, stay quiet for
-// a while, or leave the page. Refuge doesn't offer this: its call is Cognigy's.
+// piece at a time, starting the moment it shows rather than when the stream
+// ends. Then it listens again, until you tap Stop, stay quiet for a while, or
+// leave the page. Refuge doesn't offer this: its call is Cognigy's.
 //
 // What keeps it from dropping: the mic level is read on a timer (animation
 // frames stop when a phone dims its screen), what counts as speech is measured
@@ -23,7 +24,11 @@
   const SILENCE_MS = 1300;           // a pause this long ends what you're saying
   const WAIT_FOR_SPEECH_MS = 30000;  // this long with nothing said ends the session, so the mic is never left open
   const MAX_TURN_MS = 90000;
-  const PIECE_CHARS = 1200;          // one piece read aloud; Deepgram reads up to 2,000 a request
+  // How long each piece read aloud may be. The first is a sentence or two, so
+  // her voice comes within a moment of the answer; each after is longer and is
+  // fetched while the one before plays. Deepgram reads up to 2,000 a request.
+  const PIECE_SIZES = [160, 450, 1200];
+  const SENTENCE = /[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g;
   const RETRY_MS = 700;
   // A silent clip played inside the first tap, so phones let the answer play later.
   const SILENCE_CLIP = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
@@ -35,7 +40,7 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const toast = (text, tone = "info") => cave().toast(text, { tone });
 
-  // The session while it runs: { stream, audio, context, analyser, ask, ui, button, cancelTurn, finishTurn, skip }.
+  // The session while it runs: { stream, audio, context, analyser, ask, ui, button, cancelTurn, finishTurn, reading, skipped }.
   let session = null;
   let serverReady = null; // a promise: does this server offer Speak (a Deepgram key)?
 
@@ -159,21 +164,23 @@
   // ---------------------------------------------------------------------
   // Reading the answer aloud
   // ---------------------------------------------------------------------
-  // The answer in pieces Deepgram can read: whole paragraphs (a heading is
-  // one of its own), joined up to PIECE_CHARS, a long one cut at sentences.
+  // The answer in pieces Deepgram can read, cut between sentences and sized
+  // by PIECE_SIZES. Paragraphs stay apart (a heading starts its own line), so
+  // the server can still turn "## Context" into a sentence of its own.
   function pieces(text) {
     const out = [];
     let current = "";
-    const add = (part) => {
-      if (current && current.length + part.length + 2 > PIECE_CHARS) {
-        out.push(current);
-        current = "";
-      }
-      current = current ? `${current}\n\n${part}` : part;
-    };
     for (const para of text.split(/\n{2,}|\n(?=#)/).map((p) => p.trim()).filter(Boolean)) {
-      if (para.length <= PIECE_CHARS) add(para);
-      else (para.match(/[^.!?]+[.!?]+["')\]]*\s*|[^.!?]+$/g) || [para]).forEach((sentence) => add(sentence.trim()));
+      (para.match(SENTENCE) || [para]).forEach((raw, i) => {
+        const sentence = raw.trim();
+        if (!sentence) return;
+        const limit = PIECE_SIZES[Math.min(out.length, PIECE_SIZES.length - 1)];
+        if (current && current.length + sentence.length + 2 > limit) {
+          out.push(current);
+          current = "";
+        }
+        current = current ? `${current}${i ? " " : "\n\n"}${sentence}` : sentence;
+      });
     }
     if (current) out.push(current);
     return out;
@@ -184,35 +191,55 @@
     return URL.createObjectURL(await resp.blob());
   }
 
-  // Plays one piece; resolves true when Skip was tapped.
-  function play(s, url) {
+  // Plays one piece; resolves when it ends or the reading is stopped.
+  function play(s, run, url) {
     return new Promise((resolve) => {
-      s.skip = () => {
+      run.interrupt = () => {
         s.audio.pause();
-        resolve(true);
+        resolve();
       };
-      s.audio.onended = s.audio.onerror = () => resolve(false);
+      s.audio.onended = s.audio.onerror = () => resolve();
       s.audio.src = url;
-      s.audio.play().catch(() => resolve(false));
+      s.audio.play().catch(() => resolve());
     });
   }
 
-  // Reads the whole answer, fetching each next piece while one plays.
-  async function readAloud(s, text) {
+  // Reads the whole answer, fetching each next piece while one plays, until
+  // it ends or `run` is stopped (Skip, Stop, or a retried answer taking over).
+  async function readAloud(s, text, run) {
+    const live = () => session === s && !run.stopped;
     const parts = pieces(text);
     let next = parts.length ? audioFor(parts[0]) : null;
-    for (let i = 0; next && session === s; i++) {
+    for (let i = 0; next && live(); i++) {
       const url = await next;
       next = i + 1 < parts.length ? audioFor(parts[i + 1]) : null;
       next?.catch(() => {}); // a failure is met when it's awaited
-      const skipped = await play(s, url);
+      if (live()) await play(s, run, url);
       URL.revokeObjectURL(url);
-      if (skipped) {
-        next?.then(URL.revokeObjectURL, () => {});
-        break;
-      }
     }
-    s.skip = null;
+    next?.then(URL.revokeObjectURL, () => {});
+  }
+
+  // Starts reading `text`, taking over from any reading under way: when the
+  // grounding check sends Aquila back for a better answer, the new one is read
+  // instead. `s.reading.done` settles when the latest reading ends.
+  function read(s, text) {
+    s.reading?.stop();
+    const run = { stopped: false };
+    run.stop = () => {
+      run.stopped = true;
+      run.interrupt?.();
+    };
+    run.done = readAloud(s, text, run);
+    run.done.catch(() => {}); // a failure is met when it's awaited
+    s.reading = run;
+  }
+
+  // Skip: this answer goes unread, even if a retried one arrives after it.
+  function skip() {
+    if (!session) return;
+    session.skipped = true;
+    session.reading?.stop();
   }
 
   // ---------------------------------------------------------------------
@@ -239,7 +266,7 @@
         state.textContent = text;
         act.hidden = !label;
         act.textContent = label || "";
-        act.onclick = step === "listening" ? () => session?.finishTurn?.() : () => session?.skip?.();
+        act.onclick = step === "listening" ? () => session?.finishTurn?.() : skip;
       },
       level(ratio) {
         node.style.setProperty("--level", Math.max(0, Math.min(1, (ratio - 0.6) / 2)).toFixed(2));
@@ -322,13 +349,22 @@
         continue;
       }
       s.ui.show("thinking");
-      const answer = await s.ask(text);
+      s.skipped = false;
+      s.reading = null;
+      // Reading starts as soon as the answer is on screen, while the page
+      // still waits on the grounding check and the follow-up questions.
+      const startReading = (draft) => {
+        if (!live() || s.skipped) return;
+        s.ui.show("speaking");
+        read(s, draft);
+      };
+      const answer = await s.ask(text, startReading);
       if (!live()) return;
       if (!answer) return stop(); // the page already says why
       failures = 0;
-      s.ui.show("speaking");
+      if (!s.reading) startReading(answer);
       try {
-        await readAloud(s, answer);
+        await s.reading?.done;
       } catch (err) {
         if (!live() || failed(err)) return;
       }
@@ -337,8 +373,9 @@
 
   /**
    * Starts a session, from inside the tap that asked for it (phones only let
-   * audio start there). `mount` is where the status bar goes, `ask(text)`
-   * asks the question and resolves the answer's text (null when it failed),
+   * audio start there). `mount` is where the status bar goes, `ask(text,
+   * onAnswer)` asks the question, calls `onAnswer(text)` the moment the
+   * answer shows, and resolves the answer's text (null when it failed),
    * and `button` is the mic that started it, shown pressed while it runs.
    */
   async function start({ mount, ask, button }) {
@@ -371,7 +408,7 @@
     if (!s) return;
     session = null;
     s.cancelTurn?.();
-    s.skip?.();
+    s.reading?.stop();
     s.audio.pause();
     s.stream.getTracks().forEach((t) => t.stop());
     s.context.close().catch(() => {});

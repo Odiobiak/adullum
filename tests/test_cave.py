@@ -6,6 +6,7 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi.testclient import TestClient
+from postgrest.exceptions import APIError
 
 import app.main as main
 from app import auth, cave, connections, memory
@@ -41,12 +42,12 @@ class TestMemoryBlock:
 class TestDated:
     def test_recent_and_old(self):
         now = datetime.now(timezone.utc)
-        assert memory._dated("x", now.isoformat()).startswith("(earlier today)")
-        assert memory._dated("x", (now - timedelta(days=3)).isoformat()).startswith("(3 days ago)")
-        assert memory._dated("x", (now - timedelta(days=21)).isoformat()).startswith("(about 3 weeks ago)")
+        assert memory.dated("x", now.isoformat()).startswith("(earlier today)")
+        assert memory.dated("x", (now - timedelta(days=3)).isoformat()).startswith("(3 days ago)")
+        assert memory.dated("x", (now - timedelta(days=21)).isoformat()).startswith("(about 3 weeks ago)")
 
     def test_bad_timestamp_falls_back_to_content(self):
-        assert memory._dated("x", "not a date") == "x"
+        assert memory.dated("x", "not a date") == "x"
 
 
 class TestJournalHelpers:
@@ -68,9 +69,10 @@ class TestJournalHelpers:
 
 
 class TestRememberJournal:
-    """Journal entries become notes about the person only when memory is on."""
+    """Journal entries become notes about the person only when the person has
+    let Aquila see them and memory is on. The cave is otherwise private."""
 
-    ENTRY = {"id": "j1", "passage_ref": "Psalms 42:5", "reflection": "Still hoping."}
+    ENTRY = {"id": "j1", "passage_ref": "Psalms 42:5", "reflection": "Still hoping.", "aquila_sees": True}
 
     class FakeDb:
         """Records the chained calls made against user_memories."""
@@ -113,6 +115,43 @@ class TestRememberJournal:
         _, stored = self.fake(monkeypatch, enabled=True)
         cave._remember_journal(USER, {**self.ENTRY, "reflection": "  "})
         assert stored == []
+
+    def test_a_private_entry_is_not_stored(self, monkeypatch):
+        _, stored = self.fake(monkeypatch, enabled=True)
+        cave._remember_journal(USER, {**self.ENTRY, "aquila_sees": False})
+        cave._remember_journal(USER, {k: v for k, v in self.ENTRY.items() if k != "aquila_sees"})
+        assert stored == []
+
+    def test_taking_an_entry_back_clears_its_note(self, monkeypatch):
+        db, stored = self.fake(monkeypatch, enabled=True)
+        cave._remember_journal(USER, {**self.ENTRY, "aquila_sees": False}, replace=True)
+        assert ("delete", ()) in db.calls and ("eq", ("journal_id", "j1")) in db.calls
+        assert stored == []
+
+
+class TestSelectPrivate:
+    def test_reads_without_the_column_until_the_migration_runs(self):
+        asked = []
+
+        def run(fields):
+            asked.append(fields)
+            if "aquila_sees" in fields:
+                raise APIError({"code": "42703", "message": "column journal_entries.aquila_sees does not exist"})
+            return ["row"]
+
+        assert cave.select_private(run, "id, reflection, aquila_sees") == ["row"]
+        assert asked == ["id, reflection, aquila_sees", "id, reflection"]
+
+    def test_other_errors_are_not_hidden(self):
+        def run(fields):
+            raise APIError({"code": "42P01", "message": "relation does not exist"})
+
+        try:
+            cave.select_private(run, "id, aquila_sees")
+        except APIError as err:
+            assert err.code == "42P01"
+        else:
+            raise AssertionError("expected the error to reach the caller")
 
 
 class TestBearer:

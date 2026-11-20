@@ -399,6 +399,21 @@ class CareCheck(BaseModel):
 CARE_CHECK_PROMPT = "Read the conversation and judge only the person's latest message."
 
 
+def cave_block(notes: list[str]) -> str:
+    """What the person keeps in their cave (app/refuge.py::cave_notes), for
+    Aquila in Refuge only. Empty when there's nothing, so the prompt is as it was."""
+    if not notes:
+        return ""
+    lines = "\n".join(f"- {n}" for n in notes)
+    return (
+        "\n\nWhat they keep in their cave, their prayer list and journal. It is private to them, "
+        "shared with you only here in Refuge, and it is not Scripture: never quote it as a verse or "
+        "treat it as what the Bible says. Bring it up only when it truly helps, gently, the way a "
+        "friend who remembers would, and never as though you had been reading over their shoulder:\n"
+        f"{lines}"
+    )
+
+
 def _listen_messages(history: list[dict]) -> list:
     """The exchange as chat messages, most recent last, trimmed to the limits."""
     out, chars = [], 0
@@ -453,7 +468,7 @@ def listen(state: AgentState, config: RunnableConfig) -> AgentState:
         verses = hybrid_retrieve(" ".join(user_turns), translation, k=4)
 
     def reply_with(listed: list[Verse], extra: str = "") -> str:
-        system = LISTEN_SYSTEM_PROMPT
+        system = LISTEN_SYSTEM_PROMPT + cave_block(state.get("cave_notes") or [])
         if care:
             system += "\n\n" + CARE_INSTRUCTION
         if listed:

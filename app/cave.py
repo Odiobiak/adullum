@@ -48,14 +48,36 @@ def _db_call(fn, setup_hint: str = _SETUP_HINT):
     try:
         return fn()
     except APIError as err:
-        # A missing table, column or database function (PGRST202, 42883).
-        if err.code in ("42P01", "PGRST205", "42703", "PGRST202", "42883"):
+        # A missing table, column (42703 reading, PGRST204 writing) or database function (PGRST202, 42883).
+        if err.code in ("42P01", "PGRST205", "42703", "PGRST204", "PGRST202", "42883"):
             raise HTTPException(status_code=503, detail=setup_hint) from err
         raise
 
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+# The cave is private. Aquila outside it (the Aquila page, the home screen,
+# Speak) sees a journal entry or a prayer only when the person lets her
+# (`aquila_sees`); Aquila in Refuge sees the cave (app/refuge.py::cave_notes).
+PRIVACY_COLUMN = "aquila_sees"
+PRIVACY_HINT = (
+    "Letting Aquila see an entry needs a database update. Run "
+    "supabase/migrations/20261129_cave_privacy.sql in the Supabase SQL editor."
+)
+
+
+def select_private(run, fields: str):
+    """Runs `run(fields)`, and again without `aquila_sees` on a database where
+    20261129_cave_privacy.sql hasn't run yet, so the journal and the prayer
+    list keep working (every entry private) until it does."""
+    try:
+        return run(fields)
+    except APIError as err:
+        if err.code != "42703":
+            raise
+        return run(fields.replace(f", {PRIVACY_COLUMN}", ""))
 
 
 def _redirect_to(request: Request) -> str:
@@ -366,15 +388,18 @@ class JournalIn(BaseModel):
     mood: Mood | None = None
     tags: list[str] = Field(default=[], max_length=12)
     session_id: uuid.UUID | None = None
+    aquila_sees: bool = False  # private by default
 
 
 class JournalPatch(BaseModel):
     reflection: str | None = Field(default=None, max_length=8000)
     mood: Mood | None = None
     tags: list[str] | None = Field(default=None, max_length=12)
+    aquila_sees: bool | None = None
 
 
-_JOURNAL_FIELDS = "id, question, answer, passage_ref, verse_text, citations, reflection, mood, tags, session_id, created_at, updated_at"
+_JOURNAL_BASE_FIELDS = "id, question, answer, passage_ref, verse_text, citations, reflection, mood, tags, session_id, created_at, updated_at"
+_JOURNAL_FIELDS = f"{_JOURNAL_BASE_FIELDS}, {PRIVACY_COLUMN}"
 
 
 def _clean_tags(tags: list[str]) -> list[str]:
@@ -402,24 +427,26 @@ def _remember_journal(user: AuthUser, entry: dict, *, replace: bool = False) -> 
 
     With `replace`, the old note is deleted first, so Aquila remembers what
     the entry says now rather than every draft of it. A new note is written
-    only when the entry has a reflection and the person has memory switched
-    on; with it off, editing an entry still clears the note it used to have.
+    only when the person has let Aquila see the entry, it has a reflection
+    and memory is switched on; otherwise an edit still clears the old note,
+    so taking an entry back from Aquila takes it out of her memory too.
     """
     if replace:
         get_supabase().table("user_memories").delete().eq("journal_id", entry["id"]).eq("user_id", user.id).execute()
-    if (entry.get("reflection") or "").strip() and memory.memory_enabled(user.id):
+    shared = entry.get(PRIVACY_COLUMN) and (entry.get("reflection") or "").strip()
+    if shared and memory.memory_enabled(user.id):
         memory.store_note(user.id, _journal_memory_text(entry), kind="journal", journal_id=entry["id"])
 
 
 @router.get("/me/journal")
 def list_journal(mood: Mood | None = None, user: AuthUser = Depends(require_user)) -> list[dict]:
-    def run():
-        q = get_supabase().table("journal_entries").select(_JOURNAL_FIELDS).eq("user_id", user.id)
+    def run(fields: str):
+        q = get_supabase().table("journal_entries").select(fields).eq("user_id", user.id)
         if mood:
             q = q.eq("mood", mood)
         return q.order("created_at", desc=True).limit(100).execute().data
 
-    return _db_call(run)
+    return _db_call(lambda: select_private(run, _JOURNAL_FIELDS))
 
 
 @router.post("/me/journal")
@@ -427,12 +454,15 @@ def create_journal(body: JournalIn, user: AuthUser = Depends(require_user)) -> d
     row = body.model_dump(mode="json")
     row["tags"] = _clean_tags(body.tags)
     row["user_id"] = user.id
+    if not row[PRIVACY_COLUMN]:
+        del row[PRIVACY_COLUMN]  # the column's default, so a database without it still takes the entry
     if row.get("session_id"):
         # Only link a conversation the person actually owns, otherwise just drop the link.
         owned = get_supabase().table("chat_sessions").select("id").eq("id", row["session_id"]).eq("user_id", user.id).execute().data
         if not owned:
             row["session_id"] = None
-    entry = _db_call(lambda: get_supabase().table("journal_entries").insert(row).execute().data[0])
+    hint = PRIVACY_HINT if PRIVACY_COLUMN in row else _SETUP_HINT
+    entry = _db_call(lambda: get_supabase().table("journal_entries").insert(row).execute().data[0], hint)
     _remember_journal(user, entry)
     return entry
 
@@ -442,14 +472,17 @@ def update_journal(entry_id: uuid.UUID, body: JournalPatch, user: AuthUser = Dep
     patch = body.model_dump(exclude_unset=True)
     if "tags" in patch and patch["tags"] is not None:
         patch["tags"] = _clean_tags(patch["tags"])
+    if patch.get(PRIVACY_COLUMN, False) is None:
+        del patch[PRIVACY_COLUMN]
     patch["updated_at"] = _now()
     rows = _db_call(
-        lambda: get_supabase().table("journal_entries").update(patch).eq("id", str(entry_id)).eq("user_id", user.id).execute().data
+        lambda: get_supabase().table("journal_entries").update(patch).eq("id", str(entry_id)).eq("user_id", user.id).execute().data,
+        PRIVACY_HINT if PRIVACY_COLUMN in patch else _SETUP_HINT,
     )
     if not rows:
         raise HTTPException(status_code=404, detail="Entry not found")
     entry = rows[0]
-    if "reflection" in patch:
+    if {"reflection", PRIVACY_COLUMN} & patch.keys():
         _remember_journal(user, entry, replace=True)
     return entry
 
@@ -470,7 +503,7 @@ def revisit(user: AuthUser = Depends(require_user)) -> dict:
     rows = _db_call(
         lambda: get_supabase()
         .table("journal_entries")
-        .select(_JOURNAL_FIELDS)
+        .select(_JOURNAL_BASE_FIELDS)
         .eq("user_id", user.id)
         .lte("created_at", cutoff)
         .neq("reflection", "")

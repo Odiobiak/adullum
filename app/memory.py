@@ -70,10 +70,10 @@ def recall(user_id: str, query: str) -> list[str]:
     except Exception:
         log.warning("memory recall failed", exc_info=True)
         return []
-    return [_dated(r["content"], r["created_at"]) for r in rows]
+    return [dated(r["content"], r["created_at"]) for r in rows]
 
 
-def _dated(content: str, created_at: str) -> str:
+def dated(content: str, created_at: str) -> str:
     """Prefixes how long ago a note was kept, so Aquila can say "a few weeks
     ago you mentioned" instead of treating everything as said just now."""
     try:

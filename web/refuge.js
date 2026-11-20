@@ -2590,8 +2590,8 @@
 
     paintCounts();
     select(wallView);
-    // The whole wall's week, under the title: a sense of people here.
-    const week = data.this_week ? el("p", { class: "amens-week" }, [el("span", { class: "amens-week-dot", "aria-hidden": "true" }), `${plural(data.this_week, "amen", "amens")} on the wall this week`]) : null;
+    // How many posts are up, under the title (the desk's On the wall): a sense of people here.
+    const week = data.on_wall ? el("p", { class: "amens-week" }, [el("span", { class: "amens-week-dot", "aria-hidden": "true" }), `${plural(data.on_wall, "post", "posts")} on the wall right now`]) : null;
     const node = room("Amens", {
         text: [
           "Carry each other. Pray for what others are carrying and rejoice in what God is doing, without anyone's name.",

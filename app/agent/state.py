@@ -44,4 +44,8 @@ class AgentState(TypedDict, total=False):
     # a prayer and encouragement for the request in `query`, and nothing else.
     mode: Literal["study", "listen", "pray"]
     history: list[dict]
+    # Set by Refuge for signed-in people with memory on (app/refuge.py::cave_notes):
+    # their open prayers and latest journal entries, which only Aquila inside the
+    # cave sees unless an entry is let out. Never Scripture.
+    cave_notes: list[str]
     care: bool  # set by listen(): the person may not be safe, so the client shows helplines

@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import app.main as main
-from app import auth, cave, desk, one_another, refuge
+from app import auth, cave, desk, memory, one_another, refuge
 from app.agent import graph, nodes
 from app.auth import AuthUser
 from app.config import settings
@@ -582,10 +582,12 @@ class TestTalkRoute:
             return {"answer": "I'm glad you told me.", "care": False, "citations": []}
 
         monkeypatch.setattr(refuge.agent, "ainvoke", fake_invoke)
+        monkeypatch.setattr(refuge, "cave_notes", lambda user_id: ["They are praying for: rest"])
         messages = [{"role": "aquila", "content": "I'm here."}, {"role": "user", "content": "I got the job"}]
         resp = client.post("/me/refuge/talk", json={"messages": messages}, headers=HEADERS)
         assert resp.json() == {"reply": "I'm glad you told me.", "care": False, "verses": []}
         assert seen["state"]["mode"] == "listen" and seen["state"]["query"] == "I got the job"
+        assert seen["state"]["cave_notes"] == ["They are praying for: rest"]
         assert seen["config"] == {"callbacks": []}
 
     def test_the_last_word_must_be_theirs(self):
@@ -598,6 +600,34 @@ class TestTalkRoute:
         client.post("/me/refuge/talks", json={"messages": messages}, headers=HEADERS)
         row = db.written[-1][2]
         assert row["title"] == "Help me plan my year" and row["user_id"] == USER.id
+
+
+class TestCaveNotes:
+    """Aquila in Refuge is inside the cave, so she sees the prayer list and the
+    journal, private entries included, unless memory is switched off."""
+
+    def test_open_prayers_and_latest_entries_become_notes(self, monkeypatch):
+        monkeypatch.setattr(memory, "memory_enabled", lambda user_id: True)
+        today = datetime.now(timezone.utc).isoformat()
+        db = use_db(monkeypatch, FakeDb(rows={
+            "prayers": [{"body": "My sister's   new job"}],
+            "journal_entries": [{"passage_ref": "Psalms 42:5", "reflection": "Life is humbling.", "created_at": today}],
+        }))
+        notes = refuge.cave_notes(USER.id)
+        assert notes[0] == "They are praying for: My sister's new job"
+        assert notes[1].startswith("(earlier today)") and notes[1].endswith('writing: "Life is humbling."')
+        assert db.filtered("prayers", "user_id", USER.id) and db.filtered("prayers", "status", "open")
+        assert db.filtered("journal_entries", "user_id", USER.id)
+
+    def test_nothing_is_read_with_memory_off(self, monkeypatch):
+        monkeypatch.setattr(memory, "memory_enabled", lambda user_id: False)
+        db = use_db(monkeypatch, FakeDb())
+        assert refuge.cave_notes(USER.id) == [] and db.calls == []
+
+    def test_the_prompt_labels_them_as_never_scripture(self):
+        assert nodes.cave_block([]) == ""
+        block = nodes.cave_block(["They are praying for: rest"])
+        assert "not Scripture" in block and "- They are praying for: rest" in block
 
 
 def test_listen_mode_has_its_own_entry():
@@ -694,11 +724,9 @@ class TestAmensGlance:
 
     def test_glance_counts_only_whats_for_the_person(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb(rows={
-            "refuge_amen_days": [{"amens": 5}, {"amens": 7}],
             "rpc:amens_waiting": 3,
         }))
 
-        # The whole wall's week is left out: it isn't something to respond to.
         assert one_another.amens_glance(USER) == {"waiting": 3, "news": None}
         # The count reads the wall as this person sees it: other people's
         # posts only (amens_waiting leaves out the viewer's own).
@@ -748,13 +776,13 @@ class TestAmensGlance:
         news = [{"post_id": POST_ID, "kind": "burden", "answered": False, "amens": 2, "kind_words": 1}]
         db = use_db(monkeypatch, FakeDb(rows={
             "refuge_posts": mine, "refuge_wall_visits": [{"seen_at": seen}], "rpc:amens_news": news,
-            "refuge_amen_days": [{"amens": 30}],
-        }))
+        }, counts={"refuge_posts": 11}))
         body = client.get("/me/refuge/wall", headers=HEADERS).json()
         assert body["last_look"] == seen
         assert body["news"] == {"prayed": 2, "rejoiced": 0, "kind_words": 1, "answered": 0}
         assert body["mine"][0]["new_amens"] == 2 and body["mine"][0]["new_kind_words"] == 1
-        assert body["this_week"] == 30
+        # Posts up now, as the desk counts them, not amens said.
+        assert body["on_wall"] == 11
         # The news was read before this visit moved the last look on.
         news_at = next(i for i, c in enumerate(db.calls) if c[:2] == ("rpc", "amens_news"))
         visit_at = next(i for i, c in enumerate(db.calls) if c[0] == "refuge_wall_visits" and c[1] == "upsert")

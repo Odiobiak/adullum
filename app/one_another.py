@@ -346,14 +346,14 @@ def _others_post(post_id: uuid.UUID, user: AuthUser) -> dict:
     return post
 
 
-AMENS_WEEK_DAYS = 7
-
-
-def _amens_this_week() -> int:
-    """Amens said across the whole wall in the last seven days."""
-    week_start = (datetime.now(timezone.utc).date() - timedelta(days=AMENS_WEEK_DAYS - 1)).isoformat()
-    days = get_supabase().table("refuge_amen_days").select("amens").gte("day", week_start).execute().data
-    return sum(d["amens"] for d in days)
+def _posts_on_wall() -> int:
+    """How many posts are up on the wall right now, everyone's counted: the
+    same number the admin desk shows as On the wall (`desk.py::counts`)."""
+    now = datetime.now(timezone.utc).isoformat()
+    return (
+        get_supabase().table("refuge_posts").select("id", count="exact")
+        .eq("status", "approved").gt("expires_at", now).limit(1).execute().count or 0
+    )
 
 
 def tally_news(rows: list[dict], answered: int) -> dict | None:
@@ -513,9 +513,9 @@ def wall(
             log.warning("Couldn't note when the wall was opened", exc_info=True)
         return {**news, "since": since}
 
-    def this_week():
+    def up_now():
         try:
-            return _amens_this_week()
+            return _posts_on_wall()
         except Exception:
             return None
 
@@ -523,7 +523,7 @@ def wall(
         rows = page_to_carry()
     else:
         # The first page brings everything at once, side by side.
-        rows, done, sizes, (mine, tally), digest, news, week = gather(page_to_carry, carried, counts, shared, digest_on, news_then_opened, this_week)
+        rows, done, sizes, (mine, tally), digest, news, up = gather(page_to_carry, carried, counts, shared, digest_on, news_then_opened, up_now)
     out = {"posts": [_wall_post(r, reacted=False) for r in rows[:WALL_PAGE]], "has_more": len(rows) > WALL_PAGE, "page": page}
     if not first:
         return out
@@ -550,10 +550,10 @@ def wall(
     out["mine"] = mine
     out["digest"] = digest
     # When they last looked (posts newer than it are marked new), what came
-    # back since then, and the whole wall's week, for the room's top lines.
+    # back since then, and how many posts are up, for the room's top lines.
     out["last_look"] = news["since"]
     out["news"] = news["summary"]
-    out["this_week"] = week
+    out["on_wall"] = up
     return out
 
 

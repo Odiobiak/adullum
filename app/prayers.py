@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field
 
 from app import memory
 from app.auth import AuthUser, require_user
-from app.cave import _db_call, _now
+from app.cave import PRIVACY_COLUMN, PRIVACY_HINT, _db_call, _now, select_private
 from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import get_supabase
 from app.retrieval import parse_reference
@@ -39,7 +39,7 @@ _SETUP_HINT = (
     "supabase/migrations/20261109_prayers_highlights_memorize.sql in the Supabase SQL editor."
 )
 
-_FIELDS = "id, body, passage_ref, status, answer_note, answered_at, created_at, updated_at"
+_FIELDS = f"id, body, passage_ref, status, answer_note, answered_at, created_at, updated_at, {PRIVACY_COLUMN}"
 
 # How far back "answered recently" reaches on the home screen.
 RECENT_ANSWERS_DAYS = 30
@@ -63,6 +63,7 @@ def _practice_db(fn):
 class PrayerIn(BaseModel):
     body: str = Field(min_length=1, max_length=2000)
     passage_ref: str | None = Field(default=None, max_length=120)
+    aquila_sees: bool = False  # private by default, like everything in the cave
 
 
 class PrayedIn(BaseModel):
@@ -80,6 +81,7 @@ class PrayerPatch(BaseModel):
     passage_ref: str | None = Field(default=None, max_length=120)
     status: Status | None = None
     answer_note: str | None = Field(default=None, max_length=2000)
+    aquila_sees: bool | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -183,13 +185,14 @@ def prayer_week(marks: list[dict], today: date) -> dict:
 
 def _remember(user: AuthUser, prayer: dict) -> None:
     """Replace Aquila's note about this prayer with one that says what it
-    says now. Skipped entirely when the person has memory switched off, and
-    never fatal, like all note-taking."""
+    says now. A note is written only for a prayer the person has let Aquila
+    see, with memory switched on; taking it back from her clears the note.
+    Never fatal, like all note-taking."""
     try:
         get_supabase().table("user_memories").delete().eq("prayer_id", prayer["id"]).eq("user_id", user.id).execute()
     except Exception:
         return  # the prayers migration hasn't run; nothing to replace
-    if memory.memory_enabled(user.id):
+    if prayer.get(PRIVACY_COLUMN) and memory.memory_enabled(user.id):
         memory.store_note(user.id, prayer_memory_text(prayer), kind="prayer", prayer_id=prayer["id"])
 
 
@@ -201,14 +204,14 @@ def list_prayers(status: Status | None = None, user: AuthUser = Depends(require_
     """Every prayer, or only the open or answered ones. Open ones newest
     first; answered ones by when they were answered."""
 
-    def run():
-        q = get_supabase().table("prayers").select(_FIELDS).eq("user_id", user.id)
+    def run(fields: str):
+        q = get_supabase().table("prayers").select(fields).eq("user_id", user.id)
         if status:
             q = q.eq("status", status)
         order = "answered_at" if status == "answered" else "created_at"
         return q.order(order, desc=True).limit(300).execute().data
 
-    return _db(run)
+    return _db(lambda: select_private(run, _FIELDS))
 
 
 @router.get("/me/prayers/week")
@@ -253,7 +256,12 @@ def create_prayer(body: PrayerIn, user: AuthUser = Depends(require_user)) -> dic
     if not text:
         raise HTTPException(status_code=422, detail="Write a few words about what you're praying for.")
     row = {"user_id": user.id, "body": text, "passage_ref": normalize_passage(body.passage_ref)}
-    prayer = _db(lambda: get_supabase().table("prayers").insert(row).execute().data[0])
+    if body.aquila_sees:  # sent only when on, so a database without the column still takes the prayer
+        row[PRIVACY_COLUMN] = True
+    prayer = _db_call(
+        lambda: get_supabase().table("prayers").insert(row).execute().data[0],
+        PRIVACY_HINT if body.aquila_sees else _SETUP_HINT,
+    )
     _remember(user, prayer)
     return prayer
 
@@ -278,15 +286,18 @@ def update_prayer(prayer_id: uuid.UUID, body: PrayerPatch, user: AuthUser = Depe
         patch["answered_at"] = datetime.now(timezone.utc).isoformat()
     elif sent.get("status") == "open":
         patch.update(status="open", answered_at=None, answer_note=None)
+    if sent.get(PRIVACY_COLUMN) is not None:
+        patch[PRIVACY_COLUMN] = sent[PRIVACY_COLUMN]
 
-    rows = _db(
+    rows = _db_call(
         lambda: get_supabase().table("prayers").update(patch)
-        .eq("id", str(prayer_id)).eq("user_id", user.id).execute().data
+        .eq("id", str(prayer_id)).eq("user_id", user.id).execute().data,
+        PRIVACY_HINT if PRIVACY_COLUMN in patch else _SETUP_HINT,
     )
     if not rows:
         raise HTTPException(status_code=404, detail="Prayer not found")
     prayer = rows[0]
-    if {"body", "status", "answer_note"} & sent.keys():
+    if {"body", "status", "answer_note", PRIVACY_COLUMN} & sent.keys():
         _remember(user, prayer)
     return prayer
 

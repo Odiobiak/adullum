@@ -826,9 +826,10 @@ a.chapter:hover, button.chapter:hover { background: var(--hover); color: var(--e
 .stage.active { color: var(--muted); animation: pulse 1.4s ease-in-out infinite; }
 .stage.ok { display: none; color: var(--sage); }
 .stage.ok:last-child { display: inline-flex; }
-.memory-mark { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; color: var(--ember-hi); background: var(--ember-bg); border: 1px solid var(--ember-line); border-radius: var(--pill); padding: 5px 12px; margin: 0 0 14px; text-decoration: none; }
-.memory-mark svg { width: 13px; height: 13px; }
-.memory-mark:hover { text-decoration: underline; }
+/* A quiet word, not a badge: the answer keeps the space. */
+.memory-mark { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); margin: 0 0 8px; text-decoration: none; }
+.memory-mark svg { width: 12px; height: 12px; }
+.memory-mark:hover { color: var(--ember-hi); }
 .answer { white-space: pre-wrap; font-size: 17px; line-height: 1.7; color: var(--text); }
 /* The four study headings from SYNTHESIZE_SYSTEM_PROMPT, as ruled section headings. */
 .answer .heading { display: block; font: 600 15px/1.3 var(--body); color: var(--text); margin: 24px 0 6px; padding-top: 16px; border-top: 1px solid var(--divider); }
@@ -2954,6 +2955,13 @@ body.has-player #churchPage { padding-bottom: calc(var(--player-room, 0px) + 16p
 .declare-form .field { margin: 0; font-weight: 400; }
 .declare-form textarea.field { resize: vertical; min-height: 96px; line-height: 1.5; }
 .field-hint { font-size: 13px; font-weight: 400; color: var(--muted); }
+/* "Let Aquila see this" on a journal entry or prayer: the switch, then its hint under the label. */
+.aquila-switch { align-items: flex-start; margin: 0; }
+.aquila-switch > span { display: grid; gap: 2px; }
+.aquila-switch input { margin-top: 1px; flex-shrink: 0; }
+.entry-sees { display: inline-flex; align-items: center; gap: 4px; }
+.entry-sees svg, .prayer-row-mark.is-quiet svg { width: 12px; height: 12px; }
+.prayer-row-mark.is-quiet { color: var(--muted); }
 .declare-starters { display: flex; flex-wrap: wrap; gap: 8px; }
 .declare-from { display: grid; gap: 6px; font-size: 13px; }
 .declare-from p { margin: 0; padding: 12px 14px; border-radius: var(--radius-sm); background: var(--well); color: var(--soft); font-size: 15px; line-height: 1.5; }

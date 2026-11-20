@@ -166,6 +166,17 @@ def test_remember_respects_memory_switched_off(monkeypatch):
     assert stored == []
 
 
+def test_only_a_prayer_aquila_may_see_is_remembered(monkeypatch):
+    """The prayer list is private: a note is kept only for a prayer let out."""
+    stored = []
+    monkeypatch.setattr(prayers, "get_supabase", lambda: FakeDb([]))
+    monkeypatch.setattr(memory, "memory_enabled", lambda user_id: True)
+    monkeypatch.setattr(memory, "store_note", lambda *a, **k: stored.append(k["prayer_id"]))
+    prayers._remember(USER, {"id": "private", "body": "x", "status": "open"})
+    prayers._remember(USER, {"id": "shared", "body": "x", "status": "open", "aquila_sees": True})
+    assert stored == ["shared"]
+
+
 def test_prayers_require_sign_in():
     assert client.get("/me/prayers").status_code == 401
 

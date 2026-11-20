@@ -74,12 +74,14 @@
     const passage = el("input", { id: "prayerPassage", maxlength: "120", placeholder: "Philippians 4:6, or leave blank" });
     body.value = existing ? existing.body : "";
     passage.value = (existing && existing.passage_ref) || "";
+    const sees = cave().aquilaSwitch(existing && existing.aquila_sees);
     const msg = cave().formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: existing ? "Save changes" : "Add to my list" });
     const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "prayerTitle" }, [
-      cave().sheetTitle("prayerTitle", existing ? "Edit prayer" : "A new prayer", "Only you can see your prayer list. If Aquila's memory is on, she'll keep it in mind when you talk."),
+      cave().sheetTitle("prayerTitle", existing ? "Edit prayer" : "A new prayer", "Only you can see your prayer list. Aquila outside the cave sees a prayer only if you let her."),
       el("label", { class: "field-wrap" }, ["What you're praying for", body]),
       el("label", { class: "field-wrap" }, ["A verse to hold onto (optional)", passage]),
+      sees.node,
       msg.node,
     ]);
     const close = cave().overlay(form);
@@ -90,7 +92,7 @@
       if (!text) return msg.say("Write a few words about what you're praying for.", true);
       save.disabled = true;
       try {
-        const payload = { body: text, passage_ref: passage.value.trim() || null };
+        const payload = { body: text, passage_ref: passage.value.trim() || null, aquila_sees: sees.input.checked };
         const prayer = existing
           ? await api(`/me/prayers/${existing.id}`, { method: "PATCH", body: payload })
           : await api("/me/prayers", { method: "POST", body: payload });
@@ -478,6 +480,7 @@
       el("span", { class: "prayer-row-line" }, [
         prayerLine(p, week),
         declaration ? el("span", { class: "prayer-row-mark", html: `${ICON.declare}<span>Declaration</span>` }) : null,
+        p.aquila_sees ? cave().aquilaSeesMark("prayer-row-mark is-quiet") : null,
       ]),
       el("span", { class: "prayer-row-chevron", html: ICON.chevron }),
     ]);
@@ -498,6 +501,17 @@
       label: "Keep praying for it", onClick: async () => {
         try {
           await api(`/me/prayers/${p.id}`, { method: "PATCH", body: { status: "open" } });
+          rerender();
+        } catch (err) {
+          toast(err.message, { tone: "error" });
+        }
+      },
+    };
+    const seesToggle = {
+      label: p.aquila_sees ? "Keep from Aquila" : "Let Aquila see this", onClick: async () => {
+        try {
+          await api(`/me/prayers/${p.id}`, { method: "PATCH", body: { aquila_sees: !p.aquila_sees } });
+          toast(p.aquila_sees ? "Kept in the cave. Aquila won't bring it up." : "Aquila can see this now.");
           rerender();
         } catch (err) {
           toast(err.message, { tone: "error" });
@@ -530,7 +544,7 @@
           : el("button", { class: "text-act", type: "button", html: `${ICON.aquila}<span>Pray with Aquila</span>`, onclick: () => prayWithAquila(p.body, p.passage_ref) }),
         answered || declaration ? null : el("button", { class: "text-act", type: "button", html: `${ICON.declare}<span>Declare over it</span>`, onclick: declareOver }),
         answered ? null : el("button", { class: "text-act is-quiet", type: "button", html: `${ICON.sun}<span>God answered</span>`, onclick: () => openAnsweredSheet(p, rerender) }),
-        cave().moreMenu("More for this prayer", answered ? [reopen, remove] : [{ label: "Edit", onClick: () => openSheet({ existing: p }, rerender) }, remove]),
+        cave().moreMenu("More for this prayer", answered ? [reopen, seesToggle, remove] : [{ label: "Edit", onClick: () => openSheet({ existing: p }, rerender) }, seesToggle, remove]),
       ].filter(Boolean)),
     ].filter(Boolean));
 

@@ -317,6 +317,23 @@
   window.addEventListener("hashchange", closeInfo);
   document.addEventListener("scroll", closeInfo, true);
 
+  // "Let Aquila see this" on a journal entry or a prayer. The cave is private:
+  // outside it Aquila sees only what's switched on (app/cave.py::PRIVACY_COLUMN),
+  // while Aquila in Refuge sees the journal and prayer list.
+  const AQUILA_SEES_HINT = "Then she can bring it up anywhere. In Refuge she already sees your journal and prayers.";
+  function aquilaSwitch(checked = false) {
+    const input = el("input", { type: "checkbox" });
+    input.checked = !!checked;
+    const node = el("label", { class: "switch aquila-switch" }, [
+      input,
+      el("span", {}, ["Let Aquila see this", el("span", { class: "field-hint", text: AQUILA_SEES_HINT })]),
+    ]);
+    return { node, input };
+  }
+  // The quiet mark on an entry or prayer Aquila may see outside the cave.
+  const aquilaSeesMark = (className) =>
+    el("span", { class: className, title: "Aquila can bring this up anywhere", html: `${ICON.memory}<span>Aquila can see</span>` });
+
   // A sheet's title with its explanation behind an info button.
   function sheetTitle(id, title, text, options) {
     return titleInfo(el("h3", { id, text: title }), text, options);
@@ -1738,6 +1755,7 @@
     const reflection = el("textarea", { id: "journalReflection", placeholder: "What is this stirring in you? A sentence is plenty." });
     const passage = el("input", { id: "journalPassage", placeholder: "Psalm 23, or leave blank" });
     const tags = el("input", { id: "journalTags", placeholder: "prayer, family, small group" });
+    const sees = aquilaSwitch();
     const msg = formMessage();
     const save = el("button", { class: "btn btn-ember btn-sm", type: "submit", text: "Save" });
     const freeWrite = !item.passage_ref && !item.question;
@@ -1749,10 +1767,11 @@
           : [el("strong", { text: item.question || "" }), document.createTextNode((item.answer || "").replace(/^#+\s*/gm, "").slice(0, 400))]);
 
     const formEl = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", "aria-labelledby": "journalTitle" }, [
-      sheetTitle("journalTitle", freeWrite ? "New journal entry" : "Save to your journal", "Only you can see this. Aquila may bring it up gently next time you talk."),
+      sheetTitle("journalTitle", freeWrite ? "New journal entry" : "Save to your journal", "Only you can see this. Aquila outside the cave sees it only if you let her."),
       preview,
       el("label", { class: "field-wrap" }, ["Your reflection", reflection]),
       el("label", { class: "field-wrap" }, ["Tags (separate with commas)", tags]),
+      sees.node,
       msg.node,
       el("div", { class: "sheet-actions" }, [el("button", { class: "btn btn-ghost btn-sm", type: "button", text: "Cancel", onclick: () => close() }), save]),
     ]);
@@ -1775,6 +1794,7 @@
             reflection: reflection.value.trim(),
             tags: tags.value.split(",").map((t) => t.trim()).filter(Boolean),
             session_id: item.question ? app().getSessionId() : null,
+            aquila_sees: sees.input.checked,
           },
         });
         close();
@@ -1871,12 +1891,14 @@
     (cites || msg).after(row);
   }
 
+  // One quiet word above an answer that drew on a memory note, with the
+  // full explanation in its title, so it never crowds the answer.
   function markMemory(msg) {
     if (!msg || msg.querySelector(".memory-mark")) return;
+    const about = "Aquila drew on what she remembers about you. See or change it in Settings.";
     const mark = el("a", {
-      class: "memory-mark", href: "#remembers",
-      title: "Aquila drew on what she remembers about you. See or change it in Settings.",
-      html: `${ICON.memory}<span>Aquila remembered something you shared</span>`,
+      class: "memory-mark", href: "#remembers", title: about, "aria-label": about,
+      html: `${ICON.memory}<span>Remembered</span>`,
     });
     msg.querySelector(".stages").after(mark);
   }
@@ -2165,6 +2187,7 @@
     const node = el("article", { class: "entry fade-in" });
     const meta = el("div", { class: "entry-meta" }, [el("span", { text: when(e.created_at) })]);
     for (const t of entryTags(e)) meta.append(el("span", { class: "tag", text: `#${t}` }));
+    if (e.aquila_sees) meta.append(aquilaSeesMark("entry-sees"));
     const refl = el("p", { class: "refl", text: e.reflection || "No reflection yet. Tap the pencil to add one." });
     const editBtn = iconAct(ICON.edit, "Edit");
     editBtn.onclick = () => {
@@ -2196,6 +2219,17 @@
           e.passage_ref && e.verse_text
             ? { label: "Share as an image", onClick: () => shareCard({ ref: e.passage_ref, text: e.verse_text, translation: ((e.citations || [])[0] || {}).translation || translation() }) }
             : null,
+          {
+            label: e.aquila_sees ? "Keep from Aquila" : "Let Aquila see this",
+            onClick: async () => {
+              try {
+                node.replaceWith(journalCard(await api(`/me/journal/${e.id}`, { method: "PATCH", body: { aquila_sees: !e.aquila_sees } })));
+                toast(e.aquila_sees ? "Kept in the cave. Aquila won't bring it up." : "Aquila can see this now.");
+              } catch (err) {
+                toast(err.message, { tone: "error" });
+              }
+            },
+          },
           {
             label: "Delete", danger: true,
             onClick: async () => {
@@ -2481,6 +2515,8 @@
     isFriend,
     onView,
     openJournal,
+    aquilaSwitch,
+    aquilaSeesMark,
     openConversations,
     decorateAnswer,
     markMemory,

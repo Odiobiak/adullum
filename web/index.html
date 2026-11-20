@@ -246,7 +246,7 @@
             <li>Refuge is yours alone. What you write and let go of never leaves your device.</li>
             <li>A talk with Aquila in Refuge is gone when you leave, unless you keep it, and she never remembers it.</li>
             <li>Amens never carries your name. Nobody, not even the people who check posts, sees who wrote it.</li>
-            <li>Your notes, prayers and journal are yours. Nobody's data is ever sold.</li>
+            <li>Your notes, prayers and journal are yours. Aquila outside the cave sees only the ones you let her, and nobody's data is ever sold.</li>
           </ul>
         </div>
         <div class="promise-part is-gift">
@@ -668,7 +668,7 @@
         <div id="supportSettings"></div>
       </section>
       <section class="card" id="remembers">
-        <h2 class="section-title" data-info="Short notes Aquila keeps so she can know you over time. They are never treated as Scripture, and you can remove any of them.">What Aquila remembers</h2>
+        <h2 class="section-title" data-info="Short notes Aquila keeps so she can know you over time, from your conversations and the journal entries and prayers you let her see. They are never treated as Scripture, and you can remove any of them.">What Aquila remembers</h2>
         <div id="memoryPanel"></div>
       </section>
       <section class="card">
@@ -714,7 +714,7 @@
       <ul>
         <li><strong>Your account:</strong> your email, the name Aquila calls you, your settings and time zone. Your password passes through our server to our sign-in provider and is never stored by us.</li>
         <li><strong>What you make here:</strong> conversations with Aquila, your journal and reflections, prayers and fasts, notes, highlights and saved verses, reading plans, sermon notes and their photos, churches you add, goals and habits, declarations, and anything you choose to keep from Refuge.</li>
-        <li><strong>What Aquila remembers:</strong> short notes about you, taken from conversations, your journal and your prayer list, so she can know you over time. You can see, remove or switch these off in Settings. They are never treated as Scripture.</li>
+        <li><strong>What Aquila remembers:</strong> short notes about you, taken from conversations and from the journal entries and prayers you choose to let her see, so she can know you over time. Every entry and prayer starts private. You can see, remove or switch these notes off in Settings. They are never treated as Scripture.</li>
         <li><strong>Reminders:</strong> if you turn on notifications, the address your browser gives us for sending them.</li>
         <li><strong>Daily counts:</strong> to keep Adullam free for everyone, we count how many questions, Refuge messages and calls each account has a day, and for guests, a scrambled form of their network address. The counts hold nothing you wrote and are deleted after a week.</li>
         <li><strong>Repeated questions:</strong> a study question asked with no memory notes behind it is held in our server's memory with its answer for up to a day, without who asked, so the same question asked again is answered at once.</li>
@@ -724,7 +724,7 @@
       <h2>Refuge</h2>
       <ul>
         <li><strong>Write it out:</strong> "Let it go" never leaves your device. Only "Keep it" stores anything.</li>
-        <li><strong>Talk with Aquila:</strong> the talk is held in your browser and gone when you leave, unless you press Keep. Aquila's replies are written by OpenAI, so what you say is sent there to answer you. What's said on a call joins the talk, so it's kept only if you keep the talk. These talks are never recorded in our quality logs and never become memory notes.</li>
+        <li><strong>Talk with Aquila:</strong> the talk is held in your browser and gone when you leave, unless you press Keep. Aquila's replies are written by OpenAI, so what you say is sent there to answer you. What's said on a call joins the talk, so it's kept only if you keep the talk. These talks are never recorded in our quality logs and never become memory notes. Because Refuge is inside your cave, Aquila there also sees your open prayers and your latest journal entries, private ones included, so she knows what you're carrying. Switching off her memory in Settings turns this off too.</li>
         <li><strong>Amens:</strong> nobody using Adullam, the people who look after the wall included, is ever shown who wrote a post. A post is stored with your account so you can see, manage and delete it. Before it goes up it's checked automatically (using OpenAI's moderation service) and may be read by a person on our admin desk. Posts leave the wall after a set time.</li>
         <li>If something you write suggests you may be in danger, Adullam shows you helplines. It never contacts anyone on your behalf.</li>
       </ul>
@@ -735,7 +735,7 @@
         <li><strong>Supabase:</strong> our database, sign-in and photo storage.</li>
         <li><strong>Resend:</strong> delivers sign-in emails, so it receives your email address and the sign-in link.</li>
         <li><strong>Render:</strong> runs our server.</li>
-        <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
+        <li><strong>OpenAI:</strong> writes Aquila's replies and checks Amens posts. It receives what you ask or write for those features, along with relevant notes Aquila keeps about you, and in Refuge your open prayers and latest journal entries. Under OpenAI's API terms this isn't used to train their models, and it may be kept by them for up to 30 days to detect abuse.</li>
         <li><strong>Langfuse:</strong> keeps a record of Aquila's answers outside Refuge (the question, the answer and the steps between), so we can find and fix mistakes. These records aren't labelled with your email and are deleted after 30 days.</li>
         <li><strong>Sentry:</strong> tells us when something breaks on our server. It receives the error and where in our code it happened. What you sent, your email and your network address are removed before it goes.</li>
         <li><strong>Deepgram:</strong> only if you tap the mic to speak with Aquila. Your voice goes to them to become words, and her answers to be read aloud. We ask them not to keep your voice to improve their models. What you said is then asked like a typed question, and kept with your conversations the same way.</li>
@@ -1252,7 +1252,9 @@ function renderCitations(el, citations) {
 
 // `mode` is "study" (an ordinary question) or "pray" (Pray with Aquila on the
 // prayer list, which answers with verses, a prayer and encouragement).
-async function ask(query, mode = "study") {
+// `onAnswer(text)` is told the moment the answer is on screen, before the
+// grounding check and follow-ups finish, so Speak can start reading at once.
+async function ask(query, mode = "study", onAnswer = null) {
   const { msg, stagesEl, thinkingEl, answerEl, citationsEl, followupsEl } = addAquilaMessage();
   scrollToBottom();
 
@@ -1314,6 +1316,7 @@ async function ask(query, mode = "study") {
         thinkingEl.remove();
         answerEl.hidden = false;
         answerEl.innerHTML = renderAnswerHtml(data);
+        onAnswer?.(data);
       } else if (event === "citations") {
         citationList = JSON.parse(data);
         renderCitations(citationsEl, citationList);
@@ -1347,7 +1350,7 @@ queryEl.addEventListener("keydown", (e) => {
 // Resolves the answer's text, or null when nothing was asked or it failed
 // (the error is shown under the box either way).
 let busy = false;
-async function submitQuery(query, { mode = "study" } = {}) {
+async function submitQuery(query, { mode = "study", onAnswer = null } = {}) {
   if (!query || busy) return null;
   if (VIEWS[currentRoute()] !== "aquila") go("aquila");
   busy = true;
@@ -1358,7 +1361,7 @@ async function submitQuery(query, { mode = "study" } = {}) {
   queryEl.value = "";
   autoResize();
   try {
-    return (await ask(query, mode)) || null;
+    return (await ask(query, mode, onAnswer)) || null;
   } catch (err) {
     errorEl.classList.toggle("is-gentle", !!err.gentle);
     errorEl.textContent = err.gentle ? err.message : `${err.message}. Check your connection and try again.`;
@@ -1377,11 +1380,11 @@ form.addEventListener("submit", (e) => {
 
 // Speak with Aquila (web/speak.js): the mic in the composer, and the one on
 // the home screen's ask box, which brings you here to talk. Each spoken turn
-// is an ordinary question, and the answer is read aloud.
+// is an ordinary question, and the answer is read aloud as soon as it shows.
 const speakBtn = $("#speakBtn");
 const homeSpeak = $("#homeSpeak");
 function speakWithAquila() {
-  window.Speak.start({ mount: form.parentElement, button: speakBtn, ask: (text) => submitQuery(text) });
+  window.Speak.start({ mount: form.parentElement, button: speakBtn, ask: (text, onAnswer) => submitQuery(text, { onAnswer }) });
 }
 speakBtn.addEventListener("click", speakWithAquila);
 homeSpeak.addEventListener("click", () => {

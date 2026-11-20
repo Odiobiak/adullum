@@ -6,7 +6,10 @@ Five ways in, each with its routes here or in app/one_another.py:
 - Talk with Aquila: the agent graph in listening mode (app/agent/nodes.py::
   listen). A talk vanishes by default; it's stored (`refuge_talks`) only when
   the person presses Keep. These runs are never traced to Langfuse, and
-  nothing said here reaches Aquila's memory.
+  nothing said here reaches Aquila's memory. Aquila here is inside the cave,
+  so she sees the person's open prayers and latest journal entries
+  (`cave_notes`), private ones included; outside it she sees only the entries
+  they let her (app/cave.py::PRIVACY_COLUMN).
 - Pebbles (once "Grow"): goals and habits (`refuge_seeds`, so the code still
   says seeds). A goal is reached through steps, a number (12 books), or simply
   marked reached, optionally by a date; a habit is meant for some days a week
@@ -30,10 +33,10 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app import quota
+from app import memory, quota
 from app.agent.graph import agent
 from app.auth import AuthUser, require_user
-from app.cave import _db_call, _now
+from app.cave import _db_call, _journal_memory_text, _now
 from app.config import settings
 from app.days import MARKABLE_DAYS, parse_markable_day, parse_today, week_marks
 from app.db import gather, get_supabase
@@ -51,6 +54,11 @@ SeedStatus = Literal["growing", "fulfilled", "set_aside"]
 MAX_STEPS = 12
 MAX_TARGET = 1_000_000_000
 TITLE_LENGTH = 60
+# What Aquila in Refuge is told of the cave each reply: a few open prayers and
+# the latest journal entries, kept short since they go with every message.
+CAVE_PRAYERS = 6
+CAVE_ENTRIES = 3
+CAVE_PRAYER_CHARS = 200
 
 # Pebbles read columns added by a later migration than the rest of Refuge, so
 # their setup message names that one.
@@ -222,6 +230,34 @@ def let_go(writing_id: uuid.UUID, user: AuthUser = Depends(require_user)) -> dic
 # ---------------------------------------------------------------------------
 # Talk with Aquila
 # ---------------------------------------------------------------------------
+def cave_notes(user_id: str) -> list[str]:
+    """What Aquila in Refuge knows of the person's cave: their open prayers
+    and latest journal entries, private or not, since this is inside the cave.
+    Empty with memory switched off (Aquila then knows nothing of them), and
+    on any failure, so a talk never waits on it going wrong."""
+    if not memory.memory_enabled(user_id):
+        return []
+    db = get_supabase()
+    try:
+        prayers, entries = gather(
+            lambda: db.table("prayers").select("body").eq("user_id", user_id).eq("status", "open")
+            .order("created_at", desc=True).limit(CAVE_PRAYERS).execute().data,
+            lambda: db.table("journal_entries").select("passage_ref, question, mood, reflection, created_at")
+            .eq("user_id", user_id).neq("reflection", "").order("created_at", desc=True).limit(CAVE_ENTRIES).execute().data,
+        )
+    except Exception:
+        log.warning("reading the cave for Refuge failed", exc_info=True)
+        return []
+    notes = [f"They are praying for: {_shorten(p['body'], CAVE_PRAYER_CHARS)}" for p in prayers]
+    notes += [memory.dated(_journal_memory_text(e), e["created_at"]) for e in entries]
+    return notes
+
+
+def _shorten(text: str, limit: int) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= limit else text[: limit - 3].rstrip() + "..."
+
+
 @router.post("/me/refuge/talk")
 async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
     """One reply from Aquila in listening mode, over the whole talk so far.
@@ -231,7 +267,10 @@ async def talk(body: TalkIn, user: AuthUser = Depends(require_user)) -> dict:
     if messages[-1]["role"] != "user":
         raise HTTPException(status_code=422, detail="The last message should be yours.")
     await asyncio.to_thread(quota.spend, "talk", user.id, user)
-    state = {"mode": "listen", "history": messages, "query": messages[-1]["content"], "translation": body.translation}
+    state = {
+        "mode": "listen", "history": messages, "query": messages[-1]["content"], "translation": body.translation,
+        "cave_notes": await asyncio.to_thread(cave_notes, user.id),
+    }
     result = await agent.ainvoke(state, config={"callbacks": []})
     verses = [
         {"book": v.book, "chapter": v.chapter, "verse": v.verse, "translation": v.translation, "text": v.text}
