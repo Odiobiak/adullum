@@ -1,7 +1,7 @@
 // Speak with Aquila (window.Speak): a hands-free voice conversation with the
 // study Aquila, from the Aquila page's composer and the home screen's ask box.
 //
-// Tap the mic and ask. When you pause, Deepgram turns what you said into
+// Tap the mic and Aquila says hello, then listens. When you pause, Deepgram turns what you said into
 // words (app/voice.py), they go in as an ordinary question (the same grounded
 // Aquila, her answer and citations on screen), and the answer is read aloud a
 // piece at a time, starting the moment it shows rather than when the stream
@@ -15,6 +15,13 @@
 // "Done" sends a turn by hand if the pause is never heard.
 (() => {
   const NOTICE_KEY = "adullamSpeechNoticeSeen";
+  const GREETED_KEY = "adullamSpeechGreeted";
+  // What she says before the first turn, so a silent mic never leaves anyone
+  // wondering what to do. The longer one the first time on a device.
+  const GREETINGS = {
+    first: "Hi, I'm Aquila. Ask me anything about the Bible, and pause when you're done. I'll answer on screen and read it to you, then listen for your next question.",
+    again: "Hi, it's Aquila. What would you like to look at in the Bible?",
+  };
   const TICK_MS = 50;
   const CALIBRATE_MS = 300;          // the start of each turn measures the room's noise
   const MIN_LEVEL = 0.006;           // the quietest level ever counted as speech (RMS, 0 to 1)
@@ -40,7 +47,7 @@
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const toast = (text, tone = "info") => cave().toast(text, { tone });
 
-  // The session while it runs: { stream, audio, context, analyser, ask, ui, button, cancelTurn, finishTurn, reading, skipped }.
+  // The session while it runs: { stream, audio, context, analyser, ask, ui, button, greeting, cancelTurn, finishTurn, reading, skipped }.
   let session = null;
   let serverReady = null; // a promise: does this server offer Speak (a Deepgram key)?
 
@@ -220,19 +227,54 @@
     next?.then(URL.revokeObjectURL, () => {});
   }
 
-  // Starts reading `text`, taking over from any reading under way: when the
-  // grounding check sends Aquila back for a better answer, the new one is read
-  // instead. `s.reading.done` settles when the latest reading ends.
-  function read(s, text) {
+  // Starts `work(run)` as the session's reading, taking over from any under
+  // way. `s.reading.done` settles when the latest reading ends.
+  function begin(s, work) {
     s.reading?.stop();
     const run = { stopped: false };
     run.stop = () => {
       run.stopped = true;
       run.interrupt?.();
     };
-    run.done = readAloud(s, text, run);
+    run.done = work(run);
     run.done.catch(() => {}); // a failure is met when it's awaited
     s.reading = run;
+    return run;
+  }
+
+  // Reads an answer. When the grounding check sends Aquila back for a better
+  // one, the new answer is read instead.
+  const read = (s, text) => begin(s, (run) => readAloud(s, text, run));
+
+  // The greeting's audio, fetched once a page and kept, since its words never change.
+  const greetings = new Map();
+  function greetingAudio(text) {
+    if (!greetings.has(text)) greetings.set(text, audioFor(text).catch((err) => (greetings.delete(text), Promise.reject(err))));
+    return greetings.get(text);
+  }
+
+  // Which greeting this is: the longer one until she has met them on this device.
+  function greetingText() {
+    let met = false;
+    try {
+      met = localStorage.getItem(GREETED_KEY) === "1";
+      localStorage.setItem(GREETED_KEY, "1");
+    } catch {
+      /* private window: the short one would leave them guessing */
+    }
+    return met ? GREETINGS.again : GREETINGS.first;
+  }
+
+  // Says hello before the first turn. A greeting that fails is skipped quietly:
+  // the bar still says she's listening.
+  async function greet(s) {
+    s.ui.show("greeting");
+    const run = begin(s, async (r) => {
+      const url = await greetingAudio(s.greeting);
+      if (session === s && !r.stopped) await play(s, r, url);
+    });
+    await run.done.catch(() => {});
+    s.reading = null;
   }
 
   // Skip: this answer goes unread, even if a retried one arrives after it.
@@ -256,6 +298,7 @@
     const words = {
       listening: ["Listening. Pause when you're done.", "Done"],
       hearing: ["Hearing you...", null],
+      greeting: ["Aquila is saying hello", "Skip"],
       thinking: ["Aquila is answering...", null],
       speaking: ["Aquila is speaking", "Skip"],
     };
@@ -328,6 +371,7 @@
       toast(err.message, "error");
       return false;
     };
+    await greet(s);
     while (live()) {
       s.ui.show("listening");
       if (s.context.state !== "running") await s.context.resume().catch(() => {});
@@ -385,6 +429,9 @@
     const context = new (window.AudioContext || window.webkitAudioContext)();
     context.resume().catch(() => {});
     if (!(await notice())) return context.close().catch(() => {});
+    // Fetched while the browser asks for the mic, so her hello comes straight after.
+    const greeting = greetingText();
+    greetingAudio(greeting).catch(() => {});
     let stream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
@@ -395,7 +442,7 @@
     const analyser = context.createAnalyser();
     analyser.fftSize = 1024;
     context.createMediaStreamSource(stream).connect(analyser);
-    const s = { stream, audio, context, analyser, ask, button, ui: bar(mount) };
+    const s = { stream, audio, context, analyser, ask, button, greeting, ui: bar(mount) };
     session = s;
     stream.getAudioTracks().forEach((t) => t.addEventListener("ended", () => session === s && stop("The microphone stopped. Tap the mic to talk again.")));
     pressed(button, true);
