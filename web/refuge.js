@@ -123,7 +123,7 @@
   // wasn't kept vanishes here, as Refuge promises.
   function hide() {
     document.body.classList.remove("in-refuge", "write-focus");
-    callList = callRun = null;
+    callList = callRun = leaveStage = null;
     stopSpeaking();
     talk = null;
     stopStill();
@@ -545,9 +545,10 @@
   // open talk's thread, set by talkRoom and cleared when Refuge is left.
   let callList = null;
   let callRun = null; // { message, node }: the bubble the last line went into
+  let leaveStage = null; // set by talkRoom while a fresh talk shows its call stage
   function callLine(speaker, text) {
     if (!talk || !callList) return;
-    panel?.querySelector(".starters")?.remove();
+    leaveStage?.();
     const role = speaker === "caller" ? "user" : "aquila";
     if (callRun && callRun.message.role === role && talk.messages.at(-1) === callRun.message) {
       callRun.message.content += ` ${text}`;
@@ -589,6 +590,27 @@
     }
   }
 
+  // A fresh talk opens on the call: Aquila's opening line, a call button in
+  // the middle and ways to begin around it. While the call rings, the button
+  // gives way to the call itself (index.html::callPanel). The stage leaves as
+  // soon as anything is said, typed or on the call (talkRoom's leaveStage).
+  function callStage(onCall, onStarter) {
+    return el("div", { class: "call-stage" }, [
+      el("div", { class: "stage-line" }, [aquilaAvatar(), el("p", { text: OPENING })]),
+      el("div", { class: "stage-orbit" }, [
+        el("div", { class: "stage-centre" }, [
+          el("div", { class: "stage-call" }, [
+            el("button", { class: "call-orb", type: "button", "aria-label": "Call Aquila", html: ICON.phone, onclick: onCall }),
+            el("strong", { text: "Call Aquila" }),
+            el("span", { text: "Talk out loud, or type below" }),
+          ]),
+          app().callPanel("refuge", { stage: true }),
+        ]),
+        ...STARTERS.map((text, i) => el("button", { class: `stage-chip chip-${i + 1}`, type: "button", text, onclick: () => onStarter(text) })),
+      ]),
+    ]);
+  }
+
   function talkRoom(firstMessage) {
     if (!talk) talk = { messages: [{ role: "aquila", content: OPENING }], keptId: null };
     const list = el("div", { class: "soft-thread", "aria-live": "polite" }, talk.messages.map(messageNode));
@@ -598,16 +620,12 @@
     // Send stays quiet until there's something to send.
     const sendBtn = el("button", { class: "iconbtn", type: "button", "aria-label": "Send", html: ICON.send, disabled: true });
     const ready = () => { sendBtn.disabled = busy || !box.value.trim(); };
-    // The live call lives only here. It's a call of its own over Cognigy, so
-    // its warning comes first (index.html::openVoice); what's said on it
-    // joins this talk as bubbles (callLine).
-    const voiceBtn = el("button", {
-      class: "iconbtn soft-mic", type: "button", "aria-label": "Call Aquila (live call)", title: "Call Aquila (live call)", html: ICON.phone,
-      onclick: () => app().openVoice({ onLine: callLine, onEnd: callEnded }),
-    });
-    const starters = talk.messages.length === 1
-      ? el("div", { class: "starters" }, STARTERS.map((s) => el("button", { class: "act", type: "button", text: s, onclick: () => send(s) })))
-      : null;
+    // Refuge's call, over Cognigy: its warning comes first
+    // (index.html::openVoice), and what's said on it joins this talk as
+    // bubbles (callLine). A fresh talk offers it at the centre (callStage);
+    // once the talk is under way it's the round button beside Send.
+    const callAquila = () => app().openVoice({ onLine: callLine, onEnd: callEnded });
+    const callBtn = el("button", { class: "iconbtn talk-call", type: "button", "aria-label": "Call Aquila", title: "Call Aquila", html: ICON.phone, onclick: callAquila });
 
     const keepBtn = el("button", { class: `act${talk.keptId ? " is-done" : ""}`, type: "button", text: talk.keptId ? "Kept" : "Keep this talk" });
     const status = el("p", { class: "refuge-promise", html: `${ICON.lock}<span></span>` });
@@ -650,7 +668,7 @@
       if (!text || busy || !talk) return;
       busy = true;
       ready();
-      if (starters) starters.remove();
+      leaveStage?.();
       const mine = { role: "user", content: text };
       talk.messages.push(mine);
       list.append(messageNode(mine));
@@ -704,11 +722,26 @@
       ready();
     });
 
+    // Keep and Erase wait until there's something to keep; the call beside
+    // Send waits until the stage, which offers it larger, has gone.
+    const actions = el("div", { class: "talk-actions" }, [keepBtn, erase]);
+    const stage = talk.messages.length === 1 ? callStage(callAquila, send) : null;
+    const dock = () => app().callPanel("refuge");
+    actions.hidden = callBtn.hidden = !!stage;
+    leaveStage = stage
+      ? () => {
+          leaveStage = null;
+          if (!stage.isConnected) return; // another room took over
+          stage.replaceWith(list, dock());
+          actions.hidden = callBtn.hidden = false;
+        }
+      : null;
     show(room("Talk with Aquila", null,
-      el("div", { class: "talk-bar" }, [status, el("div", { class: "talk-actions" }, [keepBtn, erase])]),
-      list,
-      starters,
-      el("div", { class: "soft-composer" }, [box, voiceBtn, sendBtn])
+      actions,
+      stage || list,
+      stage ? null : dock(),
+      el("div", { class: "soft-composer" }, [box, callBtn, sendBtn]),
+      status
     ));
     if (firstMessage) send(firstMessage);
     else box.focus();

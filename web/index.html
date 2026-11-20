@@ -70,6 +70,12 @@
       <a href="#church" data-nav="church" data-auth="in">Church</a>
     </nav>
     <div class="head-right">
+      <!-- A call under way, shown only when the page that holds it isn't open
+           (paintCall): tap to go back to it, or end it here. -->
+      <div class="call-pill" id="callBar" role="status" hidden>
+        <button class="call-pill-back" id="callBack" type="button"><span class="call-pill-dot" aria-hidden="true"></span><span id="callLabel"></span></button>
+        <button class="call-pill-end" id="callEnd" type="button" aria-label="End call" title="End call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>
+      </div>
       <div class="row" data-auth="out" style="gap:4px">
         <a href="#signin" class="btn btn-quiet btn-sm">Sign in</a>
         <a href="#join" class="btn btn-ember btn-sm">Create account</a>
@@ -864,13 +870,6 @@
   <a href="#church" data-nav="church" data-auth="in"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5v5M10 4.5h4"/><path d="M5 21V11.5l7-4.5 7 4.5V21"/><path d="M10 21v-4a2 2 0 0 1 4 0v4"/></svg>Church</a>
 </nav>
 
-<!-- Voice call: the bar is its one control from the moment it dials; what's
-     said shows in the Refuge talk (refuge.js::callLine) -->
-<div class="callbar" id="callBar" role="status" hidden>
-  <span class="callbar-dot"></span>
-  <span class="callbar-text"><span id="callLabel">Talking with Aquila</span><span class="callbar-time" id="callTime"></span></span>
-  <button class="callbar-end" id="callEnd" type="button" aria-label="End call" title="End call"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg></button>
-</div>
 <div class="disclaimer-overlay" id="disclaimerOverlay" hidden>
   <div class="disclaimer-modal" role="dialog" aria-modal="true" aria-labelledby="disclaimerTitle">
     <h3 id="disclaimerTitle">Before you talk out loud</h3>
@@ -924,6 +923,7 @@ $$("[data-themes]").forEach((el) => el.replaceWith($("#tpl-themes").content.clon
 $$("[data-mic]").forEach((el) => el.replaceWith($("#tpl-mic").content.cloneNode(true)));
 // Aquila's mark: three feathers fanning into a wing, since her name is Latin
 // for "eagle". Drawn in currentColor, so .avatar-a sets its colour per theme.
+const HANG_UP = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08a.996.996 0 0 1 0-1.41C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28a11.27 11.27 0 0 0-2.67-1.85.996.996 0 0 1-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>';
 const AQUILA_MARK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M5 18C8 12.5 12 8 18 5.5"/><path d="M5 18c4-3.6 8.5-6 14-6.6"/><path d="M5 18c4.2-1.4 8.4-1.8 12.5-.9"/></svg>';
 $$("[data-aquila-mark]").forEach((el) => (el.innerHTML = AQUILA_MARK));
 
@@ -1381,8 +1381,7 @@ const homeSpeak = $("#homeSpeak");
 function speakWithAquila() {
   if (inCall()) {
     if (callHandlers.route !== "study") return window.Cave.toast("You're already on a call with Aquila in Refuge.", { tone: "info" });
-    hangUp();
-    return endCallUI();
+    return endCall();
   }
   callRun = null;
   openVoice({ route: "study", button: speakBtn, onLine: threadCallLine, onEnd: () => (callRun = null) });
@@ -1465,6 +1464,7 @@ window.AdullamApp = {
   submitQuery,
   // Refuge's call (web/refuge.js); the study call is this page's own mic.
   openVoice,
+  callPanel,
   renderAnswerHtml,
   loadConversation,
   newConversation,
@@ -1506,7 +1506,6 @@ function pressWidgetCallButton(attempt = 0) {
 
 const callBar = $("#callBar");
 const callLabel = $("#callLabel");
-const callTime = $("#callTime");
 let voiceWidget = null;
 let widgetRoute = null; // which route's endpoint the mounted widget dials
 let activeSession = null;
@@ -1524,10 +1523,80 @@ let callMinutes = 10;
 
 const inCall = () => document.body.classList.contains("voice-active");
 
-// The bar shows from the moment the call dials, so it can always be ended.
-function setCallState(label) {
-  callLabel.textContent = label;
-  callBar.hidden = false;
+// The call as the page shows it: "idle", "connecting", "ringing" or "live",
+// and whose it is (answeredAt says when it began). Every panel and the top
+// bar's capsule are drawn from this alone (paintCall), so they never disagree.
+const call = { state: "idle", route: null };
+const callPanels = new Set();
+const CALL_HOME = { refuge: "refuge", study: "aquila" }; // where each call lives
+
+function setCallState(state) {
+  call.state = state;
+  if (state === "idle") call.route = null;
+  paintCall();
+}
+
+function callStatus() {
+  if (call.state === "connecting") return "Calling";
+  if (call.state === "ringing") return "Ringing";
+  const secs = Math.max(0, Math.floor((Date.now() - answeredAt) / 1000));
+  return `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+}
+
+// The panels say where the call is; the capsule shows only when none of
+// this call's panels is on screen, so the call is always in reach and
+// never shown twice.
+function paintCall() {
+  const status = callStatus();
+  let seen = false;
+  for (const panel of callPanels) {
+    if (!panel.el.isConnected) {
+      if (panel.mounted) callPanels.delete(panel);
+      continue;
+    }
+    panel.mounted = true;
+    panel.paint(status);
+    seen ||= panel.route === call.route && panel.el.offsetParent !== null;
+  }
+  callLabel.textContent = status;
+  callBar.dataset.state = call.state;
+  callBar.hidden = call.state === "idle" || seen;
+}
+window.addEventListener("hashchange", () => requestAnimationFrame(paintCall));
+
+/**
+ * A panel showing `route`'s call wherever a page places it: Aquila's mark
+ * with rings that ripple while it rings and breathe once she's there, the
+ * status, and End. `stage` draws it large, for the middle of a page. It
+ * stays hidden while that call isn't under way.
+ */
+function callPanel(route, { stage = false } = {}) {
+  const el = document.createElement("div");
+  el.className = `call-panel${stage ? " is-stage" : ""}`;
+  el.hidden = true;
+  el.innerHTML = `
+    <span class="call-avatar" aria-hidden="true"><span class="avatar-a">${AQUILA_MARK}</span></span>
+    <span class="call-who"><strong>Aquila</strong><span class="call-status" role="status"></span></span>
+    <button class="call-end" type="button" aria-label="End call" title="End call">${HANG_UP}</button>`;
+  el.querySelector(".call-end").addEventListener("click", endCall);
+  const status = el.querySelector(".call-status");
+  const panel = {
+    el,
+    route,
+    paint(text) {
+      el.hidden = call.state === "idle" || call.route !== route;
+      el.dataset.state = call.state;
+      status.textContent = call.state === "live" ? `On the call · ${text}` : `${text}...`;
+    },
+  };
+  callPanels.add(panel);
+  requestAnimationFrame(paintCall); // once the page has placed it
+  return el;
+}
+
+function endCall() {
+  hangUp();
+  endCallUI();
 }
 
 function handleTranscription(transcription) {
@@ -1573,13 +1642,12 @@ function showCallBar() {
   clearTimeout(connectTimeout);
   connectTimeout = null;
   const startedAt = (answeredAt = Date.now());
-  setCallState("Talking with Aquila");
-  callTime.textContent = "0:00";
+  setCallState("live");
   countCall();
   let warned = false;
   callTimer = setInterval(() => {
     const secs = Math.floor((Date.now() - startedAt) / 1000);
-    callTime.textContent = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+    paintCall();
     if (!callMinutes) return;
     if (!warned && secs >= (callMinutes - 1) * 60) {
       warned = true;
@@ -1615,9 +1683,8 @@ function endCallUI() {
   connectTimeout = null;
   activeSession = null;
   answeredAt = 0;
-  callBar.hidden = true;
-  callTime.textContent = "";
   document.body.classList.remove("voice-active");
+  setCallState("idle");
   const { onEnd, button } = callHandlers;
   callHandlers = {};
   pressed(button, false);
@@ -1650,7 +1717,7 @@ function armConnectTimeout() {
 function watchSession(session) {
   activeSession = session;
   const mine = () => activeSession === session;
-  session.on("ringing", () => mine() && !callTimer && setCallState("Ringing"));
+  session.on("ringing", () => mine() && !callTimer && setCallState("ringing"));
   session.on("answered", showCallBar);
   session.on("active", showCallBar);
   session.on("transcription", handleTranscription);
@@ -1703,7 +1770,8 @@ async function startVoiceWidget(route) {
   }
   document.body.classList.add("voice-active");
   pressed(callHandlers.button, true);
-  setCallState("Connecting to Aquila");
+  call.route = route;
+  setCallState("connecting");
   // The widget dials the endpoint it was made for, so another route needs a new one.
   if (voiceWidget && widgetRoute !== route) removeWidget();
   if (voiceWidget) {
@@ -1732,10 +1800,8 @@ async function startVoiceWidget(route) {
   }
 }
 
-$("#callEnd").addEventListener("click", () => {
-  hangUp();
-  endCallUI();
-});
+$("#callEnd").addEventListener("click", endCall);
+$("#callBack").addEventListener("click", () => call.route && go(CALL_HOME[call.route]));
 // `handlers.route` picks the call ("refuge" or "study"), `handlers.onLine(speaker,
 // text)` hears each line said on it ("caller" or "aquila"), `handlers.onEnd()`
 // hears that it ended, and `handlers.button` is lit while it runs.
@@ -1762,6 +1828,9 @@ $("#disclaimerAccept").addEventListener("click", () => {
   disclaimerOverlay.hidden = true;
   startVoiceWidget(callHandlers.route);
 });
+
+// The study call shows just above the Aquila composer while it runs.
+form.parentElement.insertBefore(callPanel("study"), form);
 
 render();
 </script>
