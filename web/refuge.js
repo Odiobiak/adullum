@@ -1950,15 +1950,17 @@
     return { back, answered };
   }
 
-  // Everything new on the wall for someone, from the home's glance: how many
-  // things (for a badge) and what they are, in sentences.
+  // What on the wall is for someone, from the home's glance: how many things
+  // (for a badge) and what they are, in sentences. Only two kinds count:
+  // what came back to their own posts, and new posts waiting for their amen.
+  // The whole wall's week and answered prayers stay in the room.
   function newOnWall(glance) {
     if (!glance) return { count: 0, lines: [] };
     const news = glance.news || {};
-    const { back, answered } = newsLines(glance.news);
+    const { back } = newsLines(glance.news);
     const waiting = glance.waiting || 0;
-    const lines = [...back, answered, waiting ? `${plural(waiting, "new post", "new posts")} waiting for your amen` : null].filter(Boolean);
-    return { count: (news.prayed || 0) + (news.rejoiced || 0) + (news.kind_words || 0) + (news.answered || 0) + waiting, lines };
+    const lines = [...back, waiting ? `${plural(waiting, "new post", "new posts")} waiting for your amen` : null].filter(Boolean);
+    return { count: (news.prayed || 0) + (news.rejoiced || 0) + (news.kind_words || 0) + waiting, lines };
   }
 
   // Who's asking, as the top of a card says it, with an anonymous face: the
@@ -2612,34 +2614,28 @@
   // ---------------------------------------------------------------------
   // The Amens line on the home screen (web/cave.js::drawHome)
   // ---------------------------------------------------------------------
-  // One notification-like line while something is new since the last look:
-  // what came back to the person's own posts first (counts only, never a
-  // post's words, so nothing they shared is on the home), then a prayer they
-  // prayed for that God answered, then new posts waiting for their amen. It
-  // opens the wall on the view that holds the news.
+  // One notification-like line, shown only while something is for the
+  // person: what came back to their own posts first (counts only, never a
+  // post's words, so nothing they shared is on the home), then new posts
+  // waiting for their amen. It opens the view that holds it.
   function homeNote(glance) {
     const { count, lines } = newOnWall(glance);
     if (!count) return null;
     const news = glance.news || {};
-    const { back, answered } = newsLines(glance.news);
     // The first piece of news is the title, said in full (`lines`, in the
-    // same order as these); after it, up to three more in a few words each,
-    // what asks something of them first, so the line stays short.
+    // same order as these); the rest follow in a few words each.
     const short = [
       news.prayed ? `${plural(news.prayed, "person", "people")} prayed for you` : null,
       news.rejoiced ? `${news.rejoiced} rejoiced with you` : null,
       news.kind_words ? plural(news.kind_words, "kind word", "kind words") : null,
-      news.answered ? plural(news.answered, "prayer answered", "prayers answered") : null,
       glance.waiting ? `${glance.waiting} new to pray for` : null,
     ].filter(Boolean);
-    const rest = short.slice(1).reverse().slice(0, 3);
-    const week = glance.this_week ? `${plural(glance.this_week, "amen", "amens")} on the wall this week` : null;
     return cave().homeNote({
-      href: back.length ? "#amens/yours" : answered ? "#amens/prayed" : "#amens",
+      href: newsLines(glance.news).back.length ? "#amens/yours" : "#amens",
       icon: ICON.together,
       count,
       title: lines[0],
-      detail: rest.join(" · ") || week,
+      detail: short.slice(1).join(" · "),
     });
   }
 

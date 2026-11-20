@@ -397,23 +397,20 @@ def amens_glance(user: AuthUser) -> dict:
     opened the wall.
 
     Two sides, both counts only. `waiting` is how many posts by other people
-    went up that they haven't said amen to, and `this_week` how many amens
-    the whole wall said. `news` is what came back to their own posts (how
-    many prayed or rejoiced, the kind words) and how many prayers they prayed
-    for were answered. Nothing names a post or its words, so the home can say
+    went up that they haven't said amen to. `news` is what came back to their
+    own posts (how many prayed or rejoiced, the kind words). The whole wall's
+    week isn't here: it's not something for the person to do, so the home
+    doesn't show it. Nothing names a post or its words, so the home can say
     "5 people prayed for you" without carrying what was shared. Everything
     here is a cheap count: the home waits on its slowest part, so the wall's
     own sorted query (`amens_to_carry`) stays off this path.
     """
-    def since_last_look():
-        since = _since_last_look(user)
-        return gather(
-            lambda: _rpc("amens_waiting", {"viewer": user.id, "since": since}) or 0,
-            lambda: amens_news(user, since)["summary"],
-        )
-
-    this_week, (waiting, news) = gather(_amens_this_week, since_last_look)
-    return {"this_week": this_week, "waiting": waiting, "news": news}
+    since = _since_last_look(user)
+    waiting, news = gather(
+        lambda: _rpc("amens_waiting", {"viewer": user.id, "since": since}) or 0,
+        lambda: amens_news(user, since)["summary"],
+    )
+    return {"waiting": waiting, "news": news}
 
 
 # ---------------------------------------------------------------------------

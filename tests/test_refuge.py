@@ -692,13 +692,14 @@ class TestAmensGlance:
     post, its words, or who said amen.
     """
 
-    def test_glance_counts_the_week_and_whats_waiting(self, monkeypatch):
+    def test_glance_counts_only_whats_for_the_person(self, monkeypatch):
         db = use_db(monkeypatch, FakeDb(rows={
             "refuge_amen_days": [{"amens": 5}, {"amens": 7}],
             "rpc:amens_waiting": 3,
         }))
 
-        assert one_another.amens_glance(USER) == {"this_week": 12, "waiting": 3, "news": None}
+        # The whole wall's week is left out: it isn't something to respond to.
+        assert one_another.amens_glance(USER) == {"waiting": 3, "news": None}
         # The count reads the wall as this person sees it: other people's
         # posts only (amens_waiting leaves out the viewer's own).
         assert db.rpc_params("amens_waiting")[0]["viewer"] == USER.id
