@@ -1,7 +1,8 @@
 # Aquila's voice calls (Cognigy)
 
-Two calls, each its own route with its own endpoint, flow and AI Agent, both
-speaking in one voice (`SPEECH` in the build script):
+Two calls, each its own route with its own endpoint, flow, AI Agent and
+voice (`Route.voice` in the build script): Refuge speaks as Deepgram's Iris
+(`aura-2-iris-en`), the study call as Phoebe (`aura-2-phoebe-en`).
 
 | Route | Opened from | Endpoint | Flow | AI Agent |
 |---|---|---|---|---|
@@ -51,9 +52,9 @@ tenant, create a project first; a new config URL goes in
 
 ## Why it's built this way
 
-- **One voice.** Both calls set `SPEECH` for the whole call, and both AI
-  Agents name the same voice, so Aquila sounds the same on either route and
-  nothing in Cognigy names another.
+- **A voice per call.** Each flow sets its route's voice for the whole call
+  (`speech(route)`), and that route's AI Agent names the same one, so nothing
+  in Cognigy names a different voice for that call.
 - **Two Aquilas.** The study call answers questions (`find_verses` first,
   `ask_aquila` for deeper ones) and greets by saying what to ask; Refuge's
   listens and greets gently. Keeping them apart keeps each one's manner.
@@ -83,7 +84,7 @@ tenant, create a project first; a new config URL goes in
    own, with Deepgram speech in English by default. An organisation account
    (an Account SID, linked with `POST /organisations/voicegateway/account`)
    is only needed for a phone number or your own speech credentials.
-2. **The voice** is set by the flow (`SPEECH`), not the endpoint's Voice
+2. **The voice** is set by the flow (`speech(route)`), not the endpoint's Voice
    settings. Leave those empty on both endpoints, or the endpoint could name
    a different voice from the flow.
 3. **Adullam.** `find_verses` must be live and `MCP_SECRET` set on Render to

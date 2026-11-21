@@ -8,13 +8,13 @@ study Aquila never answers as Refuge's listener or the other way round:
     study    Speak with Aquila, the mic on the Aquila page and the home
              screen: she answers Bible questions, grounded and cited.
 
-Both are built the same way, and both speak in the one voice in SPEECH:
+Both are built the same way, each in its own voice (Route.voice):
 
     AI Agent                 who she is on this route (no memory, safety on)
     Flow
       Start
       Once
-        On first time   Set Session Config (SPEECH, turn-taking, gentle no-input)
+        On first time   Set Session Config (speech(), turn-taking, gentle no-input)
                         Sleep, so the line's audio is flowing before she speaks
                         Say the greeting
         Afterwards      AI Agent job
@@ -48,11 +48,11 @@ from dotenv import load_dotenv
 MCP_URL = "https://adullum.onrender.com/mcp/sse"
 
 # Speech for every call, through the shared trial Voice Gateway's own Deepgram
-# credential, so Aquila sounds the same on both routes. The gateway finds a
-# credential by vendor and label together, so both are named: without the
-# label, or with Flux (it has no Flux credential), the gateway hung up the
-# moment the call tried to speak or listen. The AI Agents are given the same
-# voice (VOICE_CONFIG), so no part of Cognigy names a different one.
+# credential. The gateway finds a credential by vendor and label together, so
+# both are named: without the label, or with Flux (it has no Flux credential),
+# the gateway hung up the moment the call tried to speak or listen. Each
+# route's voice is added by speech() and given to its AI Agent too, so no part
+# of Cognigy names a different one for that call.
 SPEECH = {
     "sttVendor": "deepgram",
     "sttLabel": "deepgram",
@@ -60,9 +60,17 @@ SPEECH = {
     "ttsVendor": "deepgram",
     "ttsLabel": "deepgram",
     "ttsLanguage": "en-US",
-    "ttsVoice": "aura-2-ophelia-en",  # calm and clear; the gateway's default is aura-2-andromeda-en
 }
-VOICE_CONFIG = {k: SPEECH[k] for k in ("ttsVendor", "ttsLabel", "ttsLanguage", "ttsVoice")}
+
+
+def speech(route: "Route") -> dict:
+    """The call's speech settings with its own voice."""
+    return {**SPEECH, "ttsVoice": route.voice}
+
+
+def voice_config(route: "Route") -> dict:
+    """The same voice in the shape an AI Agent's voiceConfigs takes."""
+    return {k: v for k, v in speech(route).items() if k.startswith("tts")}
 
 
 @dataclass(frozen=True)
@@ -81,6 +89,7 @@ class Route:
     still_here: str          # said after 20 quiet seconds, at most twice
     goodbye: str
     temperature: float
+    voice: str               # a Deepgram Aura-2 voice, said in the flow and on the agent
 
 
 ERROR_LINE = "I'm sorry, I lost my words for a moment. Could you say that again?"
@@ -138,6 +147,7 @@ Privacy
     still_here="I'm still here, whenever you're ready.",
     goodbye="Thank you for sharing this time with me. Go gently. Refuge is here whenever you need it.",
     temperature=0.5,  # warm, but steady
+    voice="aura-2-iris-en",  # feminine, cheerful and approachable
 )
 
 STUDY = Route(
@@ -192,6 +202,7 @@ Privacy
     still_here="I'm still here. Ask whenever you're ready.",
     goodbye="Thanks for studying with me. Come back anytime.",
     temperature=0.3,  # steady and exact
+    voice="aura-2-phoebe-en",  # feminine, warm and energetic
 )
 
 ROUTES = {"refuge": REFUGE, "study": STUDY}
@@ -282,9 +293,9 @@ def ensure_agent(api: Cognigy, project_id: str, route: Route) -> dict:
         # Neither call is remembered, so no contact profile reaches her.
         "contactProfilesOption": "none",
         "enableAutoLanguageDetection": False,
-        # The call's own settings (SPEECH) set the voice; the agent names the same one.
+        # The call's own settings (speech()) set the voice; the agent names the same one.
         "enableVoiceConfigs": True,
-        "voiceConfigs": {**VOICE_CONFIG, "ttsModel": "", "ttsDisableCache": False},
+        "voiceConfigs": {**voice_config(route), "ttsModel": "", "ttsDisableCache": False},
         "safetySettings": {
             "avoidHarmfulContent": True,
             "avoidUngroundedContent": True,
@@ -322,7 +333,7 @@ def build_flow(api: Cognigy, flow_id: str, route: Route, agent: dict, mcp_url: s
     # endpoint can't hold speech settings (no Voice Gateway account of our
     # own), so without these the call can neither speak nor hear.
     session = b.add("setSessionConfig", first, "append", "Call settings", extension="@cognigy/voicegateway2", config={
-        **SPEECH,
+        **speech(route),
         # Turn-taking. Deepgram ended a turn after a quarter second of quiet
         # (its default), so a caller pausing mid-thought had the rest of their
         # sentence arrive while she spoke, cutting off each line she had left.

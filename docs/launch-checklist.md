@@ -45,7 +45,7 @@ Tick a box by changing `[ ]` to `[x]`.
 - [x] By text: greets saying who she is, quotes find_verses word for word, gives the range of views on a disputed question, hangs up on goodbye.
 - [ ] Tested on iPhone and Android: greeting, a question, barge-in, tapping the mic to end, locking the screen.
 - [ ] What's said shows in the Aquila thread as it's said.
-- [ ] Sounds the same voice as Refuge's call.
+- [ ] Speaks as Phoebe here and as Iris in Refuge's call.
 
 ## 4. Speed
 
