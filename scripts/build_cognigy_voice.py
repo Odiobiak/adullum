@@ -14,7 +14,8 @@ Both are built the same way, and both speak in the one voice in SPEECH:
     Flow
       Start
       Once
-        On first time   Set Session Config (SPEECH, barge-in, gentle no-input)
+        On first time   Set Session Config (SPEECH, turn-taking, gentle no-input)
+                        Sleep, so the line's audio is flowing before she speaks
                         Say the greeting
         Afterwards      AI Agent job
                           Default            her spoken reply
@@ -117,7 +118,7 @@ REFUGE = Route(
     ),
     job_instructions=f"""This is a voice call. Everything you say is spoken aloud.
 - Reply in two to four short sentences, then stop and let them talk. Ask at most one gentle question.
-- No lists, headings, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
+- No lists, headings, line breaks, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
 - Show you heard them in your own words. Don't rush to fix or explain. When they're hopeful or grateful, be glad with them.
 
 Scripture
@@ -165,7 +166,7 @@ STUDY = Route(
     ),
     job_instructions=f"""This is a voice call. Everything you say is spoken aloud.
 - Answer in three to five short sentences, then stop. If it helps, end with one short question about where to go next.
-- No lists, headings, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
+- No lists, headings, line breaks, symbols or emojis. Say a reference the way a person would: "John chapter fourteen, verse twenty-seven".
 - Answer the question they asked. Don't repeat it back first.
 
 Finding the verses
@@ -322,9 +323,15 @@ def build_flow(api: Cognigy, flow_id: str, route: Route, agent: dict, mcp_url: s
     # own), so without these the call can neither speak nor hear.
     session = b.add("setSessionConfig", first, "append", "Call settings", extension="@cognigy/voicegateway2", config={
         **SPEECH,
-        # The caller can talk over her; two words, so a "mm" doesn't cut her off.
+        # Turn-taking. Deepgram ended a turn after a quarter second of quiet
+        # (its default), so a caller pausing mid-thought had the rest of their
+        # sentence arrive while she spoke, cutting off each line she had left.
+        # A full second (Cognigy's most) lets people pause; three words to
+        # talk over her, so "okay, yeah" or her own echo doesn't skip a line.
+        "deepgramEndpointing": True,
+        "deepgramEndpointingValue": 1000,
         "bargeInOnSpeech": True,
-        "bargeInMinWordCount": 2,
+        "bargeInMinWordCount": 3,
         # People pause to think. After 20 quiet seconds, a gentle word, at
         # most twice; never a prompt to hurry.
         "userNoInputTimeoutEnable": True,
@@ -332,8 +339,11 @@ def build_flow(api: Cognigy, flow_id: str, route: Route, agent: dict, mcp_url: s
         "userNoInputTimeout": 20000,
         "userNoInputRetries": 2,
         "userNoInputSpeech": route.still_here,
-    }, comment="Deepgram speech, barge-in on, and a gentle line after 20 quiet seconds. Set in scripts/build_cognigy_voice.py.")
-    b.add("say", session, "append", "Greeting", config={"say": {"type": "text", "text": [route.greeting], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
+    }, comment="Deepgram speech, patient turn-taking, and a gentle line after 20 quiet seconds. Set in scripts/build_cognigy_voice.py.")
+    # The flow runs the instant the call is answered, before the caller's audio
+    # is flowing, so the greeting's first word ("Hi") was lost.
+    pause = b.add("sleep", session, "append", "Let the line settle", config={"milliseconds": 800})
+    b.add("say", pause, "append", "Greeting", config={"say": {"type": "text", "text": [route.greeting], "data": "", "linear": False, "loop": False, "_cognigy": {}}})
 
     # The agent's job for this call.
     job = b.add("aiAgentJob", afterwards, "append", route.agent_name, config={

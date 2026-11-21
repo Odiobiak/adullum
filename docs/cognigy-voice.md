@@ -68,8 +68,13 @@ tenant, create a project first; a new config URL goes in
   tools run without Langfuse tracing, as Refuge promises.
 - **Care comes first.** If someone may be in danger, she gives helplines and
   "Talk to a person", and never ends the call herself.
-- **Gentle pacing.** The caller can talk over her (two words, so a "mm"
-  doesn't), and after 20 quiet seconds she says she's still there, at most twice.
+- **Gentle pacing.** A turn ends after a full second of quiet, not Deepgram's
+  quarter second, so a pause mid-thought doesn't send half a sentence (the rest
+  used to arrive while she spoke and cut off each line she had left). The
+  caller can talk over her with three words, so "okay, yeah" or her own echo
+  doesn't skip a line. She waits 800 ms before the greeting, since the flow
+  runs before the caller's audio is flowing and "Hi" was lost. After 20 quiet
+  seconds she says she's still there, at most twice.
 
 ## Manual steps (the API can't do these)
 
